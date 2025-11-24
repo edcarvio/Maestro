@@ -14,8 +14,14 @@ import { SessionList } from './components/SessionList';
 import { RightPanel } from './components/RightPanel';
 import { TerminalOutput } from './components/TerminalOutput';
 import { InputArea } from './components/InputArea';
-import data from '@emoji-mart/data';
-import Picker from '@emoji-mart/react';
+import { QuickActionsModal } from './components/QuickActionsModal';
+import { LightboxModal } from './components/LightboxModal';
+import { ShortcutsHelpModal } from './components/ShortcutsHelpModal';
+import { AboutModal } from './components/AboutModal';
+import { CreateGroupModal } from './components/CreateGroupModal';
+import { RenameSessionModal } from './components/RenameSessionModal';
+import { RenameGroupModal } from './components/RenameGroupModal';
+import { ConfirmModal } from './components/ConfirmModal';
 
 // Import custom hooks
 import { useSettings, useSessionManager, useFileExplorer } from './hooks';
@@ -1076,257 +1082,6 @@ export default function MaestroConsole() {
 
   // --- SUBCOMPONENTS ---
 
-  const QuickActions = () => {
-    const [search, setSearch] = useState('');
-    const [selectedIndex, setSelectedIndex] = useState(0);
-    const [mode, setMode] = useState<'main' | 'move-to-group'>('main');
-    const [renamingSession, setRenamingSession] = useState(false);
-    const [renameValue, setRenameValue] = useState('');
-    const [firstVisibleIndex, setFirstVisibleIndex] = useState(0);
-    const inputRef = useRef<HTMLInputElement>(null);
-    const selectedItemRef = useRef<HTMLButtonElement>(null);
-    const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => inputRef.current?.focus(), []);
-
-    // Scroll selected item into view
-    useEffect(() => {
-      selectedItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }, [selectedIndex]);
-
-    // Track scroll position to determine which items are visible
-    const handleScroll = () => {
-      if (scrollContainerRef.current) {
-        const scrollTop = scrollContainerRef.current.scrollTop;
-        const itemHeight = 52; // Approximate height of each item (py-3 = 12px top + 12px bottom + content)
-        const visibleIndex = Math.floor(scrollTop / itemHeight);
-        setFirstVisibleIndex(visibleIndex);
-      }
-    };
-
-    const handleRenameSession = () => {
-      if (renameValue.trim()) {
-        const updatedSessions = sessions.map(s =>
-          s.id === activeSessionId ? { ...s, name: renameValue.trim() } : s
-        );
-        setSessions(updatedSessions);
-        setQuickActionOpen(false);
-      }
-    };
-
-    const handleMoveToGroup = (groupId: string) => {
-      const updatedSessions = sessions.map(s =>
-        s.id === activeSessionId ? { ...s, groupId } : s
-      );
-      setSessions(updatedSessions);
-      setQuickActionOpen(false);
-    };
-
-    const handleCreateGroup = () => {
-      setNewGroupName('');
-      setMoveSessionToNewGroup(true); // When creating from Command-K, move session to new group
-      setCreateGroupModalOpen(true);
-      setQuickActionOpen(false);
-    };
-
-    const sessionActions = sessions.map(s => ({
-      id: `jump-${s.id}`,
-      label: `Jump to: ${s.name}`,
-      action: () => {
-        setActiveSessionId(s.id);
-        // Auto-expand group if it's collapsed
-        if (s.groupId) {
-          setGroups(prev => prev.map(g =>
-            g.id === s.groupId && g.collapsed ? { ...g, collapsed: false } : g
-          ));
-        }
-      },
-      subtext: s.state.toUpperCase()
-    }));
-
-    const mainActions = [
-      ...sessionActions,
-      { id: 'new', label: 'New Agent', shortcut: shortcuts.newInstance, action: addNewSession },
-      ...(activeSession ? [{ id: 'rename', label: 'Rename Current Agent', action: () => {
-        setRenameInstanceValue(activeSession.name);
-        setRenameInstanceModalOpen(true);
-        setQuickActionOpen(false);
-      } }] : []),
-      ...(activeSession?.groupId ? [{
-        id: 'renameGroup',
-        label: 'Rename Group',
-        action: () => {
-          const group = groups.find(g => g.id === activeSession.groupId);
-          if (group) {
-            setRenameGroupId(group.id);
-            setRenameGroupValue(group.name);
-            setRenameGroupEmoji(group.emoji);
-            setRenameGroupModalOpen(true);
-            setQuickActionOpen(false);
-          }
-        }
-      }] : []),
-      ...(activeSession ? [{ id: 'moveToGroup', label: 'Move to Group...', action: () => { setMode('move-to-group'); setSelectedIndex(0); } }] : []),
-      { id: 'createGroup', label: 'Create New Group', action: handleCreateGroup },
-      { id: 'toggleSidebar', label: 'Toggle Sidebar', shortcut: shortcuts.toggleSidebar, action: () => setLeftSidebarOpen(p => !p) },
-      { id: 'toggleRight', label: 'Toggle Right Panel', shortcut: shortcuts.toggleRightPanel, action: () => setRightPanelOpen(p => !p) },
-      ...(activeSession ? [{ id: 'switchMode', label: 'Switch AI/Shell Mode', shortcut: shortcuts.toggleMode, action: toggleInputMode }] : []),
-      ...(activeSession ? [{ id: 'kill', label: 'Kill Current Agent', shortcut: shortcuts.killInstance, action: () => deleteSession(activeSessionId) }] : []),
-      { id: 'settings', label: 'Settings', action: () => { setSettingsModalOpen(true); setQuickActionOpen(false); } },
-      { id: 'theme', label: 'Change Theme', action: () => { setSettingsModalOpen(true); setSettingsTab('theme'); setQuickActionOpen(false); } },
-      { id: 'shortcuts', label: 'View Shortcuts', shortcut: shortcuts.help, action: () => { setShortcutsHelpOpen(true); setQuickActionOpen(false); } },
-      { id: 'devtools', label: 'Toggle JavaScript Console', action: () => { window.maestro.devtools.toggle(); setQuickActionOpen(false); } },
-      { id: 'about', label: 'About Maestro', action: () => { setAboutModalOpen(true); setQuickActionOpen(false); } },
-      { id: 'goToFiles', label: 'Go to Files Tab', action: () => { setRightPanelOpen(true); setActiveRightTab('files'); setQuickActionOpen(false); } },
-      { id: 'goToHistory', label: 'Go to History Tab', action: () => { setRightPanelOpen(true); setActiveRightTab('history'); setQuickActionOpen(false); } },
-      { id: 'goToScratchpad', label: 'Go to Scratchpad Tab', action: () => { setRightPanelOpen(true); setActiveRightTab('scratchpad'); setQuickActionOpen(false); } },
-    ];
-
-    const groupActions = [
-      { id: 'back', label: '← Back to main menu', action: () => { setMode('main'); setSelectedIndex(0); } },
-      { id: 'no-group', label: '📁 No Group (Root)', action: () => handleMoveToGroup('') },
-      ...groups.map(g => ({
-        id: `group-${g.id}`,
-        label: `${g.emoji} ${g.name}`,
-        action: () => handleMoveToGroup(g.id)
-      })),
-      { id: 'create-new', label: '+ Create New Group', action: handleCreateGroup }
-    ];
-
-    const actions = mode === 'main' ? mainActions : groupActions;
-    const filtered = actions.filter(a => a.label.toLowerCase().includes(search.toLowerCase()));
-
-    useEffect(() => {
-      setSelectedIndex(0);
-      setFirstVisibleIndex(0);
-    }, [search, mode]);
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (renamingSession) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          handleRenameSession();
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          setRenamingSession(false);
-        }
-        return;
-      }
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedIndex(prev => Math.min(prev + 1, filtered.length - 1));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedIndex(prev => Math.max(prev - 1, 0));
-      } else if (e.key === 'Enter') {
-        if (filtered[selectedIndex]) {
-          filtered[selectedIndex].action();
-          if (!renamingSession && mode === 'main') {
-            setQuickActionOpen(false);
-          }
-        }
-      } else if (e.key === 'Escape' && mode === 'move-to-group') {
-        e.preventDefault();
-        setMode('main');
-        setSelectedIndex(0);
-      } else if (e.metaKey && ['1', '2', '3', '4', '5', '6', '7', '8'].includes(e.key)) {
-        e.preventDefault();
-        const number = parseInt(e.key);
-        const targetIndex = firstVisibleIndex + number - 1;
-        if (filtered[targetIndex]) {
-          filtered[targetIndex].action();
-          if (!renamingSession && mode === 'main') {
-            setQuickActionOpen(false);
-          }
-        }
-      }
-    };
-
-    return (
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-32 z-50 animate-in fade-in duration-100">
-        <div className="w-[500px] rounded-xl shadow-2xl border overflow-hidden flex flex-col max-h-[550px]"
-             style={{ backgroundColor: theme.colors.bgActivity, borderColor: theme.colors.border }}>
-          <div className="p-4 border-b flex items-center gap-3" style={{ borderColor: theme.colors.border }}>
-            <Search className="w-5 h-5" style={{ color: theme.colors.textDim }} />
-            {renamingSession ? (
-              <input
-                ref={inputRef}
-                className="flex-1 bg-transparent outline-none text-lg"
-                placeholder="Enter new name..."
-                style={{ color: theme.colors.textMain }}
-                value={renameValue}
-                onChange={e => setRenameValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                autoFocus
-              />
-            ) : (
-              <input
-                ref={inputRef}
-                className="flex-1 bg-transparent outline-none text-lg placeholder-opacity-50"
-                placeholder="Type a command or jump to agent..."
-                style={{ color: theme.colors.textMain }}
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-            )}
-            <div className="px-2 py-0.5 rounded text-xs font-bold" style={{ backgroundColor: theme.colors.bgMain, color: theme.colors.textDim }}>ESC</div>
-          </div>
-          {!renamingSession && (
-            <div className="overflow-y-auto py-2" ref={scrollContainerRef} onScroll={handleScroll}>
-              {filtered.map((a, i) => {
-                // Calculate dynamic number badge (1-8) based on first visible item
-                const distanceFromFirstVisible = i - firstVisibleIndex;
-                const showNumber = distanceFromFirstVisible >= 0 && distanceFromFirstVisible < 8;
-                const numberBadge = distanceFromFirstVisible + 1;
-
-                return (
-                  <button
-                    key={a.id}
-                    ref={i === selectedIndex ? selectedItemRef : null}
-                    onClick={() => { a.action(); if (mode === 'main') setQuickActionOpen(false); }}
-                    className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-opacity-10 ${i === selectedIndex ? 'bg-opacity-10' : ''}`}
-                    style={{
-                      backgroundColor: i === selectedIndex ? theme.colors.accent : 'transparent',
-                      color: theme.colors.textMain
-                    }}
-                  >
-                    {showNumber ? (
-                      <div
-                        className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-xs font-bold"
-                        style={{ backgroundColor: theme.colors.bgMain, color: theme.colors.textDim }}
-                      >
-                        {numberBadge}
-                      </div>
-                    ) : (
-                      <div className="flex-shrink-0 w-5 h-5" />
-                    )}
-                    <div className="flex flex-col flex-1">
-                      <span className="font-medium">{a.label}</span>
-                      {/* @ts-ignore */}
-                      {a.subtext && <span className="text-[10px] opacity-50">{a.subtext}</span>}
-                    </div>
-                    {/* @ts-ignore */}
-                    {a.shortcut && (
-                      <span className="text-xs font-mono opacity-60">
-                        {/* @ts-ignore */}
-                        {a.shortcut.keys.join('+')}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-              {filtered.length === 0 && (
-                <div className="px-4 py-4 text-center opacity-50 text-sm">No actions found</div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   const ShortcutEditor = () => {
     const [recordingId, setRecordingId] = useState<string | null>(null);
 
@@ -1768,576 +1523,118 @@ export default function MaestroConsole() {
       />
 
       {/* --- MODALS --- */}
-      {quickActionOpen && <QuickActions />}
-      {lightboxImage && (() => {
-        const currentIndex = stagedImages.indexOf(lightboxImage);
-        const canNavigate = stagedImages.length > 1;
-        const lightboxRef = useRef<HTMLDivElement>(null);
-
-        useEffect(() => {
-          // Focus the lightbox when it opens
-          lightboxRef.current?.focus();
-        }, []);
-
-        const goToPrev = () => {
-          if (canNavigate && currentIndex > 0) {
-            setLightboxImage(stagedImages[currentIndex - 1]);
-          }
-        };
-        const goToNext = () => {
-          if (canNavigate && currentIndex < stagedImages.length - 1) {
-            setLightboxImage(stagedImages[currentIndex + 1]);
-          }
-        };
-
-        return (
-          <div
-            ref={lightboxRef}
-            className="absolute inset-0 z-[100] bg-black/90 flex items-center justify-center"
-            onClick={() => setLightboxImage(null)}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === 'ArrowLeft') { e.preventDefault(); goToPrev(); }
-              else if (e.key === 'ArrowRight') { e.preventDefault(); goToNext(); }
-              else if (e.key === 'Escape') { e.preventDefault(); setLightboxImage(null); }
-            }}
-            tabIndex={0}
-          >
-            {canNavigate && currentIndex > 0 && (
-              <button
-                onClick={(e) => { e.stopPropagation(); goToPrev(); }}
-                className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white rounded-full p-3 backdrop-blur-sm transition-colors"
-              >
-                ←
-              </button>
-            )}
-            <img src={lightboxImage} className="max-w-[90%] max-h-[90%] rounded shadow-2xl" onClick={(e) => e.stopPropagation()} />
-            {canNavigate && currentIndex < stagedImages.length - 1 && (
-              <button
-                onClick={(e) => { e.stopPropagation(); goToNext(); }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white rounded-full p-3 backdrop-blur-sm transition-colors"
-              >
-                →
-              </button>
-            )}
-            <div className="absolute bottom-10 text-white text-sm opacity-70">
-              {canNavigate ? `Image ${currentIndex + 1} of ${stagedImages.length} • ← → to navigate • ` : ''}ESC to close
-            </div>
-          </div>
-        );
-      })()}
+      {quickActionOpen && (
+        <QuickActionsModal
+          theme={theme}
+          sessions={sessions}
+          setSessions={setSessions}
+          activeSessionId={activeSessionId}
+          groups={groups}
+          setGroups={setGroups}
+          shortcuts={shortcuts}
+          setQuickActionOpen={setQuickActionOpen}
+          setActiveSessionId={setActiveSessionId}
+          addNewSession={addNewSession}
+          setRenameInstanceValue={setRenameInstanceValue}
+          setRenameInstanceModalOpen={setRenameInstanceModalOpen}
+          setRenameGroupId={setRenameGroupId}
+          setRenameGroupValue={setRenameGroupValue}
+          setRenameGroupEmoji={setRenameGroupEmoji}
+          setRenameGroupModalOpen={setRenameGroupModalOpen}
+          setNewGroupName={setNewGroupName}
+          setMoveSessionToNewGroup={setMoveSessionToNewGroup}
+          setCreateGroupModalOpen={setCreateGroupModalOpen}
+          setLeftSidebarOpen={setLeftSidebarOpen}
+          setRightPanelOpen={setRightPanelOpen}
+          toggleInputMode={toggleInputMode}
+          deleteSession={deleteSession}
+          setSettingsModalOpen={setSettingsModalOpen}
+          setSettingsTab={setSettingsTab}
+          setShortcutsHelpOpen={setShortcutsHelpOpen}
+          setAboutModalOpen={setAboutModalOpen}
+          setActiveRightTab={setActiveRightTab}
+        />
+      )}
+      {lightboxImage && (
+        <LightboxModal
+          image={lightboxImage}
+          stagedImages={stagedImages}
+          onClose={() => setLightboxImage(null)}
+          onNavigate={(img) => setLightboxImage(img)}
+        />
+      )}
 
       {/* --- SHORTCUTS HELP MODAL --- */}
       {shortcutsHelpOpen && (
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
-          <div className="w-[400px] border rounded-lg shadow-2xl overflow-hidden" style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}>
-            <div className="p-4 border-b" style={{ borderColor: theme.colors.border }}>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-bold" style={{ color: theme.colors.textMain }}>Keyboard Shortcuts</h2>
-                <button onClick={() => setShortcutsHelpOpen(false)} style={{ color: theme.colors.textDim }}>
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <input
-                type="text"
-                value={shortcutsSearchQuery}
-                onChange={(e) => setShortcutsSearchQuery(e.target.value)}
-                placeholder="Search shortcuts..."
-                className="w-full px-3 py-2 rounded border bg-transparent outline-none text-sm"
-                style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-                autoFocus
-              />
-            </div>
-            <div className="p-4 space-y-2 max-h-[400px] overflow-y-auto">
-               {Object.values(shortcuts).filter(sc =>
-                 fuzzyMatch(sc.label, shortcutsSearchQuery) ||
-                 fuzzyMatch(sc.keys.join(' '), shortcutsSearchQuery)
-               ).map((sc, i) => (
-                 <div key={i} className="flex justify-between items-center text-sm">
-                    <span style={{ color: theme.colors.textDim }}>{sc.label}</span>
-                    <kbd className="px-2 py-1 rounded border font-mono text-xs font-bold" style={{ backgroundColor: theme.colors.bgActivity, borderColor: theme.colors.border, color: theme.colors.textMain }}>
-                      {sc.keys.join(' ')}
-                    </kbd>
-                 </div>
-               ))}
-               {Object.values(shortcuts).filter(sc =>
-                 fuzzyMatch(sc.label, shortcutsSearchQuery) ||
-                 fuzzyMatch(sc.keys.join(' '), shortcutsSearchQuery)
-               ).length === 0 && (
-                 <div className="text-center text-sm opacity-50" style={{ color: theme.colors.textDim }}>
-                   No shortcuts found
-                 </div>
-               )}
-            </div>
-          </div>
-        </div>
+        <ShortcutsHelpModal
+          theme={theme}
+          shortcuts={shortcuts}
+          onClose={() => setShortcutsHelpOpen(false)}
+        />
       )}
 
       {/* --- ABOUT MODAL --- */}
       {aboutModalOpen && (
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
-          <div className="w-[450px] border rounded-lg shadow-2xl overflow-hidden" style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}>
-            <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: theme.colors.border }}>
-              <h2 className="text-sm font-bold" style={{ color: theme.colors.textMain }}>About Maestro</h2>
-              <button onClick={() => setAboutModalOpen(false)} style={{ color: theme.colors.textDim }}>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-6 space-y-5">
-              {/* Logo and Title */}
-              <div className="flex items-center gap-4">
-                <Wand2 className="w-12 h-12" style={{ color: theme.colors.accent }} />
-                <div>
-                  <h1 className="text-2xl font-bold tracking-widest" style={{ color: theme.colors.textMain }}>MAESTRO</h1>
-                  <p className="text-xs opacity-70" style={{ color: theme.colors.textDim }}>Agent Orchestration Command Center</p>
-                </div>
-              </div>
-
-              {/* Author Section */}
-              <div className="flex items-center gap-4 p-4 rounded border" style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgActivity }}>
-                <img
-                  src="https://avatars.githubusercontent.com/u/1253573?v=4"
-                  alt="Pedram Amini"
-                  className="w-16 h-16 rounded-full border-2"
-                  style={{ borderColor: theme.colors.accent }}
-                />
-                <div className="flex-1">
-                  <div className="text-sm font-bold" style={{ color: theme.colors.textMain }}>Pedram Amini</div>
-                  <div className="text-xs opacity-70 mb-2" style={{ color: theme.colors.textDim }}>Founder, Hacker, Investor, Advisor</div>
-                  <div className="flex flex-col gap-1">
-                    <button
-                      onClick={() => window.maestro.shell.openExternal('https://github.com/pedramamini')}
-                      className="inline-flex items-center gap-1 text-xs hover:underline cursor-pointer text-left"
-                      style={{ color: theme.colors.accent, background: 'none', border: 'none', padding: 0 }}
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      GitHub Profile
-                    </button>
-                    <button
-                      onClick={() => window.maestro.shell.openExternal('https://www.linkedin.com/in/pedramamini/')}
-                      className="inline-flex items-center gap-1 text-xs hover:underline cursor-pointer text-left"
-                      style={{ color: theme.colors.accent, background: 'none', border: 'none', padding: 0 }}
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      LinkedIn Profile
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Project Link */}
-              <div className="pt-2 border-t" style={{ borderColor: theme.colors.border }}>
-                <button
-                  onClick={() => window.maestro.shell.openExternal('https://github.com/pedramamini/Maestro')}
-                  className="w-full flex items-center justify-between p-3 rounded border hover:bg-white/5 transition-colors"
-                  style={{ borderColor: theme.colors.border }}
-                >
-                  <div className="flex items-center gap-2">
-                    <FileCode className="w-4 h-4" style={{ color: theme.colors.accent }} />
-                    <span className="text-sm font-medium" style={{ color: theme.colors.textMain }}>View on GitHub</span>
-                  </div>
-                  <ExternalLink className="w-4 h-4" style={{ color: theme.colors.textDim }} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <AboutModal
+          theme={theme}
+          onClose={() => setAboutModalOpen(false)}
+        />
       )}
 
       {/* --- CREATE GROUP MODAL --- */}
       {createGroupModalOpen && (
-        <div
-          className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200"
-          onKeyDown={(e) => {
-            if (e.key !== 'Escape') {
-              e.stopPropagation();
-            }
+        <CreateGroupModal
+          theme={theme}
+          onClose={() => {
+            setCreateGroupModalOpen(false);
+            setMoveSessionToNewGroup(false);
           }}
-        >
-          <div className="w-[400px] border rounded-lg shadow-2xl overflow-hidden" style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}>
-            <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: theme.colors.border }}>
-              <h2 className="text-sm font-bold" style={{ color: theme.colors.textMain }}>Create New Group</h2>
-              <button onClick={() => setCreateGroupModalOpen(false)} style={{ color: theme.colors.textDim }}>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="flex gap-4 items-end">
-                {/* Emoji Selector - Left Side */}
-                <div className="flex flex-col gap-2">
-                  <label className="block text-xs font-bold opacity-70 uppercase" style={{ color: theme.colors.textMain }}>
-                    Icon
-                  </label>
-                  <button
-                    onClick={() => setEmojiPickerOpen(!emojiPickerOpen)}
-                    className="p-3 rounded border bg-transparent text-3xl hover:bg-white/5 transition-colors w-16 h-[52px] flex items-center justify-center"
-                    style={{ borderColor: theme.colors.border }}
-                    type="button"
-                  >
-                    {newGroupEmoji}
-                  </button>
-                </div>
-
-                {/* Group Name Input - Right Side */}
-                <div className="flex-1 flex flex-col gap-2">
-                  <label className="block text-xs font-bold opacity-70 uppercase" style={{ color: theme.colors.textMain }}>
-                    Group Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newGroupName}
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleCreateGroupConfirm();
-                      } else if (e.key === 'Escape') {
-                        e.preventDefault();
-                        setCreateGroupModalOpen(false);
-                      }
-                    }}
-                    placeholder="Enter group name..."
-                    className="w-full p-3 rounded border bg-transparent outline-none h-[52px]"
-                    style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-                    autoFocus={!emojiPickerOpen}
-                  />
-                </div>
-              </div>
-
-              {/* Emoji Picker Overlay */}
-              {emojiPickerOpen && (
-                <div
-                  className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60]"
-                  onClick={() => setEmojiPickerOpen(false)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setEmojiPickerOpen(false);
-                    }
-                  }}
-                  tabIndex={0}
-                  ref={(el) => el?.focus()}
-                >
-                  <div
-                    className="rounded-lg border-2 shadow-2xl overflow-visible relative"
-                    style={{ borderColor: theme.colors.accent, backgroundColor: theme.colors.bgSidebar }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {/* Close button */}
-                    <button
-                      onClick={() => setEmojiPickerOpen(false)}
-                      className="absolute -top-3 -right-3 z-10 p-2 rounded-full shadow-lg hover:scale-110 transition-transform"
-                      style={{ backgroundColor: theme.colors.bgSidebar, color: theme.colors.textMain, border: `2px solid ${theme.colors.border}` }}
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                    <Picker
-                      data={data}
-                      onEmojiSelect={(emoji: any) => {
-                        setNewGroupEmoji(emoji.native);
-                        setEmojiPickerOpen(false);
-                      }}
-                      theme={theme.mode}
-                      previewPosition="none"
-                      searchPosition="sticky"
-                      perLine={9}
-                      set="native"
-                      autoFocus
-                    />
-                  </div>
-                </div>
-              )}
-              <div className="mt-4 flex justify-end gap-2">
-                <button
-                  onClick={() => setCreateGroupModalOpen(false)}
-                  className="px-4 py-2 rounded border hover:bg-white/5 transition-colors"
-                  style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateGroupConfirm}
-                  disabled={!newGroupName.trim()}
-                  className="px-4 py-2 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: theme.colors.accent }}
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+          groups={groups}
+          setGroups={setGroups}
+          sessions={sessions}
+          setSessions={setSessions}
+          activeSessionId={activeSessionId}
+          moveSessionToNewGroup={moveSessionToNewGroup}
+          setMoveSessionToNewGroup={setMoveSessionToNewGroup}
+        />
       )}
 
       {/* --- CONFIRMATION MODAL --- */}
       {confirmModalOpen && (
-        <div
-          className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200"
-          tabIndex={0}
-          ref={(el) => el?.focus()}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              e.stopPropagation();
-              if (confirmModalOnConfirm) {
-                confirmModalOnConfirm();
-              }
-              setConfirmModalOpen(false);
-            } else if (e.key === 'Escape') {
-              e.preventDefault();
-              e.stopPropagation();
-              setConfirmModalOpen(false);
-            } else {
-              e.stopPropagation();
-            }
-          }}
-        >
-          <div className="w-[450px] border rounded-lg shadow-2xl overflow-hidden" style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}>
-            <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: theme.colors.border }}>
-              <h2 className="text-sm font-bold" style={{ color: theme.colors.textMain }}>Confirm Action</h2>
-              <button onClick={() => setConfirmModalOpen(false)} style={{ color: theme.colors.textDim }}>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-6">
-              <p className="text-sm leading-relaxed" style={{ color: theme.colors.textMain }}>
-                {confirmModalMessage}
-              </p>
-              <div className="mt-6 flex justify-end gap-2">
-                <button
-                  onClick={() => setConfirmModalOpen(false)}
-                  className="px-4 py-2 rounded border hover:bg-white/5 transition-colors"
-                  style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    if (confirmModalOnConfirm) {
-                      confirmModalOnConfirm();
-                    }
-                    setConfirmModalOpen(false);
-                  }}
-                  className="px-4 py-2 rounded text-white"
-                  style={{ backgroundColor: theme.colors.error }}
-                >
-                  Confirm
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          theme={theme}
+          message={confirmModalMessage}
+          onConfirm={confirmModalOnConfirm}
+          onClose={() => setConfirmModalOpen(false)}
+        />
       )}
 
       {/* --- RENAME INSTANCE MODAL --- */}
       {renameInstanceModalOpen && (
-        <div
-          className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200"
-          onKeyDown={(e) => {
-            if (e.key !== 'Escape') {
-              e.stopPropagation();
-            }
-          }}
-        >
-          <div className="w-[400px] border rounded-lg shadow-2xl overflow-hidden" style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}>
-            <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: theme.colors.border }}>
-              <h2 className="text-sm font-bold" style={{ color: theme.colors.textMain }}>Rename Instance</h2>
-              <button onClick={() => setRenameInstanceModalOpen(false)} style={{ color: theme.colors.textDim }}>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-6">
-              <input
-                type="text"
-                value={renameInstanceValue}
-                onChange={(e) => setRenameInstanceValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (renameInstanceValue.trim()) {
-                      setSessions(prev => prev.map(s =>
-                        s.id === activeSessionId ? { ...s, name: renameInstanceValue.trim() } : s
-                      ));
-                      setRenameInstanceModalOpen(false);
-                    }
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    setRenameInstanceModalOpen(false);
-                  }
-                }}
-                placeholder="Enter agent name..."
-                className="w-full p-3 rounded border bg-transparent outline-none"
-                style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-                autoFocus
-              />
-              <div className="mt-4 flex justify-end gap-2">
-                <button
-                  onClick={() => setRenameInstanceModalOpen(false)}
-                  className="px-4 py-2 rounded border hover:bg-white/5 transition-colors"
-                  style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    if (renameInstanceValue.trim()) {
-                      setSessions(prev => prev.map(s =>
-                        s.id === activeSessionId ? { ...s, name: renameInstanceValue.trim() } : s
-                      ));
-                      setRenameInstanceModalOpen(false);
-                    }
-                  }}
-                  disabled={!renameInstanceValue.trim()}
-                  className="px-4 py-2 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: theme.colors.accent }}
-                >
-                  Rename
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <RenameSessionModal
+          theme={theme}
+          value={renameInstanceValue}
+          setValue={setRenameInstanceValue}
+          onClose={() => setRenameInstanceModalOpen(false)}
+          sessions={sessions}
+          setSessions={setSessions}
+          activeSessionId={activeSessionId}
+        />
       )}
 
       {/* --- RENAME GROUP MODAL --- */}
-      {renameGroupModalOpen && (
-        <div
-          className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200"
-          onKeyDown={(e) => {
-            if (e.key !== 'Escape') {
-              e.stopPropagation();
-            }
-          }}
-        >
-          <div className="w-[400px] border rounded-lg shadow-2xl overflow-hidden" style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}>
-            <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: theme.colors.border }}>
-              <h2 className="text-sm font-bold" style={{ color: theme.colors.textMain }}>Rename Group</h2>
-              <button onClick={() => setRenameGroupModalOpen(false)} style={{ color: theme.colors.textDim }}>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="flex gap-4 items-end">
-                {/* Emoji Selector - Left Side */}
-                <div className="flex flex-col gap-2">
-                  <label className="block text-xs font-bold opacity-70 uppercase" style={{ color: theme.colors.textMain }}>
-                    Icon
-                  </label>
-                  <button
-                    onClick={() => setRenameGroupEmojiPickerOpen(!renameGroupEmojiPickerOpen)}
-                    className="p-3 rounded border bg-transparent text-3xl hover:bg-white/5 transition-colors w-16 h-[52px] flex items-center justify-center"
-                    style={{ borderColor: theme.colors.border }}
-                    type="button"
-                  >
-                    {renameGroupEmoji}
-                  </button>
-                </div>
-
-                {/* Group Name Input - Right Side */}
-                <div className="flex-1 flex flex-col gap-2">
-                  <label className="block text-xs font-bold opacity-70 uppercase" style={{ color: theme.colors.textMain }}>
-                    Group Name
-                  </label>
-                  <input
-                    type="text"
-                    value={renameGroupValue}
-                    onChange={(e) => setRenameGroupValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (renameGroupValue.trim() && renameGroupId) {
-                          setGroups(prev => prev.map(g =>
-                            g.id === renameGroupId ? { ...g, name: renameGroupValue.trim().toUpperCase(), emoji: renameGroupEmoji } : g
-                          ));
-                          setRenameGroupModalOpen(false);
-                          setRenameGroupEmojiPickerOpen(false);
-                        }
-                      } else if (e.key === 'Escape') {
-                        e.preventDefault();
-                        setRenameGroupModalOpen(false);
-                      }
-                    }}
-                    placeholder="Enter group name..."
-                    className="w-full p-3 rounded border bg-transparent outline-none h-[52px]"
-                    style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-                    autoFocus={!renameGroupEmojiPickerOpen}
-                  />
-                </div>
-              </div>
-
-              {/* Emoji Picker Overlay */}
-              {renameGroupEmojiPickerOpen && (
-                <div
-                  className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60]"
-                  onClick={() => setRenameGroupEmojiPickerOpen(false)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setRenameGroupEmojiPickerOpen(false);
-                    }
-                  }}
-                  tabIndex={0}
-                  ref={(el) => el?.focus()}
-                >
-                  <div
-                    className="rounded-lg border-2 shadow-2xl overflow-visible relative"
-                    style={{ borderColor: theme.colors.accent, backgroundColor: theme.colors.bgSidebar }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {/* Close button */}
-                    <button
-                      onClick={() => setRenameGroupEmojiPickerOpen(false)}
-                      className="absolute -top-3 -right-3 z-10 p-2 rounded-full shadow-lg hover:scale-110 transition-transform"
-                      style={{ backgroundColor: theme.colors.bgSidebar, color: theme.colors.textMain, border: `2px solid ${theme.colors.border}` }}
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                    <Picker
-                      data={data}
-                      onEmojiSelect={(emoji: any) => {
-                        setRenameGroupEmoji(emoji.native);
-                        setRenameGroupEmojiPickerOpen(false);
-                      }}
-                      theme={theme.mode}
-                      previewPosition="none"
-                      searchPosition="sticky"
-                      perLine={9}
-                      set="native"
-                      autoFocus
-                    />
-                  </div>
-                </div>
-              )}
-              <div className="mt-4 flex justify-end gap-2">
-                <button
-                  onClick={() => setRenameGroupModalOpen(false)}
-                  className="px-4 py-2 rounded border hover:bg-white/5 transition-colors"
-                  style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    if (renameGroupValue.trim() && renameGroupId) {
-                      setGroups(prev => prev.map(g =>
-                        g.id === renameGroupId ? { ...g, name: renameGroupValue.trim().toUpperCase(), emoji: renameGroupEmoji } : g
-                      ));
-                      setRenameGroupModalOpen(false);
-                      setRenameGroupEmojiPickerOpen(false);
-                    }
-                  }}
-                  disabled={!renameGroupValue.trim()}
-                  className="px-4 py-2 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: theme.colors.accent }}
-                >
-                  Rename
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {renameGroupModalOpen && renameGroupId && (
+        <RenameGroupModal
+          theme={theme}
+          groupId={renameGroupId}
+          groupName={renameGroupValue}
+          setGroupName={setRenameGroupValue}
+          groupEmoji={renameGroupEmoji}
+          setGroupEmoji={setRenameGroupEmoji}
+          onClose={() => setRenameGroupModalOpen(false)}
+          groups={groups}
+          setGroups={setGroups}
+        />
       )}
 
       {/* --- LEFT SIDEBAR --- */}

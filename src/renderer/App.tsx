@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Terminal, Cpu, Plus, Settings, ChevronRight, ChevronDown, ChevronUp, Activity, Folder,
-  FileCode, FilePlus, FileDiff, Trash2, Sidebar, Clock, Key, Sparkles, FileText,
-  Wand2, Edit2, FolderPlus, X, Save, Eye, Columns, Keyboard, Command, Image as ImageIcon,
+  FileCode, FilePlus, FileDiff, Trash2, Sidebar, Key, FileText,
+  Wand2, Edit2, FolderPlus, X, Save, Eye, Columns, Keyboard, Image as ImageIcon,
   Search, Zap, Moon, Sun, Monitor, Globe, Radio, Network, Share2, PanelLeftClose, PanelLeftOpen,
-  PanelRightClose, PanelRightOpen, ExternalLink, Wifi, ArrowUp, CornerDownLeft, MessageSquare, Info
+  PanelRightClose, PanelRightOpen, ExternalLink, Wifi, ArrowUp, CornerDownLeft, Info
 } from 'lucide-react';
 import { NewInstanceModal } from './components/NewInstanceModal';
 import { SettingsModal } from './components/SettingsModal';

@@ -1,7 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import * as pty from 'node-pty';
-import { execFileNoThrow } from './utils/execFile';
 
 interface ProcessConfig {
   sessionId: string;
@@ -181,25 +180,6 @@ export class ProcessManager extends EventEmitter {
     for (const [sessionId] of this.processes) {
       this.kill(sessionId);
     }
-  }
-
-  /**
-   * Execute a one-off command (for git operations, etc.)
-   * Uses execFile for security - no shell injection
-   */
-  async execCommand(command: string, cwd: string): Promise<string> {
-    // Parse command into executable and args
-    const parts = command.split(' ');
-    const executable = parts[0];
-    const args = parts.slice(1);
-
-    const result = await execFileNoThrow(executable, args, cwd);
-
-    if (result.exitCode !== 0) {
-      throw new Error(result.stderr || `Command failed with exit code ${result.exitCode}`);
-    }
-
-    return result.stdout;
   }
 
   /**

@@ -156,21 +156,21 @@ function setupIpcHandlers() {
 
   // Git operations
   ipcMain.handle('git:status', async (_, cwd: string) => {
-    if (!processManager) throw new Error('Process manager not initialized');
-    return processManager.execCommand('git status --porcelain', cwd);
+    const result = await execFileNoThrow('git', ['status', '--porcelain'], cwd);
+    return { stdout: result.stdout, stderr: result.stderr };
   });
 
   ipcMain.handle('git:diff', async (_, cwd: string, file?: string) => {
-    if (!processManager) throw new Error('Process manager not initialized');
-    const command = file ? `git diff ${file}` : 'git diff';
-    return processManager.execCommand(command, cwd);
+    const args = file ? ['diff', file] : ['diff'];
+    const result = await execFileNoThrow('git', args, cwd);
+    return { stdout: result.stdout, stderr: result.stderr };
   });
 
   ipcMain.handle('git:isRepo', async (_, cwd: string) => {
     if (!processManager) throw new Error('Process manager not initialized');
     try {
-      await processManager.execCommand('git rev-parse --is-inside-work-tree', cwd);
-      return true;
+      const result = await execFileNoThrow('git', ['rev-parse', '--is-inside-work-tree'], cwd);
+      return result.exitCode === 0;
     } catch {
       return false;
     }

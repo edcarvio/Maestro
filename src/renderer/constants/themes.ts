@@ -1,6 +1,7 @@
 import type { Theme, ThemeId } from '../types';
 
 export const THEMES: Record<ThemeId, Theme> = {
+  // Dark themes
   dracula: {
     id: 'dracula',
     name: 'Dracula',
@@ -37,44 +38,6 @@ export const THEMES: Record<ThemeId, Theme> = {
       success: '#a6e22e',
       warning: '#e6db74',
       error: '#f92672'
-    }
-  },
-  'github-light': {
-    id: 'github-light',
-    name: 'GitHub',
-    mode: 'light',
-    colors: {
-      bgMain: '#ffffff',
-      bgSidebar: '#f6f8fa',
-      bgActivity: '#eff2f5',
-      border: '#d0d7de',
-      textMain: '#24292f',
-      textDim: '#57606a',
-      accent: '#0969da',
-      accentDim: 'rgba(9, 105, 218, 0.1)',
-      accentText: '#0969da',
-      success: '#1a7f37',
-      warning: '#9a6700',
-      error: '#cf222e'
-    }
-  },
-  'solarized-light': {
-    id: 'solarized-light',
-    name: 'Solarized',
-    mode: 'light',
-    colors: {
-      bgMain: '#fdf6e3',
-      bgSidebar: '#eee8d5',
-      bgActivity: '#e6dfc8',
-      border: '#d3cbb7',
-      textMain: '#657b83',
-      textDim: '#93a1a1',
-      accent: '#2aa198',
-      accentDim: 'rgba(42, 161, 152, 0.1)',
-      accentText: '#2aa198',
-      success: '#859900',
-      warning: '#b58900',
-      error: '#dc322f'
     }
   },
   nord: {
@@ -115,6 +78,83 @@ export const THEMES: Record<ThemeId, Theme> = {
       error: '#f7768e'
     }
   },
+  'catppuccin-mocha': {
+    id: 'catppuccin-mocha',
+    name: 'Catppuccin Mocha',
+    mode: 'dark',
+    colors: {
+      bgMain: '#1e1e2e',
+      bgSidebar: '#181825',
+      bgActivity: '#313244',
+      border: '#45475a',
+      textMain: '#cdd6f4',
+      textDim: '#bac2de',
+      accent: '#89b4fa',
+      accentDim: 'rgba(137, 180, 250, 0.2)',
+      accentText: '#89dceb',
+      success: '#a6e3a1',
+      warning: '#f9e2af',
+      error: '#f38ba8'
+    }
+  },
+  'gruvbox-dark': {
+    id: 'gruvbox-dark',
+    name: 'Gruvbox Dark',
+    mode: 'dark',
+    colors: {
+      bgMain: '#282828',
+      bgSidebar: '#1d2021',
+      bgActivity: '#3c3836',
+      border: '#504945',
+      textMain: '#ebdbb2',
+      textDim: '#a89984',
+      accent: '#83a598',
+      accentDim: 'rgba(131, 165, 152, 0.2)',
+      accentText: '#8ec07c',
+      success: '#b8bb26',
+      warning: '#fabd2f',
+      error: '#fb4934'
+    }
+  },
+  // Light themes
+  'github-light': {
+    id: 'github-light',
+    name: 'GitHub',
+    mode: 'light',
+    colors: {
+      bgMain: '#ffffff',
+      bgSidebar: '#f6f8fa',
+      bgActivity: '#eff2f5',
+      border: '#d0d7de',
+      textMain: '#24292f',
+      textDim: '#57606a',
+      accent: '#0969da',
+      accentDim: 'rgba(9, 105, 218, 0.1)',
+      accentText: '#0969da',
+      success: '#1a7f37',
+      warning: '#9a6700',
+      error: '#cf222e'
+    }
+  },
+  'solarized-light': {
+    id: 'solarized-light',
+    name: 'Solarized',
+    mode: 'light',
+    colors: {
+      bgMain: '#fdf6e3',
+      bgSidebar: '#eee8d5',
+      bgActivity: '#e6dfc8',
+      border: '#d3cbb7',
+      textMain: '#657b83',
+      textDim: '#93a1a1',
+      accent: '#2aa198',
+      accentDim: 'rgba(42, 161, 152, 0.1)',
+      accentText: '#2aa198',
+      success: '#859900',
+      warning: '#b58900',
+      error: '#dc322f'
+    }
+  },
   'one-light': {
     id: 'one-light',
     name: 'One Light',
@@ -151,6 +191,44 @@ export const THEMES: Record<ThemeId, Theme> = {
       success: '#98971a',
       warning: '#d79921',
       error: '#cc241d'
+    }
+  },
+  'catppuccin-latte': {
+    id: 'catppuccin-latte',
+    name: 'Catppuccin Latte',
+    mode: 'light',
+    colors: {
+      bgMain: '#eff1f5',
+      bgSidebar: '#e6e9ef',
+      bgActivity: '#dce0e8',
+      border: '#bcc0cc',
+      textMain: '#4c4f69',
+      textDim: '#5c5f77',
+      accent: '#1e66f5',
+      accentDim: 'rgba(30, 102, 245, 0.1)',
+      accentText: '#1e66f5',
+      success: '#40a02b',
+      warning: '#df8e1d',
+      error: '#d20f39'
+    }
+  },
+  'ayu-light': {
+    id: 'ayu-light',
+    name: 'Ayu Light',
+    mode: 'light',
+    colors: {
+      bgMain: '#fafafa',
+      bgSidebar: '#f3f4f5',
+      bgActivity: '#e7e8e9',
+      border: '#d9d9d9',
+      textMain: '#5c6166',
+      textDim: '#828c99',
+      accent: '#55b4d4',
+      accentDim: 'rgba(85, 180, 212, 0.1)',
+      accentText: '#399ee6',
+      success: '#86b300',
+      warning: '#f2ae49',
+      error: '#f07171'
     }
   }
 };

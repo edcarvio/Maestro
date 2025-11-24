@@ -443,7 +443,7 @@ The app is keyboard-first with these patterns:
 
 ### Theme System
 
-Themes defined in `THEMES` object in App.tsx with structure:
+Themes defined in `THEMES` object in `src/renderer/constants/themes.ts` with structure:
 ```typescript
 {
   id: string;
@@ -458,12 +458,17 @@ Themes defined in `THEMES` object in App.tsx with structure:
     textDim: string;     // Secondary text
     accent: string;      // Accent color
     accentDim: string;   // Dimmed accent
+    accentText: string;  // Accent text color
     success: string;     // Success state
     warning: string;     // Warning state
     error: string;       // Error state
   }
 }
 ```
+
+**Available themes:**
+- **Dark mode**: Dracula, Monokai, Nord, Tokyo Night, Catppuccin Mocha, Gruvbox Dark
+- **Light mode**: GitHub, Solarized, One Light, Gruvbox Light, Catppuccin Latte, Ayu Light
 
 Use `style={{ color: theme.colors.textMain }}` instead of fixed colors.
 

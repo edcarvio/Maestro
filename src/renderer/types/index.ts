@@ -5,7 +5,7 @@ export type SessionState = 'idle' | 'busy' | 'waiting_input';
 export type FileChangeType = 'modified' | 'added' | 'deleted';
 export type RightPanelTab = 'files' | 'history' | 'scratchpad';
 export type ScratchPadMode = 'raw' | 'preview' | 'wysiwyg';
-export type ThemeId = 'dracula' | 'monokai' | 'github-light' | 'solarized-light' | 'nord' | 'tokyo-night' | 'one-light' | 'gruvbox-light';
+export type ThemeId = 'dracula' | 'monokai' | 'github-light' | 'solarized-light' | 'nord' | 'tokyo-night' | 'one-light' | 'gruvbox-light' | 'catppuccin-mocha' | 'gruvbox-dark' | 'catppuccin-latte' | 'ayu-light';
 export type FocusArea = 'sidebar' | 'main' | 'right';
 export type LLMProvider = 'openrouter' | 'anthropic' | 'ollama';
 

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, forwardRef } from 'react';
 import { Activity, X } from 'lucide-react';
 import type { Session, Theme, LogEntry } from '../types';
 import Convert from 'ansi-to-html';
@@ -18,14 +18,15 @@ interface TerminalOutputProps {
   logsEndRef: React.RefObject<HTMLDivElement>;
 }
 
-export function TerminalOutput(props: TerminalOutputProps) {
+export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((props, ref) => {
   const {
     session, theme, activeFocus, outputSearchOpen, outputSearchQuery,
     setOutputSearchOpen, setOutputSearchQuery, setActiveFocus, setLightboxImage,
     inputRef, logsEndRef
   } = props;
 
-  const terminalOutputRef = useRef<HTMLDivElement>(null);
+  // Use the forwarded ref if provided, otherwise create a local one
+  const terminalOutputRef = (ref as React.RefObject<HTMLDivElement>) || useRef<HTMLDivElement>(null);
 
   // Auto-focus on search input when opened
   useEffect(() => {
@@ -81,11 +82,49 @@ export function TerminalOutput(props: TerminalOutputProps) {
       className="flex-1 overflow-y-auto p-6 space-y-4 transition-colors outline-none relative"
       style={{ backgroundColor: session.inputMode === 'ai' ? theme.colors.bgMain : theme.colors.bgActivity }}
       onKeyDown={(e) => {
+        // / to open search
+        if (e.key === '/' && !outputSearchOpen) {
+          e.preventDefault();
+          setOutputSearchOpen(true);
+          return;
+        }
+        // Escape handling
         if (e.key === 'Escape') {
           e.preventDefault();
           e.stopPropagation();
-          inputRef.current?.focus();
-          setActiveFocus('main');
+          if (outputSearchOpen) {
+            // Close search but stay focused on output
+            setOutputSearchOpen(false);
+            setOutputSearchQuery('');
+          } else {
+            // Focus back to text input
+            inputRef.current?.focus();
+            setActiveFocus('main');
+          }
+          return;
+        }
+        // Arrow key scrolling
+        if (e.key === 'ArrowUp' && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault();
+          terminalOutputRef.current?.scrollBy({ top: -40, behavior: 'smooth' });
+          return;
+        }
+        if (e.key === 'ArrowDown' && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault();
+          terminalOutputRef.current?.scrollBy({ top: 40, behavior: 'smooth' });
+          return;
+        }
+        // Cmd+Up to jump to top
+        if (e.key === 'ArrowUp' && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          terminalOutputRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        // Cmd+Down to jump to bottom
+        if (e.key === 'ArrowDown' && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          terminalOutputRef.current?.scrollTo({ top: terminalOutputRef.current.scrollHeight, behavior: 'smooth' });
+          return;
         }
       }}
     >
@@ -192,4 +231,6 @@ export function TerminalOutput(props: TerminalOutputProps) {
       <div ref={logsEndRef} />
     </div>
   );
-}
+});
+
+TerminalOutput.displayName = 'TerminalOutput';

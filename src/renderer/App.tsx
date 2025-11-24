@@ -855,51 +855,6 @@ export default function MaestroConsole() {
         return;
       }
 
-      // Terminal output scrolling
-      if (document.activeElement === terminalOutputRef.current) {
-        // / to open search
-        if (e.key === '/' && !outputSearchOpen) {
-          e.preventDefault();
-          setOutputSearchOpen(true);
-          return;
-        }
-        // Escape handling
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          if (outputSearchOpen) {
-            // Close search but stay focused on output
-            setOutputSearchOpen(false);
-            setOutputSearchQuery('');
-          } else {
-            // Focus back to text input
-            inputRef.current?.focus();
-            setActiveFocus('main');
-          }
-          return;
-        }
-        if (e.key === 'ArrowUp' && !e.metaKey && !e.ctrlKey) {
-          e.preventDefault();
-          terminalOutputRef.current?.scrollBy({ top: -40, behavior: 'smooth' });
-          return;
-        }
-        if (e.key === 'ArrowDown' && !e.metaKey && !e.ctrlKey) {
-          e.preventDefault();
-          terminalOutputRef.current?.scrollBy({ top: 40, behavior: 'smooth' });
-          return;
-        }
-        // Cmd+Up to jump to top
-        if (e.key === 'ArrowUp' && (e.metaKey || e.ctrlKey)) {
-          e.preventDefault();
-          terminalOutputRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-          return;
-        }
-        // Cmd+Down to jump to bottom
-        if (e.key === 'ArrowDown' && (e.metaKey || e.ctrlKey)) {
-          e.preventDefault();
-          terminalOutputRef.current?.scrollTo({ top: terminalOutputRef.current.scrollHeight, behavior: 'smooth' });
-          return;
-        }
-      }
 
       // General shortcuts
       if (isShortcut(e, 'toggleSidebar')) setLeftSidebarOpen(p => !p);
@@ -2010,6 +1965,7 @@ export default function MaestroConsole() {
         setRightPanelOpen={setRightPanelOpen}
         inputRef={inputRef}
         logsEndRef={logsEndRef}
+        terminalOutputRef={terminalOutputRef}
         fileTreeContainerRef={fileTreeContainerRef}
         toggleTunnel={toggleTunnel}
         toggleInputMode={toggleInputMode}

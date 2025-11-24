@@ -56,6 +56,7 @@ interface MainPanelProps {
   // Refs
   inputRef: React.RefObject<HTMLTextAreaElement>;
   logsEndRef: React.RefObject<HTMLDivElement>;
+  terminalOutputRef: React.RefObject<HTMLDivElement>;
   fileTreeContainerRef: React.RefObject<HTMLDivElement>;
 
   // Functions
@@ -78,9 +79,9 @@ export function MainPanel(props: MainPanelProps) {
     setInputValue, setEnterToSend, setStagedImages, setLightboxImage, setCommandHistoryOpen,
     setCommandHistoryFilter, setCommandHistorySelectedIndex, setSlashCommandOpen,
     setSelectedSlashCommandIndex, setPreviewFile, setMarkdownRawMode,
-    setAboutModalOpen, setRightPanelOpen, inputRef, logsEndRef, fileTreeContainerRef,
-    toggleTunnel, toggleInputMode, processInput, handleInputKeyDown, handlePaste, handleDrop,
-    getContextColor
+    setAboutModalOpen, setRightPanelOpen, inputRef, logsEndRef, terminalOutputRef,
+    fileTreeContainerRef, toggleTunnel, toggleInputMode, processInput, handleInputKeyDown,
+    handlePaste, handleDrop, getContextColor
   } = props;
 
   // Show log viewer
@@ -179,6 +180,7 @@ export function MainPanel(props: MainPanelProps) {
 
           {/* Logs Area */}
           <TerminalOutput
+            ref={terminalOutputRef}
             session={activeSession}
             theme={theme}
             activeFocus={activeFocus}

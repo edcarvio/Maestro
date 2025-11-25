@@ -1,8 +1,8 @@
 # Maestro
 
-> A unified, highly-responsive developer IDE for managing multiple Claude Code sessions simultaneously.
+> A unified, highly-responsive developer command center for managing your fleet of AI coding agents.
 
-Maestro is a desktop application built with Electron that allows you to run and manage multiple Claude Code instances in parallel with a Linear/Superhuman-level responsive interface. Support for additional agentic coding tools (Aider, OpenCode, etc.) may be added in the future based on user demand.
+Maestro is a desktop application built with Electron that allows you to run and manage multiple AI coding instances instances in parallel with a Linear/Superhuman-level responsive interface. Currently supporting Claude Code with plans for additional agentic coding tools (Aider, OpenCode, etc.) may be added in the future based on user demand.
 
 ## UI Overview
 
@@ -12,7 +12,8 @@ Maestro features a three-panel layout:
 - **Main Window** - Center workspace with two modes:
   - **AI Terminal** - Interact with Claude Code AI assistant
   - **Command Terminal** - Execute shell commands and scripts
-  - **File Preview** - View images and text documents wtih source highlighting and markdown rendering.
+  - **File Preview** - View images and text documents wtih source highlighting and markdown rendering
+  - **Diff Preview** - View the current diff when working in Git repositories
 - **Right Bar** - File explorer, command history, and scratchpad
 
 ### Session Status Indicators

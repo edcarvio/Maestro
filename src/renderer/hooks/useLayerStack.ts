@@ -88,6 +88,13 @@ export interface LayerStackAPI {
   hasOpenLayers: () => boolean;
 
   /**
+   * Check if any true modal (not overlay) is currently open
+   * Modals block ALL shortcuts, overlays allow some navigation shortcuts
+   * @returns true if at least one modal layer is registered
+   */
+  hasOpenModal: () => boolean;
+
+  /**
    * Get the current layer count
    * @returns Number of registered layers
    */
@@ -164,6 +171,13 @@ export function useLayerStack(): LayerStackAPI {
    */
   const hasOpenLayers = useCallback((): boolean => {
     return layers.length > 0;
+  }, [layers]);
+
+  /**
+   * Check if any true modal (not overlay) is open
+   */
+  const hasOpenModal = useCallback((): boolean => {
+    return layers.some(layer => layer.type === 'modal');
   }, [layers]);
 
   /**
@@ -280,6 +294,7 @@ export function useLayerStack(): LayerStackAPI {
     closeTopLayer,
     getLayers,
     hasOpenLayers,
+    hasOpenModal,
     layerCount: layers.length,
   };
 }

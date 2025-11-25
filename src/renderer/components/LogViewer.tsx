@@ -71,9 +71,10 @@ export function LogViewer({ theme, onClose }: LogViewerProps) {
   }, [logs, searchQuery, selectedLevel]);
 
   // Register layer on mount
+  // Note: Using 'modal' type because LogViewer blocks all shortcuts (like the original modalOpen check)
   useEffect(() => {
     layerIdRef.current = registerLayer({
-      type: 'overlay',
+      type: 'modal',
       priority: MODAL_PRIORITIES.LOG_VIEWER,
       blocksLowerLayers: true,
       capturesFocus: true,
@@ -88,7 +89,6 @@ export function LogViewer({ theme, onClose }: LogViewerProps) {
           onClose();
         }
       },
-      allowClickOutside: false
     });
 
     return () => {

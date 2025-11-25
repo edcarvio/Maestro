@@ -24,16 +24,17 @@ export function GitDiffViewer({ diffText, cwd, theme, onClose }: GitDiffViewerPr
   const parsedFiles = useMemo(() => parseGitDiff(diffText), [diffText]);
 
   // Register layer on mount
+  // Note: Using 'modal' type so App.tsx blocks all shortcuts and lets this component
+  // handle its own Cmd+Shift+[] for tab navigation
   useEffect(() => {
     layerIdRef.current = registerLayer({
-      type: 'overlay',
+      type: 'modal',
       priority: MODAL_PRIORITIES.GIT_DIFF,
       blocksLowerLayers: true,
       capturesFocus: true,
       focusTrap: 'lenient',
       ariaLabel: 'Git Diff Preview',
       onEscape: onClose,
-      allowClickOutside: true
     });
 
     return () => {

@@ -45,7 +45,7 @@ import { shouldOpenExternally, loadFileTree, getAllFolderPaths, flattenTree } fr
 
 export default function MaestroConsole() {
   // --- LAYER STACK (for blocking shortcuts when modals are open) ---
-  const { hasOpenLayers } = useLayerStack();
+  const { hasOpenLayers, hasOpenModal } = useLayerStack();
 
   // --- STATE ---
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -808,14 +808,36 @@ export default function MaestroConsole() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Block ALL shortcuts when any layer (modal/overlay) is open
-      // Escape is handled by LayerStackContext in capture phase
-      // Tab is allowed for accessibility within modals
+      // When layers (modals/overlays) are open, we need nuanced shortcut handling:
+      // - Escape: handled by LayerStackContext in capture phase
+      // - Tab: allowed for accessibility navigation
+      // - Cmd+Shift+[/]: depends on layer type (modal vs overlay)
+      //
+      // TRUE MODALS (Settings, QuickActions, etc.): Block ALL shortcuts except Tab
+      //   - These modals have their own internal handlers for Cmd+Shift+[]
+      //
+      // OVERLAYS (FilePreview, LogViewer): Allow Cmd+Shift+[] for tab cycling
+      //   - App.tsx handles this with modified behavior (cycle tabs not sessions)
+
       if (hasOpenLayers()) {
         // Allow Tab for accessibility navigation within modals
         if (e.key === 'Tab') return;
-        // Block all other shortcuts - let the layer handle them
-        return;
+
+        const isCycleShortcut = (e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === '[' || e.key === ']');
+
+        if (hasOpenModal()) {
+          // TRUE MODAL is open - block ALL shortcuts from App.tsx
+          // The modal's own handler will handle Cmd+Shift+[] if it supports it
+          return;
+        } else {
+          // Only OVERLAYS are open (FilePreview, LogViewer, etc.)
+          // Allow Cmd+Shift+[] to fall through to App.tsx handler
+          // (which will cycle right panel tabs when previewFile is set)
+          if (!isCycleShortcut) {
+            return;
+          }
+          // Fall through to cyclePrev/cycleNext logic below
+        }
       }
 
       // Sidebar navigation with arrow keys (works when sidebar has focus)
@@ -969,7 +991,7 @@ export default function MaestroConsole() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [shortcuts, activeFocus, activeRightTab, sessions, selectedSidebarIndex, activeSessionId, quickActionOpen, settingsModalOpen, shortcutsHelpOpen, newInstanceModalOpen, aboutModalOpen, processMonitorOpen, logViewerOpen, createGroupModalOpen, confirmModalOpen, renameInstanceModalOpen, renameGroupModalOpen, activeSession, previewFile, fileTreeFilter, fileTreeFilterOpen, gitDiffPreview, lightboxImage, hasOpenLayers]);
+  }, [shortcuts, activeFocus, activeRightTab, sessions, selectedSidebarIndex, activeSessionId, quickActionOpen, settingsModalOpen, shortcutsHelpOpen, newInstanceModalOpen, aboutModalOpen, processMonitorOpen, logViewerOpen, createGroupModalOpen, confirmModalOpen, renameInstanceModalOpen, renameGroupModalOpen, activeSession, previewFile, fileTreeFilter, fileTreeFilterOpen, gitDiffPreview, lightboxImage, hasOpenLayers, hasOpenModal]);
 
   // Sync selectedSidebarIndex with activeSessionId
   useEffect(() => {

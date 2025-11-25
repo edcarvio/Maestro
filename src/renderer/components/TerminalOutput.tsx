@@ -3,7 +3,7 @@ import { Activity, X, ChevronDown, ChevronUp, Filter, PlusCircle, MinusCircle, C
 import type { Session, Theme, LogEntry } from '../types';
 import Convert from 'ansi-to-html';
 import DOMPurify from 'dompurify';
-import { useLayerStack } from '../hooks/useLayerStack';
+import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 
 interface TerminalOutputProps {

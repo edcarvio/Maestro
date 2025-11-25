@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Key, Moon, Sun, Keyboard, Check, Terminal } from 'lucide-react';
 import type { AgentConfig, Theme, Shortcut, ShellInfo } from '../types';
-import { useLayerStack } from '../hooks/useLayerStack';
+import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 
 interface SettingsModalProps {
@@ -412,10 +412,13 @@ export function SettingsModal(props: SettingsModalProps) {
       return acc;
     }, {} as Record<string, Theme[]>);
 
-    // Ensure focus when component mounts
+    // Ensure focus when theme tab becomes active
     React.useEffect(() => {
-      themePickerRef.current?.focus();
-    }, []);
+      if (activeTab === 'theme') {
+        const timer = setTimeout(() => themePickerRef.current?.focus(), 50);
+        return () => clearTimeout(timer);
+      }
+    }, [activeTab]);
 
     const handleThemePickerKeyDown = (e: React.KeyboardEvent) => {
       if (e.key === 'Tab') {
@@ -439,7 +442,12 @@ export function SettingsModal(props: SettingsModalProps) {
 
     return (
       <div
-        ref={themePickerRef}
+        ref={(el) => {
+          themePickerRef.current = el;
+          if (el && activeTab === 'theme') {
+            setTimeout(() => el.focus(), 100);
+          }
+        }}
         className="space-y-6 outline-none"
         tabIndex={0}
         onKeyDown={handleThemePickerKeyDown}
@@ -483,12 +491,10 @@ export function SettingsModal(props: SettingsModalProps) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[9999] outline-none"
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[9999]"
       role="dialog"
       aria-modal="true"
       aria-label="Settings"
-      tabIndex={-1}
-      ref={(el) => el?.focus()}
     >
       <div className="w-[600px] h-[500px] rounded-xl border shadow-2xl overflow-hidden flex flex-col"
            style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}>
@@ -867,18 +873,6 @@ export function SettingsModal(props: SettingsModalProps) {
                 <label className="block text-xs font-bold opacity-70 uppercase mb-2">Maximum Log Buffer</label>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => props.setMaxLogBuffer(500)}
-                    className={`flex-1 py-2 px-3 rounded border transition-all ${props.maxLogBuffer === 500 ? 'ring-2' : ''}`}
-                    style={{
-                      borderColor: theme.colors.border,
-                      backgroundColor: props.maxLogBuffer === 500 ? theme.colors.accentDim : 'transparent',
-                      ringColor: theme.colors.accent,
-                      color: theme.colors.textMain
-                    }}
-                  >
-                    500
-                  </button>
-                  <button
                     onClick={() => props.setMaxLogBuffer(1000)}
                     className={`flex-1 py-2 px-3 rounded border transition-all ${props.maxLogBuffer === 1000 ? 'ring-2' : ''}`}
                     style={{
@@ -891,18 +885,6 @@ export function SettingsModal(props: SettingsModalProps) {
                     1000
                   </button>
                   <button
-                    onClick={() => props.setMaxLogBuffer(2500)}
-                    className={`flex-1 py-2 px-3 rounded border transition-all ${props.maxLogBuffer === 2500 ? 'ring-2' : ''}`}
-                    style={{
-                      borderColor: theme.colors.border,
-                      backgroundColor: props.maxLogBuffer === 2500 ? theme.colors.accentDim : 'transparent',
-                      ringColor: theme.colors.accent,
-                      color: theme.colors.textMain
-                    }}
-                  >
-                    2500
-                  </button>
-                  <button
                     onClick={() => props.setMaxLogBuffer(5000)}
                     className={`flex-1 py-2 px-3 rounded border transition-all ${props.maxLogBuffer === 5000 ? 'ring-2' : ''}`}
                     style={{
@@ -913,6 +895,30 @@ export function SettingsModal(props: SettingsModalProps) {
                     }}
                   >
                     5000
+                  </button>
+                  <button
+                    onClick={() => props.setMaxLogBuffer(10000)}
+                    className={`flex-1 py-2 px-3 rounded border transition-all ${props.maxLogBuffer === 10000 ? 'ring-2' : ''}`}
+                    style={{
+                      borderColor: theme.colors.border,
+                      backgroundColor: props.maxLogBuffer === 10000 ? theme.colors.accentDim : 'transparent',
+                      ringColor: theme.colors.accent,
+                      color: theme.colors.textMain
+                    }}
+                  >
+                    10000
+                  </button>
+                  <button
+                    onClick={() => props.setMaxLogBuffer(25000)}
+                    className={`flex-1 py-2 px-3 rounded border transition-all ${props.maxLogBuffer === 25000 ? 'ring-2' : ''}`}
+                    style={{
+                      borderColor: theme.colors.border,
+                      backgroundColor: props.maxLogBuffer === 25000 ? theme.colors.accentDim : 'transparent',
+                      ringColor: theme.colors.accent,
+                      color: theme.colors.textMain
+                    }}
+                  >
+                    25000
                   </button>
                 </div>
                 <p className="text-xs opacity-50 mt-2">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search } from 'lucide-react';
 import type { Session, Group, Theme, Shortcut } from '../types';
-import { useLayerStack } from '../hooks/useLayerStack';
+import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 
 interface QuickAction {

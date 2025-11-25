@@ -5,7 +5,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { FileCode, X, Copy, FileText, Eye } from 'lucide-react';
 import { visit } from 'unist-util-visit';
-import { useLayerStack } from '../hooks/useLayerStack';
+import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 
 interface FilePreviewProps {

@@ -3,7 +3,7 @@ import { Diff, Hunk, tokenize } from 'react-diff-view';
 import { X, Plus, Minus } from 'lucide-react';
 import type { Theme } from '../types';
 import { parseGitDiff, getFileName, getDiffStats, ParsedFileDiff } from '../utils/gitDiffParser';
-import { useLayerStack } from '../hooks/useLayerStack';
+import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import 'react-diff-view/style/index.css';
 

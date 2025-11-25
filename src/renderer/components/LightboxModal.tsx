@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { useLayerStack } from '../hooks/useLayerStack';
+import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 
 interface LightboxModalProps {

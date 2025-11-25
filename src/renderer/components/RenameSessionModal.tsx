@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import type { Theme, Session } from '../types';
-import { useLayerStack } from '../hooks/useLayerStack';
+import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 
 interface RenameSessionModalProps {

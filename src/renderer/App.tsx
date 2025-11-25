@@ -19,7 +19,6 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { MainPanel } from './components/MainPanel';
 import { ProcessMonitor } from './components/ProcessMonitor';
 import { GitDiffViewer } from './components/GitDiffViewer';
-import { LayerStackDevTools } from './components/dev/LayerStackDevTools';
 
 // Import custom hooks
 import { useSettings, useSessionManager, useFileExplorer } from './hooks';
@@ -162,7 +161,7 @@ export default function MaestroConsole() {
   const [stagedImages, setStagedImages] = useState<string[]>([]);
 
   // Configuration State (Simulating ~/.maestro/settings)
-  const [activeThemeId, setActiveThemeId] = useState<ThemeId>('dracula');
+  const [activeThemeId, setActiveThemeIdState] = useState<ThemeId>('dracula');
   const [shortcuts, setShortcuts] = useState<Record<string, Shortcut>>(DEFAULT_SHORTCUTS);
   
   // LLM Config
@@ -188,12 +187,17 @@ export default function MaestroConsole() {
 
   // Logging Config
   const [logLevel, setLogLevelState] = useState('info');
-  const [maxLogBuffer, setMaxLogBufferState] = useState(1000);
+  const [maxLogBuffer, setMaxLogBufferState] = useState(5000);
 
   // Output Config
   const [maxOutputLines, setMaxOutputLinesState] = useState(25);
 
   // Wrapper functions that persist to electron-store
+  const setActiveThemeId = (value: ThemeId) => {
+    setActiveThemeIdState(value);
+    window.maestro.settings.set('activeThemeId', value);
+  };
+
   const setLlmProviderPersist = (value: LLMProvider) => {
     setLlmProvider(value);
     window.maestro.settings.set('llmProvider', value);
@@ -267,6 +271,7 @@ export default function MaestroConsole() {
       const savedEnterToSendAI = await window.maestro.settings.get('enterToSendAI');
       const savedEnterToSendTerminal = await window.maestro.settings.get('enterToSendTerminal');
 
+      const savedActiveThemeId = await window.maestro.settings.get('activeThemeId');
       const savedLlmProvider = await window.maestro.settings.get('llmProvider');
       const savedModelSlug = await window.maestro.settings.get('modelSlug');
       const savedApiKey = await window.maestro.settings.get('apiKey');
@@ -297,6 +302,7 @@ export default function MaestroConsole() {
         if (savedEnterToSendTerminal !== undefined) setEnterToSendTerminalState(savedEnterToSendTerminal);
       }
 
+      if (savedActiveThemeId !== undefined) setActiveThemeIdState(savedActiveThemeId);
       if (savedLlmProvider !== undefined) setLlmProvider(savedLlmProvider);
       if (savedModelSlug !== undefined) setModelSlug(savedModelSlug);
       if (savedApiKey !== undefined) setApiKey(savedApiKey);
@@ -2433,9 +2439,6 @@ export default function MaestroConsole() {
         setMaxOutputLines={setMaxOutputLines}
         initialTab={settingsTab}
       />
-
-      {/* Dev Tools (only in development) */}
-      {process.env.NODE_ENV === 'development' && <LayerStackDevTools />}
       </div>
   );
 }

@@ -26,17 +26,22 @@ export function LayerStackProvider({ children }: LayerStackProviderProps) {
   const layerStack = useLayerStackHook();
 
   // Global Escape key handler - delegates to top layer
+  // We use a ref to always have access to the latest layerStack methods
+  const layerStackRef = React.useRef(layerStack);
+  layerStackRef.current = layerStack;
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        const topLayer = layerStack.getTopLayer();
+        const stack = layerStackRef.current;
+        const topLayer = stack.getTopLayer();
         if (topLayer) {
           // Prevent default Escape behavior and stop propagation
           e.preventDefault();
           e.stopPropagation();
 
           // Close the top layer
-          layerStack.closeTopLayer();
+          stack.closeTopLayer();
         }
       }
     };
@@ -47,7 +52,7 @@ export function LayerStackProvider({ children }: LayerStackProviderProps) {
     return () => {
       window.removeEventListener('keydown', handleEscape, { capture: true });
     };
-  }, [layerStack]);
+  }, []); // Empty deps - handler uses ref to get latest stack
 
   return (
     <LayerStackContext.Provider value={layerStack}>

@@ -26,6 +26,7 @@ interface FileExplorerPanelProps {
   previewFile: {name: string; content: string; path: string} | null;
   setActiveFocus: (focus: string) => void;
   fileTreeContainerRef?: React.RefObject<HTMLDivElement>;
+  fileTreeFilterInputRef?: React.RefObject<HTMLInputElement>;
   toggleFolder: (path: string, activeSessionId: string, setSessions: React.Dispatch<React.SetStateAction<Session[]>>) => void;
   handleFileClick: (node: any, path: string, activeSession: Session) => Promise<void>;
   expandAllFolders: (activeSessionId: string, activeSession: Session, setSessions: React.Dispatch<React.SetStateAction<Session[]>>) => void;
@@ -44,6 +45,7 @@ export function FileExplorerPanel(props: FileExplorerPanelProps) {
 
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
   const layerIdRef = useRef<string>();
+  const filterInputRef = useRef<HTMLInputElement>(null);
 
   // Register layer when filter is open
   useEffect(() => {
@@ -142,6 +144,7 @@ export function FileExplorerPanel(props: FileExplorerPanelProps) {
       {fileTreeFilterOpen && (
         <div className="mb-3 pt-4">
           <input
+            ref={filterInputRef}
             autoFocus
             type="text"
             placeholder="Filter files..."

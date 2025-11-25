@@ -64,6 +64,7 @@ export function SessionList(props: SessionListProps) {
   const [sessionFilter, setSessionFilter] = useState('');
   const [sessionFilterOpen, setSessionFilterOpen] = useState(false);
   const [ungroupedCollapsed, setUngroupedCollapsed] = useState(false);
+  const [preFilterGroupStates, setPreFilterGroupStates] = useState<Map<string, boolean>>(new Map());
 
   // Track git file change counts per session
   const [gitFileCounts, setGitFileCounts] = useState<Map<string, number>>(new Map());
@@ -95,6 +96,41 @@ export function SessionList(props: SessionListProps) {
   const filteredSessions = sessionFilter
     ? sessions.filter(s => s.name.toLowerCase().includes(sessionFilter.toLowerCase()))
     : sessions;
+
+  // Temporarily expand groups when filtering to show matching sessions
+  useEffect(() => {
+    if (sessionFilter) {
+      // Save current group states before filtering
+      if (preFilterGroupStates.size === 0) {
+        const currentStates = new Map<string, boolean>();
+        groups.forEach(g => currentStates.set(g.id, g.collapsed));
+        setPreFilterGroupStates(currentStates);
+      }
+
+      // Find groups that contain matching sessions
+      const groupsWithMatches = new Set<string>();
+      filteredSessions.forEach(session => {
+        if (session.groupId) {
+          groupsWithMatches.add(session.groupId);
+        }
+      });
+
+      // Temporarily expand groups with matches
+      setGroups(prev => prev.map(g => ({
+        ...g,
+        collapsed: groupsWithMatches.has(g.id) ? false : g.collapsed
+      })));
+    } else {
+      // Restore original group states when filter is cleared
+      if (preFilterGroupStates.size > 0) {
+        setGroups(prev => prev.map(g => ({
+          ...g,
+          collapsed: preFilterGroupStates.get(g.id) ?? g.collapsed
+        })));
+        setPreFilterGroupStates(new Map());
+      }
+    }
+  }, [sessionFilter, filteredSessions]);
 
   return (
     <div

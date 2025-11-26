@@ -62,10 +62,13 @@ export function InputArea(props: InputAreaProps) {
   const isTerminalMode = session.inputMode === 'terminal';
 
   // Get the appropriate command history based on current mode
-  // Each mode has its own separate history - no cross-contamination
+  // Fall back to legacy commandHistory for sessions created before the split
+  const legacyHistory = (session as any).commandHistory || [];
+  const shellHistory = session.shellCommandHistory || [];
+  const aiHistory = session.aiCommandHistory || [];
   const currentCommandHistory = isTerminalMode
-    ? (session.shellCommandHistory || [])
-    : (session.aiCommandHistory || []);
+    ? (shellHistory.length > 0 ? shellHistory : legacyHistory)
+    : (aiHistory.length > 0 ? aiHistory : legacyHistory);
   const filteredSlashCommands = slashCommands.filter(cmd => {
     // Check if command is only available in terminal mode
     if (cmd.terminalOnly && !isTerminalMode) return false;
@@ -140,37 +143,6 @@ export function InputArea(props: InputAreaProps) {
         <div
           className="absolute bottom-full left-0 right-0 mb-2 border rounded-lg shadow-2xl max-h-64 overflow-hidden"
           style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}
-          onKeyDown={(e) => {
-            // Dedupe history before filtering
-            const uniqueHistory = Array.from(new Set(currentCommandHistory));
-            const filtered = uniqueHistory.filter(cmd =>
-              cmd.toLowerCase().includes(commandHistoryFilter.toLowerCase())
-            ).reverse().slice(0, 5);
-
-            if (e.key === 'ArrowDown') {
-              e.preventDefault();
-              setCommandHistorySelectedIndex(Math.min(commandHistorySelectedIndex + 1, filtered.length - 1));
-            } else if (e.key === 'ArrowUp') {
-              e.preventDefault();
-              setCommandHistorySelectedIndex(Math.max(commandHistorySelectedIndex - 1, 0));
-            } else if (e.key === 'Enter') {
-              e.preventDefault();
-              e.stopPropagation();
-              if (filtered[commandHistorySelectedIndex]) {
-                setInputValue(filtered[commandHistorySelectedIndex]);
-                setCommandHistoryOpen(false);
-                setCommandHistoryFilter('');
-                setTimeout(() => inputRef.current?.focus(), 0);
-              }
-            } else if (e.key === 'Escape') {
-              e.preventDefault();
-              e.stopPropagation();
-              setCommandHistoryOpen(false);
-              setCommandHistoryFilter('');
-              // Focus back to the main input
-              setTimeout(() => inputRef.current?.focus(), 0);
-            }
-          }}
         >
           <div className="p-2">
             <input
@@ -178,11 +150,39 @@ export function InputArea(props: InputAreaProps) {
               type="text"
               className="w-full bg-transparent outline-none text-sm p-2 border-b"
               style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-              placeholder="Filter commands..."
+              placeholder={isTerminalMode ? "Filter commands..." : "Filter messages..."}
               value={commandHistoryFilter}
               onChange={(e) => {
                 setCommandHistoryFilter(e.target.value);
                 setCommandHistorySelectedIndex(0);
+              }}
+              onKeyDown={(e) => {
+                const uniqueHistory = Array.from(new Set(currentCommandHistory));
+                const filtered = uniqueHistory.filter(cmd =>
+                  cmd.toLowerCase().includes(commandHistoryFilter.toLowerCase())
+                ).reverse().slice(0, 10);
+
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setCommandHistorySelectedIndex(Math.min(commandHistorySelectedIndex + 1, filtered.length - 1));
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setCommandHistorySelectedIndex(Math.max(commandHistorySelectedIndex - 1, 0));
+                } else if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (filtered[commandHistorySelectedIndex]) {
+                    setInputValue(filtered[commandHistorySelectedIndex]);
+                    setCommandHistoryOpen(false);
+                    setCommandHistoryFilter('');
+                    setTimeout(() => inputRef.current?.focus(), 0);
+                  }
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setCommandHistoryOpen(false);
+                  setCommandHistoryFilter('');
+                  setTimeout(() => inputRef.current?.focus(), 0);
+                }
               }}
             />
           </div>
@@ -220,7 +220,9 @@ export function InputArea(props: InputAreaProps) {
             {currentCommandHistory.filter(cmd =>
               cmd.toLowerCase().includes(commandHistoryFilter.toLowerCase())
             ).length === 0 && (
-              <div className="px-3 py-4 text-center text-sm opacity-50">No matching commands</div>
+              <div className="px-3 py-4 text-center text-sm opacity-50">
+                {isTerminalMode ? "No matching commands" : "No matching messages"}
+              </div>
             )}
           </div>
         </div>

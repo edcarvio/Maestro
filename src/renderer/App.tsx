@@ -2017,12 +2017,8 @@ export default function MaestroConsole() {
       inputRef.current?.blur();
       terminalOutputRef.current?.focus();
     } else if (e.key === 'ArrowUp') {
-      // Use the appropriate history based on current mode
-      // Each mode has its own separate history - no cross-contamination
-      const currentHistory = activeSession.inputMode === 'ai'
-        ? (activeSession.aiCommandHistory || [])
-        : (activeSession.shellCommandHistory || []);
-      if (currentHistory.length > 0) {
+      // Only show command history in terminal mode, not AI mode
+      if (activeSession.inputMode === 'terminal') {
         e.preventDefault();
         setCommandHistoryOpen(true);
         setCommandHistoryFilter(inputValue);

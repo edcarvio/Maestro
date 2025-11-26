@@ -1156,6 +1156,11 @@ export default function MaestroConsole() {
         }
       }
 
+      // Skip all keyboard handling when editing a session or group name in the sidebar
+      if (editingSessionId || editingGroupId) {
+        return;
+      }
+
       // Sidebar navigation with arrow keys (works when sidebar has focus)
       if (activeFocus === 'sidebar' && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft')) {
         e.preventDefault();

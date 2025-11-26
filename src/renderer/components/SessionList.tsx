@@ -266,7 +266,10 @@ export function SessionList(props: SessionListProps) {
                         defaultValue={group.name}
                         onClick={e => e.stopPropagation()}
                         onBlur={e => finishRenamingGroup(group.id, e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && finishRenamingGroup(group.id, e.currentTarget.value)}
+                        onKeyDown={e => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') finishRenamingGroup(group.id, e.currentTarget.value);
+                        }}
                       />
                     ) : (
                       <span onDoubleClick={() => startRenamingGroup(group.id)}>{group.name}</span>
@@ -317,7 +320,10 @@ export function SessionList(props: SessionListProps) {
                                 defaultValue={session.name}
                                 onClick={e => e.stopPropagation()}
                                 onBlur={e => finishRenamingSession(session.id, e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && finishRenamingSession(session.id, e.currentTarget.value)}
+                                onKeyDown={e => {
+                                  e.stopPropagation();
+                                  if (e.key === 'Enter') finishRenamingSession(session.id, e.currentTarget.value);
+                                }}
                               />
                             ) : (
                               <div
@@ -440,7 +446,10 @@ export function SessionList(props: SessionListProps) {
                         defaultValue={session.name}
                         onClick={e => e.stopPropagation()}
                         onBlur={e => finishRenamingSession(session.id, e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && finishRenamingSession(session.id, e.currentTarget.value)}
+                        onKeyDown={e => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') finishRenamingSession(session.id, e.currentTarget.value);
+                        }}
                       />
                     ) : (
                       <div

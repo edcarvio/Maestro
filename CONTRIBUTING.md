@@ -1,19 +1,20 @@
 # Contributing to Maestro
 
-Thank you for your interest in contributing to Maestro! This document provides guidelines, setup instructions, and architectural information for developers.
+Thank you for your interest in contributing to Maestro! This document provides guidelines, setup instructions, and practical guidance for developers.
+
+For architecture details, see [ARCHITECTURE.md](ARCHITECTURE.md). For quick reference while coding, see [CLAUDE.md](CLAUDE.md).
 
 ## Table of Contents
 
 - [Development Setup](#development-setup)
 - [Project Structure](#project-structure)
-- [Tech Stack](#tech-stack)
 - [Development Scripts](#development-scripts)
-- [Architecture](#architecture)
+- [Common Development Tasks](#common-development-tasks)
 - [Code Style](#code-style)
+- [Debugging Guide](#debugging-guide)
 - [Commit Messages](#commit-messages)
 - [Pull Request Process](#pull-request-process)
 - [Building for Release](#building-for-release)
-- [GitHub Actions Workflow](#github-actions-workflow)
 
 ## Development Setup
 
@@ -43,162 +44,254 @@ npm run dev
 maestro/
 ├── src/
 │   ├── main/              # Electron main process (Node.js backend)
-│   │   ├── utils/         # Shared utilities
-│   │   └── ...            # Process management, IPC, web server
+│   │   ├── index.ts       # Entry point, IPC handlers
+│   │   ├── process-manager.ts
+│   │   ├── preload.ts     # Secure IPC bridge
+│   │   └── utils/         # Shared utilities
 │   └── renderer/          # React frontend (UI)
-│       ├── components/    # React components (UI elements, modals, panels)
-│       ├── hooks/         # Custom React hooks (reusable state logic)
-│       ├── services/      # Business logic services (git, process management)
+│       ├── App.tsx        # Main coordinator
+│       ├── components/    # React components
+│       ├── hooks/         # Custom React hooks
+│       ├── services/      # IPC wrappers (git, process)
+│       ├── contexts/      # React contexts
+│       ├── constants/     # Themes, shortcuts, priorities
 │       ├── types/         # TypeScript definitions
-│       ├── utils/         # Frontend utilities
-│       └── constants/     # App constants (themes, shortcuts, emojis)
+│       └── utils/         # Frontend utilities
 ├── build/                 # Application icons
 ├── .github/workflows/     # CI/CD automation
 └── dist/                  # Build output (generated)
 ```
 
-## Tech Stack
-
-### Backend (Electron Main Process)
-
-- **Electron 28+** - Desktop application framework
-- **TypeScript** - Type-safe JavaScript
-- **node-pty** - Terminal emulation for shell sessions
-- **Fastify** - High-performance web server for remote access
-- **electron-store** - Persistent settings storage
-
-### Frontend (Renderer Process)
-
-- **React 18** - UI framework
-- **TypeScript** - Type-safe JavaScript
-- **Tailwind CSS** - Utility-first CSS framework
-- **Vite** - Fast build tool and dev server
-- **Lucide React** - Icon library
-- **marked** - Markdown rendering
-- **react-syntax-highlighter** - Code syntax highlighting
-- **ansi-to-html** - Terminal ANSI escape code rendering
-- **dompurify** - HTML sanitization for XSS prevention
-- **emoji-mart** - Emoji picker component
-
 ## Development Scripts
 
 ```bash
-# Start dev server with hot reload
-npm run dev
-
-# Build main process only (Electron backend)
-npm run build:main
-
-# Build renderer only (React frontend)
-npm run build:renderer
-
-# Full production build
-npm run build
-
-# Start built application
-npm start
-
-# Clean build artifacts and cache
-npm run clean
+npm run dev          # Start dev server with hot reload
+npm run build        # Full production build
+npm run build:main   # Build main process only
+npm run build:renderer  # Build renderer only
+npm start            # Start built application
+npm run clean        # Clean build artifacts
+npm run package      # Package for all platforms
+npm run package:mac  # Package for macOS
+npm run package:win  # Package for Windows
+npm run package:linux # Package for Linux
 ```
 
-## Architecture
+## Common Development Tasks
 
-### Process Management
+### Adding a New UI Feature
 
-Maestro uses a dual-process architecture where **each session runs two processes simultaneously**:
+1. **Plan the state** - Determine if it's per-session or global
+2. **Add state management** - In `useSettings.ts` (global) or session state
+3. **Create persistence** - Use wrapper function pattern for global settings
+4. **Implement UI** - Follow Tailwind + theme color pattern
+5. **Add keyboard shortcuts** - In `shortcuts.ts` and `App.tsx`
+6. **Test focus flow** - Ensure Escape key navigation works
 
-1. **AI Agent Process** - Runs Claude Code as a child process
-2. **Terminal Process** - Runs a PTY shell session for command execution
+### Adding a New Modal
 
-This architecture enables seamless switching between AI and terminal modes without process restarts. All processes are managed through IPC (Inter-Process Communication) with secure context isolation.
+1. Create component in `src/renderer/components/`
+2. Add priority in `src/renderer/constants/modalPriorities.ts`:
+   ```typescript
+   MY_MODAL: 600,
+   ```
+3. Register with layer stack (see [ARCHITECTURE.md](ARCHITECTURE.md#layer-stack-system))
+4. Use proper ARIA attributes:
+   ```typescript
+   <div role="dialog" aria-modal="true" aria-label="My Modal">
+   ```
 
-### Security Model
+### Adding Keyboard Shortcuts
 
-Maestro implements strict security measures:
+1. Add definition in `src/renderer/constants/shortcuts.ts`:
+   ```typescript
+   myShortcut: { id: 'myShortcut', label: 'My Action', keys: ['Meta', 'k'] },
+   ```
 
-- **Context isolation enabled** - Renderer has no direct Node.js access
-- **No node integration in renderer** - No `require()` in renderer process
-- **Secure IPC via preload script** - Minimal API exposed via `contextBridge`
-- **No shell injection** - Uses `execFile` instead of `exec`
-- **Input sanitization** - All user inputs are validated
+2. Add handler in `App.tsx` keyboard event listener:
+   ```typescript
+   else if (isShortcut(e, 'myShortcut')) {
+     e.preventDefault();
+     // Handler code
+   }
+   ```
 
-### Main Process (Backend)
+**Supported modifiers:** `Meta` (Cmd/Win), `Ctrl`, `Alt`, `Shift`
+**Arrow keys:** `ArrowLeft`, `ArrowRight`, `ArrowUp`, `ArrowDown`
 
-Located in `src/main/`:
+### Adding a New Setting
 
-- `index.ts` - Application entry point, IPC handler registration, window management
-- `process-manager.ts` - Core primitive for spawning and managing CLI processes
-- `web-server.ts` - Fastify-based HTTP/WebSocket server for remote access
-- `agent-detector.ts` - Auto-detects available AI tools via PATH
-- `preload.ts` - Secure IPC bridge via contextBridge
+1. Add state in `useSettings.ts`:
+   ```typescript
+   const [mySetting, setMySettingState] = useState(defaultValue);
+   ```
 
-### Renderer Process (Frontend)
+2. Create wrapper function:
+   ```typescript
+   const setMySetting = (value) => {
+     setMySettingState(value);
+     window.maestro.settings.set('mySetting', value);
+   };
+   ```
 
-Located in `src/renderer/`:
+3. Load in useEffect:
+   ```typescript
+   const saved = await window.maestro.settings.get('mySetting');
+   if (saved !== undefined) setMySettingState(saved);
+   ```
 
-- `App.tsx` - Main UI coordinator
-- `main.tsx` - Renderer entry point
-- `components/` - React components (modals, panels, UI elements)
-- `hooks/` - Custom React hooks for reusable state logic
-- `services/` - Business logic services (clean wrappers around IPC calls)
-- `constants/` - Application constants (themes, shortcuts, etc.)
+4. Add to return object and export.
+
+### Adding a Slash Command
+
+Add to `src/renderer/slashCommands.ts`:
+
+```typescript
+{
+  command: '/mycommand',
+  description: 'Does something useful',
+  terminalOnly: false,  // Optional: restrict to terminal mode
+  execute: (context) => {
+    const { activeSessionId, setSessions } = context;
+    // Your logic
+  }
+}
+```
+
+### Adding a New Theme
+
+Add to `src/renderer/constants/themes.ts`:
+
+```typescript
+'my-theme': {
+  id: 'my-theme',
+  name: 'My Theme',
+  mode: 'dark',  // or 'light'
+  colors: {
+    bgMain: '#...',
+    bgSidebar: '#...',
+    bgActivity: '#...',
+    border: '#...',
+    textMain: '#...',
+    textDim: '#...',
+    accent: '#...',
+    accentDim: 'rgba(...)',
+    accentText: '#...',
+    success: '#...',
+    warning: '#...',
+    error: '#...',
+  }
+}
+```
+
+Then add the ID to `ThemeId` type in `src/renderer/types/index.ts`.
+
+### Adding an IPC Handler
+
+1. Add handler in `src/main/index.ts`:
+   ```typescript
+   ipcMain.handle('myNamespace:myAction', async (_, arg1, arg2) => {
+     // Implementation
+     return result;
+   });
+   ```
+
+2. Expose in `src/main/preload.ts`:
+   ```typescript
+   myNamespace: {
+     myAction: (arg1, arg2) => ipcRenderer.invoke('myNamespace:myAction', arg1, arg2),
+   },
+   ```
+
+3. Add types to `MaestroAPI` interface in preload.ts.
 
 ## Code Style
 
 ### TypeScript
 
-- All code must be TypeScript with strict mode enabled
-- Define interfaces for all data structures
-- Export types via `preload.ts` for renderer types
+- Strict mode enabled
+- Interface definitions for all data structures
+- Export types via `preload.ts` for renderer
 
 ### React Components
 
-- Use functional components with hooks
-- Keep components small and focused
-- Use Tailwind CSS for styling
+- Functional components with hooks
+- Keep components focused and small
+- Use Tailwind for layout, inline styles for theme colors
 - Maintain keyboard accessibility
-- Use inline styles for theme colors, Tailwind for layout
+- Use `tabIndex={-1}` + `outline-none` for programmatic focus
 
-### Architecture Guidelines
+### Security
 
-**Main Process:**
-- Keep IPC handlers simple and focused
-- Use TypeScript interfaces for all data structures
-- Handle errors gracefully
-- No blocking operations
-
-**Renderer Process:**
-- Use React hooks
-- Keep components small and focused
-- Use Tailwind for styling
-- Maintain keyboard accessibility
-
-**Security:**
-- Never expose Node.js APIs to renderer
+- **Always use `execFileNoThrow`** for external commands (never shell-based execution)
+- Keep context isolation enabled
 - Use preload script for all IPC
 - Sanitize all user inputs
-- Use `execFile` instead of `exec`
+- Use `spawn()` with `shell: false`
+
+## Debugging Guide
+
+### Focus Not Working
+
+1. Add `tabIndex={0}` or `tabIndex={-1}` to element
+2. Add `outline-none` class to hide focus ring
+3. Use `ref={(el) => el?.focus()}` for auto-focus
+4. Check for `e.stopPropagation()` blocking events
+
+### Settings Not Persisting
+
+1. Ensure wrapper function calls `window.maestro.settings.set()`
+2. Check loading code in `useSettings.ts` useEffect
+3. Verify the key name matches in both save and load
+
+### Modal Escape Not Working
+
+1. Register modal with layer stack (don't handle Escape locally)
+2. Check priority in `modalPriorities.ts`
+3. Use ref pattern to avoid re-registration:
+   ```typescript
+   const onCloseRef = useRef(onClose);
+   onCloseRef.current = onClose;
+   ```
+
+### Theme Colors Not Applying
+
+1. Use `style={{ color: theme.colors.textMain }}` instead of Tailwind color classes
+2. Check theme prop is passed to component
+3. Never use hardcoded hex colors for themed elements
+
+### Process Output Not Showing
+
+1. Check session ID matches (with `-ai` or `-terminal` suffix)
+2. Verify `onData` listener is registered
+3. Check process spawned successfully (check pid > 0)
+4. Look for errors in DevTools console
+
+### DevTools
+
+Open via Quick Actions (`Cmd+K` → "Toggle DevTools") or set `DEBUG=true` env var.
 
 ## Commit Messages
 
 Use conventional commits:
 
-- `feat:` - New features
-- `fix:` - Bug fixes
-- `docs:` - Documentation changes
-- `refactor:` - Code refactoring
-- `test:` - Test additions/changes
-- `chore:` - Build process or tooling changes
+```
+feat: new feature
+fix: bug fix
+docs: documentation changes
+refactor: code refactoring
+test: test additions/changes
+chore: build process or tooling changes
+```
 
 Example: `feat: add context usage visualization`
 
 ## Pull Request Process
 
 1. Create a feature branch from `main`
-2. Make your changes
-3. Add tests if applicable
-4. Update documentation
+2. Make your changes following the code style
+3. Test thoroughly (keyboard navigation, themes, focus)
+4. Update documentation if needed
 5. Submit PR with clear description
 6. Wait for review
 
@@ -206,16 +299,14 @@ Example: `feat: add context usage visualization`
 
 ### 1. Prepare Icons
 
-Place your application icons in the `build/` directory:
-
+Place icons in `build/` directory:
 - `icon.icns` - macOS (512x512 or 1024x1024)
 - `icon.ico` - Windows (256x256)
 - `icon.png` - Linux (512x512)
 
 ### 2. Update Version
 
-Update version in `package.json`:
-
+Update in `package.json`:
 ```json
 {
   "version": "0.1.0"
@@ -225,42 +316,25 @@ Update version in `package.json`:
 ### 3. Build Distributables
 
 ```bash
-# Build for all platforms
-npm run package
-
-# Platform-specific builds
-npm run package:mac    # Creates .dmg and .zip
-npm run package:win    # Creates .exe installer
-npm run package:linux  # Creates .AppImage, .deb, .rpm
+npm run package           # All platforms
+npm run package:mac       # macOS (.dmg, .zip)
+npm run package:win       # Windows (.exe)
+npm run package:linux     # Linux (.AppImage, .deb, .rpm)
 ```
 
-Output will be in the `release/` directory.
+Output in `release/` directory.
 
-## GitHub Actions Workflow
+### GitHub Actions
 
-The project includes automated builds via GitHub Actions:
-
-1. **Create a release tag:**
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-
-2. **GitHub Actions will automatically:**
-   - Build for macOS, Windows, and Linux
-   - Create release artifacts
-   - Publish a GitHub Release with downloads
-
-## Testing
+Create a release tag to trigger automated builds:
 
 ```bash
-# Run tests (when available)
-npm test
-
-# Type checking
-npm run build:main
+git tag v0.1.0
+git push origin v0.1.0
 ```
+
+GitHub Actions will build for all platforms and create a release.
 
 ## Questions?
 
-Open a GitHub Discussion or reach out in Issues.
+Open a GitHub Discussion or create an Issue.

@@ -11,6 +11,8 @@
  * - Disabled state when disconnected or offline
  * - Large touch-friendly textarea for easy mobile input
  * - Minimum 44px touch targets per Apple HIG guidelines
+ * - Mode toggle button (AI / Terminal) with visual indicator
+ * - Interrupt button (red X) visible when session is busy
  */
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
@@ -47,6 +49,10 @@ export interface CommandInputBarProps {
   inputMode?: InputMode;
   /** Callback when input mode is toggled */
   onModeToggle?: (mode: InputMode) => void;
+  /** Whether the active session is busy (AI thinking) */
+  isSessionBusy?: boolean;
+  /** Callback when interrupt button is pressed */
+  onInterrupt?: () => void;
 }
 
 /**
@@ -65,6 +71,8 @@ export function CommandInputBar({
   disabled: externalDisabled,
   inputMode = 'ai',
   onModeToggle,
+  isSessionBusy = false,
+  onInterrupt,
 }: CommandInputBarProps) {
   const colors = useThemeColors();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -189,6 +197,13 @@ export function CommandInputBar({
     const newMode = inputMode === 'ai' ? 'terminal' : 'ai';
     onModeToggle?.(newMode);
   }, [inputMode, onModeToggle]);
+
+  /**
+   * Handle interrupt button press
+   */
+  const handleInterrupt = useCallback(() => {
+    onInterrupt?.();
+  }, [onInterrupt]);
 
   return (
     <div
@@ -365,6 +380,65 @@ export function CommandInputBar({
           aria-disabled={isDisabled}
           aria-multiline="true"
         />
+
+        {/* Interrupt button - visible when session is busy (red X) */}
+        {isSessionBusy && (
+          <button
+            type="button"
+            onClick={handleInterrupt}
+            disabled={isDisabled}
+            style={{
+              padding: '14px',
+              borderRadius: '12px',
+              backgroundColor: '#ef4444', // Red color for interrupt
+              color: '#ffffff',
+              fontSize: '14px',
+              fontWeight: 500,
+              border: 'none',
+              cursor: isDisabled ? 'default' : 'pointer',
+              opacity: isDisabled ? 0.5 : 1,
+              // Touch-friendly size - meets Apple HIG 44pt minimum
+              width: `${MIN_TOUCH_TARGET + 4}px`,
+              height: `${MIN_INPUT_HEIGHT}px`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              // Smooth transitions
+              transition: 'opacity 150ms ease, background-color 150ms ease, transform 100ms ease',
+              // Prevent button from shrinking
+              flexShrink: 0,
+              // Active state feedback
+              WebkitTapHighlightColor: 'transparent',
+            }}
+            onTouchStart={(e) => {
+              // Scale down slightly on touch for tactile feedback
+              if (!isDisabled) {
+                e.currentTarget.style.transform = 'scale(0.95)';
+                e.currentTarget.style.backgroundColor = '#dc2626'; // Darker red on press
+              }
+            }}
+            onTouchEnd={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.backgroundColor = '#ef4444';
+            }}
+            aria-label="Interrupt session"
+          >
+            {/* X icon for interrupt - larger for touch */}
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        )}
 
         {/* Send button - large touch target matching input height */}
         <button

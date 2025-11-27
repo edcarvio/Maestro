@@ -288,6 +288,36 @@ export default function MobileApp() {
     console.log('[Mobile] Mode switched to:', mode, 'for session:', activeSessionId);
   }, [activeSessionId, send]);
 
+  // Handle interrupt request
+  const handleInterrupt = useCallback(async () => {
+    if (!activeSessionId) return;
+
+    // Provide haptic feedback
+    triggerHaptic(HAPTIC_PATTERNS.tap);
+
+    try {
+      // Get the base URL for API requests
+      const baseUrl = `${window.location.protocol}//${window.location.host}`;
+      const response = await fetch(`${baseUrl}/api/session/${activeSessionId}/interrupt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        console.log('[Mobile] Session interrupted:', activeSessionId);
+        triggerHaptic(HAPTIC_PATTERNS.success);
+      } else {
+        console.error('[Mobile] Failed to interrupt session:', result.error);
+      }
+    } catch (error) {
+      console.error('[Mobile] Error interrupting session:', error);
+    }
+  }, [activeSessionId]);
+
   // Get active session for input mode
   const activeSession = sessions.find(s => s.id === activeSessionId);
 
@@ -524,6 +554,8 @@ export default function MobileApp() {
         disabled={!activeSessionId}
         inputMode={(activeSession?.inputMode as InputMode) || 'ai'}
         onModeToggle={handleModeToggle}
+        isSessionBusy={activeSession?.state === 'busy'}
+        onInterrupt={handleInterrupt}
       />
     </div>
   );

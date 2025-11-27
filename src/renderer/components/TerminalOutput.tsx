@@ -472,6 +472,11 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
 
     const processedText = processLogText(textToProcess, isTerminal && log.source !== 'user');
 
+    // Skip rendering stderr entries that have no actual content
+    if (log.source === 'stderr' && !processedText.trim()) {
+      return null;
+    }
+
     // Separate stdout and stderr for terminal output
     const separated = log.source === 'stderr'
       ? { stdout: '', stderr: processedText }

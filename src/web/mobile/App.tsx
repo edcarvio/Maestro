@@ -21,6 +21,7 @@ import { AllSessionsView } from './AllSessionsView';
 import { CommandInputBar, type InputMode } from './CommandInputBar';
 import { CommandHistoryDrawer } from './CommandHistoryDrawer';
 import { RecentCommandChips } from './RecentCommandChips';
+import { SessionStatusBanner } from './SessionStatusBanner';
 import type { Session } from '../hooks/useSessions';
 
 /**
@@ -508,6 +509,11 @@ export default function MobileApp() {
         />
       )}
 
+      {/* Session status banner - shown when connected and a session is selected */}
+      {showSessionPillBar && activeSession && (
+        <SessionStatusBanner session={activeSession} />
+      )}
+
       {/* All Sessions view - full-screen modal with larger session cards */}
       {showAllSessions && (
         <AllSessionsView
@@ -545,11 +551,13 @@ export default function MobileApp() {
           isThresholdReached={isThresholdReached}
           style={{
             position: 'fixed',
-            // Adjust top position based on whether session pill bar is shown
-            // Header: ~56px, Session pill bar: ~52px when shown
+            // Adjust top position based on what's shown above
+            // Header: ~56px, Session pill bar: ~52px, Status banner: ~44px when active session
             top: showSessionPillBar
-              ? 'max(108px, calc(108px + env(safe-area-inset-top)))'
-              : 'max(56px, calc(56px + env(safe-area-inset-top)))',
+              ? activeSession
+                ? 'max(152px, calc(152px + env(safe-area-inset-top)))' // Header + pill bar + status banner
+                : 'max(108px, calc(108px + env(safe-area-inset-top)))' // Header + pill bar
+              : 'max(56px, calc(56px + env(safe-area-inset-top)))', // Just header
             left: 0,
             right: 0,
             zIndex: 10,

@@ -94,6 +94,10 @@ export interface SessionDetail {
 // Callback type for fetching single session details
 export type GetSessionDetailCallback = (sessionId: string) => SessionDetail | null;
 
+// Callback type for sending commands to a session
+// Returns true if successful, false if session not found or write failed
+export type WriteToSessionCallback = (sessionId: string, data: string) => boolean;
+
 // Theme type for web clients (matches renderer/types/index.ts)
 export interface WebTheme {
   id: string;
@@ -137,6 +141,7 @@ export class WebServer {
   private getSessionsCallback: GetSessionsCallback | null = null;
   private getSessionDetailCallback: GetSessionDetailCallback | null = null;
   private getThemeCallback: GetThemeCallback | null = null;
+  private writeToSessionCallback: WriteToSessionCallback | null = null;
 
   constructor(port: number = 8000) {
     this.port = port;
@@ -172,6 +177,14 @@ export class WebServer {
    */
   setGetThemeCallback(callback: GetThemeCallback) {
     this.getThemeCallback = callback;
+  }
+
+  /**
+   * Set the callback function for writing commands to a session
+   * This is called by the /api/session/:id/send endpoint
+   */
+  setWriteToSessionCallback(callback: WriteToSessionCallback) {
+    this.writeToSessionCallback = callback;
   }
 
   /**
@@ -392,6 +405,74 @@ export class WebServer {
 
       return {
         session,
+        timestamp: Date.now(),
+      };
+    });
+
+    // Send command to session endpoint - sends input to a specific session
+    // Rate limited using POST rate limit config (more restrictive)
+    this.server.post('/api/session/:id/send', {
+      preHandler: this.authenticateRequest.bind(this),
+      config: {
+        rateLimit: {
+          max: this.rateLimitConfig.maxPost,
+          timeWindow: this.rateLimitConfig.timeWindow,
+        },
+      },
+    }, async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const body = request.body as { command?: string } | undefined;
+      const command = body?.command;
+
+      // Validate command is provided
+      if (!command || typeof command !== 'string') {
+        reply.code(400).send({
+          error: 'Bad Request',
+          message: 'Command is required and must be a string',
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      // Check if write callback is configured
+      if (!this.writeToSessionCallback) {
+        reply.code(503).send({
+          error: 'Service Unavailable',
+          message: 'Session write service not configured',
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      // Check if session exists first
+      if (this.getSessionDetailCallback) {
+        const session = this.getSessionDetailCallback(id);
+        if (!session) {
+          reply.code(404).send({
+            error: 'Not Found',
+            message: `Session with id '${id}' not found`,
+            timestamp: Date.now(),
+          });
+          return;
+        }
+      }
+
+      // Write the command to the session (add newline to execute)
+      const success = this.writeToSessionCallback(id, command + '\n');
+
+      if (!success) {
+        reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to send command to session',
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      return {
+        success: true,
+        message: 'Command sent successfully',
+        sessionId: id,
         timestamp: Date.now(),
       };
     });

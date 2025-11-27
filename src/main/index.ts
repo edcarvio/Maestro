@@ -333,6 +333,12 @@ app.whenReady().then(() => {
     return getThemeById(themeId);
   });
 
+  // Set up callback for web server to write commands to sessions
+  webServer.setWriteToSessionCallback((sessionId: string, data: string) => {
+    if (!processManager) return false;
+    return processManager.write(sessionId, data);
+  });
+
   // Initialize session web server manager with callbacks
   sessionWebServerManager = new SessionWebServerManager(
     // getSessionData callback - fetch session from store

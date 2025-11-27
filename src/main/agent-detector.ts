@@ -1,11 +1,11 @@
-import { execFileNoThrow } from "./utils/execFile";
-import { logger } from "./utils/logger";
-import * as os from "os";
+import { execFileNoThrow } from './utils/execFile';
+import { logger } from './utils/logger';
+import * as os from 'os';
 
 // Configuration option types for agent-specific settings
 export interface AgentConfigOption {
   key: string; // Storage key
-  type: "checkbox" | "text" | "number" | "select";
+  type: 'checkbox' | 'text' | 'number' | 'select';
   label: string; // UI label
   description: string; // Help text
   default: any; // Default value
@@ -25,45 +25,43 @@ export interface AgentConfig {
   configOptions?: AgentConfigOption[]; // Agent-specific configuration
 }
 
-const AGENT_DEFINITIONS: Omit<AgentConfig, "available" | "path">[] = [
+const AGENT_DEFINITIONS: Omit<AgentConfig, 'available' | 'path'>[] = [
   {
-    id: "claude-code",
-    name: "Claude Code",
-    binaryName: "claude",
-    command: "claude",
-    args: ["--print", "--output-format", "json"],
+    id: 'claude-code',
+    name: 'Claude Code',
+    binaryName: 'claude',
+    command: 'claude',
+    args: ['--print', '--output-format', 'json'],
     configOptions: [
       {
-        key: "yoloMode",
-        type: "checkbox",
-        label: "YOLO",
-        description:
-          "Skip permission prompts (runs with --dangerously-skip-permissions)",
+        key: 'yoloMode',
+        type: 'checkbox',
+        label: 'YOLO',
+        description: 'Skip permission prompts (runs with --dangerously-skip-permissions)',
         default: false,
-        argBuilder: (enabled: boolean) =>
-          enabled ? ["--dangerously-skip-permissions"] : [],
-      },
-    ],
+        argBuilder: (enabled: boolean) => enabled ? ['--dangerously-skip-permissions'] : []
+      }
+    ]
   },
   {
-    id: "aider-gemini",
-    name: "Aider (Gemini)",
-    binaryName: "aider",
-    command: "aider",
-    args: ["--model", "gemini/gemini-2.0-flash-exp"],
+    id: 'aider-gemini',
+    name: 'Aider (Gemini)',
+    binaryName: 'aider',
+    command: 'aider',
+    args: ['--model', 'gemini/gemini-2.0-flash-exp'],
   },
   {
-    id: "qwen-coder",
-    name: "Qwen Coder",
-    binaryName: "qwen-coder",
-    command: "qwen-coder",
+    id: 'qwen-coder',
+    name: 'Qwen Coder',
+    binaryName: 'qwen-coder',
+    command: 'qwen-coder',
     args: [],
   },
   {
-    id: "terminal",
-    name: "CLI Terminal",
-    binaryName: "bash",
-    command: "bash",
+    id: 'terminal',
+    name: 'CLI Terminal',
+    binaryName: 'bash',
+    command: 'bash',
     args: [],
   },
 ];
@@ -82,25 +80,19 @@ export class AgentDetector {
     const agents: AgentConfig[] = [];
     const expandedEnv = this.getExpandedEnv();
 
-    logger.info(
-      `Agent detection starting. PATH: ${expandedEnv.PATH}`,
-      "AgentDetector"
-    );
+    logger.info(`Agent detection starting. PATH: ${expandedEnv.PATH}`, 'AgentDetector');
 
     for (const agentDef of AGENT_DEFINITIONS) {
       const detection = await this.checkBinaryExists(agentDef.binaryName);
 
       if (detection.exists) {
-        logger.info(
-          `Agent "${agentDef.name}" found at: ${detection.path}`,
-          "AgentDetector"
-        );
-      } else if (agentDef.binaryName !== "bash") {
+        logger.info(`Agent "${agentDef.name}" found at: ${detection.path}`, 'AgentDetector');
+      } else if (agentDef.binaryName !== 'bash') {
         // Don't log bash as missing since it's always present, log others as warnings
         logger.warn(
           `Agent "${agentDef.name}" (binary: ${agentDef.binaryName}) not found. ` +
-            `Searched in PATH: ${expandedEnv.PATH}`,
-          "AgentDetector"
+          `Searched in PATH: ${expandedEnv.PATH}`,
+          'AgentDetector'
         );
       }
 
@@ -111,15 +103,8 @@ export class AgentDetector {
       });
     }
 
-    const availableAgents = agents
-      .filter((a) => a.available)
-      .map((a) => a.name);
-    logger.info(
-      `Agent detection complete. Available: ${
-        availableAgents.join(", ") || "none"
-      }`,
-      "AgentDetector"
-    );
+    const availableAgents = agents.filter(a => a.available).map(a => a.name);
+    logger.info(`Agent detection complete. Available: ${availableAgents.join(', ') || 'none'}`, 'AgentDetector');
 
     this.cachedAgents = agents;
     return agents;
@@ -135,22 +120,22 @@ export class AgentDetector {
 
     // Standard system paths + common user-installed binary locations
     const additionalPaths = [
-      "/opt/homebrew/bin", // Homebrew on Apple Silicon
-      "/opt/homebrew/sbin",
-      "/usr/local/bin", // Homebrew on Intel, common install location
-      "/usr/local/sbin",
-      `${home}/.local/bin`, // User local installs (pip, etc.)
-      `${home}/.npm-global/bin`, // npm global with custom prefix
-      `${home}/bin`, // User bin directory
-      `${home}/.claude/local`, // Sneaky Claude loccation
-      "/usr/bin",
-      "/bin",
-      "/usr/sbin",
-      "/sbin",
+      '/opt/homebrew/bin',           // Homebrew on Apple Silicon
+      '/opt/homebrew/sbin',
+      '/usr/local/bin',              // Homebrew on Intel, common install location
+      '/usr/local/sbin',
+      `${home}/.local/bin`,          // User local installs (pip, etc.)
+      `${home}/.npm-global/bin`,     // npm global with custom prefix
+      `${home}/bin`,                 // User bin directory
+      `${home}/.claude/local`,       // Sneaky Claude loccation
+      '/usr/bin',
+      '/bin',
+      '/usr/sbin',
+      '/sbin',
     ];
 
-    const currentPath = env.PATH || "";
-    const pathParts = currentPath.split(":");
+    const currentPath = env.PATH || '';
+    const pathParts = currentPath.split(':');
 
     // Add paths that aren't already present
     for (const p of additionalPaths) {
@@ -159,34 +144,27 @@ export class AgentDetector {
       }
     }
 
-    env.PATH = pathParts.join(":");
+    env.PATH = pathParts.join(':');
     return env;
   }
 
   /**
    * Check if a binary exists in PATH
    */
-  private async checkBinaryExists(
-    binaryName: string
-  ): Promise<{ exists: boolean; path?: string }> {
+  private async checkBinaryExists(binaryName: string): Promise<{ exists: boolean; path?: string }> {
     try {
       // Use 'which' on Unix-like systems, 'where' on Windows
-      const command = process.platform === "win32" ? "where" : "which";
+      const command = process.platform === 'win32' ? 'where' : 'which';
 
       // Use expanded PATH to find binaries in common installation locations
       // This is critical for packaged Electron apps which don't inherit shell env
       const env = this.getExpandedEnv();
-      const result = await execFileNoThrow(
-        command,
-        [binaryName],
-        undefined,
-        env
-      );
+      const result = await execFileNoThrow(command, [binaryName], undefined, env);
 
       if (result.exitCode === 0 && result.stdout.trim()) {
         return {
           exists: true,
-          path: result.stdout.trim().split("\n")[0], // First match
+          path: result.stdout.trim().split('\n')[0], // First match
         };
       }
 
@@ -201,7 +179,7 @@ export class AgentDetector {
    */
   async getAgent(agentId: string): Promise<AgentConfig | null> {
     const agents = await this.detectAgents();
-    return agents.find((a) => a.id === agentId) || null;
+    return agents.find(a => a.id === agentId) || null;
   }
 
   /**
@@ -211,3 +189,4 @@ export class AgentDetector {
     this.cachedAgents = null;
   }
 }
+

@@ -305,12 +305,21 @@ export class WebServer {
       }));
     });
 
-    // Session list endpoint
-    // NOTE: Placeholder for Phase 6. Currently returns empty array.
-    // Future: Return actual session list from ProcessManager
-    this.server.get('/api/sessions', async () => {
+    // Session list endpoint - returns all sessions with their current states
+    // Rate limited using GET rate limit config
+    this.server.get('/api/sessions', {
+      preHandler: this.authenticateRequest.bind(this),
+      config: {
+        rateLimit: {
+          max: this.rateLimitConfig.max,
+          timeWindow: this.rateLimitConfig.timeWindow,
+        },
+      },
+    }, async () => {
+      const sessions = this.getSessionsCallback ? this.getSessionsCallback() : [];
       return {
-        sessions: [],
+        sessions,
+        count: sessions.length,
         timestamp: Date.now(),
       };
     });

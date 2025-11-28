@@ -544,78 +544,74 @@ export default function MaestroConsole() {
         isFromAi = false;
       }
 
+      // For AI exits, gather toast data BEFORE state update to avoid side effects in updater
+      // React 18 StrictMode may call state updater functions multiple times
+      let toastData: { title: string; summary: string; groupName: string; projectName: string; duration: number } | null = null;
+      let queuedMessageToProcess: { sessionId: string; message: LogEntry } | null = null;
+
+      if (isFromAi) {
+        const currentSession = sessionsRef.current.find(s => s.id === actualSessionId);
+        if (currentSession) {
+          // Check if there are queued messages
+          if (currentSession.messageQueue.length > 0) {
+            queuedMessageToProcess = {
+              sessionId: actualSessionId,
+              message: currentSession.messageQueue[0]
+            };
+          } else {
+            // Task complete - gather toast notification data
+            const lastUserLog = currentSession.aiLogs.filter(log => log.source === 'user').pop();
+            const lastAiLog = currentSession.aiLogs.filter(log => log.source === 'stdout' || log.source === 'ai').pop();
+            const duration = currentSession.thinkingStartTime ? Date.now() - currentSession.thinkingStartTime : 0;
+
+            // Get group name for this session
+            const sessionGroup = groupsRef.current.find((g: any) => g.sessionIds?.includes(actualSessionId));
+            const groupName = sessionGroup?.name || 'Ungrouped';
+            const projectName = currentSession.name || currentSession.cwd.split('/').pop() || 'Unknown';
+
+            // Create title from user's request (truncated)
+            let title = 'Task Complete';
+            if (lastUserLog?.text) {
+              const userText = lastUserLog.text.trim();
+              title = userText.length > 50 ? userText.substring(0, 47) + '...' : userText;
+            }
+
+            // Create a short summary from the last AI response
+            let summary = '';
+            if (lastAiLog?.text) {
+              const text = lastAiLog.text.trim();
+              if (text.length > 10) {
+                const firstSentence = text.match(/^[^.!?\n]*[.!?]/)?.[0] || text.substring(0, 120);
+                summary = firstSentence.length < text.length ? firstSentence : text.substring(0, 120) + (text.length > 120 ? '...' : '');
+              }
+            }
+            if (!summary) {
+              summary = 'Completed successfully';
+            }
+
+            toastData = { title, summary, groupName, projectName, duration };
+          }
+        }
+      }
+
+      // Update state (pure function - no side effects)
       setSessions(prev => prev.map(s => {
         if (s.id !== actualSessionId) return s;
 
-        // For AI agent exits, check if there are queued messages to process
-        // For terminal exits, show the exit code
         if (isFromAi) {
           // Check if there are queued messages
           if (s.messageQueue.length > 0) {
-            // Dequeue first message and add to logs
             const [nextMessage, ...remainingQueue] = s.messageQueue;
-
-            // Schedule the next message to be sent (async, after state update)
-            setTimeout(() => {
-              processQueuedMessage(actualSessionId, nextMessage);
-            }, 0);
-
             return {
               ...s,
-              state: 'busy' as SessionState,  // Explicitly keep busy for queued message processing
+              state: 'busy' as SessionState,
               aiLogs: [...s.aiLogs, nextMessage],
               messageQueue: remainingQueue,
               thinkingStartTime: Date.now()
             };
           }
 
-          // Task complete - show toast notification
-          // Get the last user request and AI response
-          const lastUserLog = s.aiLogs.filter(log => log.source === 'user').pop();
-          const lastAiLog = s.aiLogs.filter(log => log.source === 'stdout' || log.source === 'ai').pop();
-          const duration = s.thinkingStartTime ? Date.now() - s.thinkingStartTime : 0;
-
-          // Get group name for this session
-          const sessionGroup = groupsRef.current.find((g: any) => g.sessionIds?.includes(actualSessionId));
-          const groupName = sessionGroup?.name || 'Ungrouped';
-          const projectName = s.name || s.cwd.split('/').pop() || 'Unknown';
-
-          // Create title from user's request (truncated)
-          let title = 'Task Complete';
-          if (lastUserLog?.text) {
-            const userText = lastUserLog.text.trim();
-            // Truncate to ~50 chars for title
-            title = userText.length > 50 ? userText.substring(0, 47) + '...' : userText;
-          }
-
-          // Create a short summary from the last AI response
-          let summary = '';
-          if (lastAiLog?.text) {
-            const text = lastAiLog.text.trim();
-            // Skip empty or very short responses
-            if (text.length > 10) {
-              // Extract first meaningful sentence or first 120 chars
-              const firstSentence = text.match(/^[^.!?\n]*[.!?]/)?.[0] || text.substring(0, 120);
-              summary = firstSentence.length < text.length ? firstSentence : text.substring(0, 120) + (text.length > 120 ? '...' : '');
-            }
-          }
-          // Fallback if no good summary
-          if (!summary) {
-            summary = 'Completed successfully';
-          }
-
-          // Fire toast notification (async, don't block state update)
-          setTimeout(() => {
-            addToastRef.current({
-              type: 'success',
-              title,
-              message: summary,
-              group: groupName,
-              project: projectName,
-              taskDuration: duration,
-            });
-          }, 0);
-
+          // Task complete
           return {
             ...s,
             state: 'idle' as SessionState,
@@ -637,6 +633,24 @@ export default function MaestroConsole() {
           shellLogs: [...s.shellLogs, exitLog]
         };
       }));
+
+      // Fire side effects AFTER state update (outside the updater function)
+      if (queuedMessageToProcess) {
+        setTimeout(() => {
+          processQueuedMessage(queuedMessageToProcess!.sessionId, queuedMessageToProcess!.message);
+        }, 0);
+      } else if (toastData) {
+        setTimeout(() => {
+          addToastRef.current({
+            type: 'success',
+            title: toastData!.title,
+            message: toastData!.summary,
+            group: toastData!.groupName,
+            project: toastData!.projectName,
+            taskDuration: toastData!.duration,
+          });
+        }, 0);
+      }
     });
 
     // Handle Claude session ID capture for interactive sessions only
@@ -835,6 +849,12 @@ export default function MaestroConsole() {
   sessionsRef.current = sessions;
   updateGlobalStatsRef.current = updateGlobalStats;
   customAICommandsRef.current = customAICommands;
+
+  // Refs for slash command functions (to access latest values in remote command handler)
+  const spawnBackgroundSynopsisRef = useRef<typeof spawnBackgroundSynopsis | null>(null);
+  const addHistoryEntryRef = useRef<typeof addHistoryEntry | null>(null);
+  const spawnAgentWithPromptRef = useRef<typeof spawnAgentWithPrompt | null>(null);
+  const startNewClaudeSessionRef = useRef<typeof startNewClaudeSession | null>(null);
 
   // Ref for handling remote commands from web interface
   // This allows web commands to go through the exact same code path as desktop commands
@@ -1223,6 +1243,12 @@ export default function MaestroConsole() {
     ));
     setActiveClaudeSessionId(null);
   }, [activeSession]);
+
+  // Update refs for slash command functions (so remote command handler can access latest versions)
+  spawnBackgroundSynopsisRef.current = spawnBackgroundSynopsis;
+  addHistoryEntryRef.current = addHistoryEntry;
+  spawnAgentWithPromptRef.current = spawnAgentWithPrompt;
+  startNewClaudeSessionRef.current = startNewClaudeSession;
 
   // Initialize batch processor (supports parallel batches per session)
   const {
@@ -2595,7 +2621,7 @@ export default function MaestroConsole() {
         return;
       }
 
-      // Check for custom AI slash commands (only in AI mode)
+      // Check for slash commands (built-in and custom)
       let promptToSend = command;
       let commandMetadata: { command: string; description: string } | undefined;
 
@@ -2603,7 +2629,63 @@ export default function MaestroConsole() {
         const commandText = command.trim();
         console.log('[Remote] Detected slash command:', commandText);
 
-        // Look up in custom AI commands
+        // First, check for built-in slash commands (like /synopsis, /clear)
+        const isTerminalMode = session.inputMode === 'terminal';
+        const matchingBuiltinCommand = slashCommands.find(cmd => {
+          if (cmd.command !== commandText) return false;
+          // Apply mode filtering
+          if (cmd.terminalOnly && !isTerminalMode) return false;
+          if (cmd.aiOnly && isTerminalMode) return false;
+          return true;
+        });
+
+        if (matchingBuiltinCommand) {
+          console.log('[Remote] Found matching built-in slash command:', matchingBuiltinCommand.command);
+
+          // Execute the built-in command with full context (using refs for latest function versions)
+          matchingBuiltinCommand.execute({
+            activeSessionId: sessionId,
+            sessions: sessionsRef.current,
+            setSessions,
+            currentMode: session.inputMode,
+            groups: groupsRef.current,
+            setRightPanelOpen,
+            setActiveRightTab,
+            setActiveFocus,
+            setSelectedFileIndex,
+            sendPromptToAgent: spawnAgentWithPromptRef.current || undefined,
+            addHistoryEntry: addHistoryEntryRef.current || undefined,
+            startNewClaudeSession: startNewClaudeSessionRef.current || undefined,
+            spawnBackgroundSynopsis: spawnBackgroundSynopsisRef.current || undefined,
+            addToast: addToastRef.current,
+            refreshHistoryPanel: () => rightPanelRef.current?.refreshHistoryPanel(),
+          });
+
+          // Built-in command executed - don't continue to spawn AI
+          return;
+        }
+
+        // Check if command exists but isn't available in current mode
+        const existingBuiltinCommand = slashCommands.find(cmd => cmd.command === commandText);
+        if (existingBuiltinCommand) {
+          const modeLabel = isTerminalMode ? 'AI' : 'terminal';
+          console.log('[Remote] Built-in command exists but not available in', session.inputMode, 'mode');
+          setSessions(prev => prev.map(s => {
+            if (s.id !== sessionId) return s;
+            return {
+              ...s,
+              aiLogs: [...s.aiLogs, {
+                id: generateId(),
+                timestamp: Date.now(),
+                source: 'system',
+                text: `${commandText} is only available in ${modeLabel} mode.`
+              }]
+            };
+          }));
+          return;
+        }
+
+        // Next, look up in custom AI commands
         const matchingCustomCommand = customAICommandsRef.current.find(
           cmd => cmd.command === commandText
         );

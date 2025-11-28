@@ -445,8 +445,8 @@ export function SettingsModal(props: SettingsModalProps) {
     if (e.key === 'Tab') {
       e.preventDefault();
       e.stopPropagation();
-      // Create ordered array: dark themes first (left-to-right, top-to-bottom), then light themes
-      const allThemes = [...(groupedThemes['dark'] || []), ...(groupedThemes['light'] || [])];
+      // Create ordered array: dark themes first, then light, then vibe (cycling back to dark)
+      const allThemes = [...(groupedThemes['dark'] || []), ...(groupedThemes['light'] || []), ...(groupedThemes['vibe'] || [])];
       const currentIndex = allThemes.findIndex((t: Theme) => t.id === props.activeThemeId);
 
       let newThemeId: string;

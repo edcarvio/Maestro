@@ -817,26 +817,34 @@ export function SessionList(props: SessionListProps) {
                                 }}
                               />
                             ) : (
-                              <div
-                                className="flex items-center gap-1.5"
+                              <span
+                                className="text-sm font-medium truncate"
+                                style={{ color: activeSessionId === session.id ? theme.colors.textMain : theme.colors.textDim }}
                                 onDoubleClick={() => startRenamingSession(session.id)}
                               >
-                                {session.bookmarked && (
-                                  <Bookmark className="w-3 h-3 shrink-0" style={{ color: theme.colors.accent }} fill={theme.colors.accent} />
-                                )}
-                                <span
-                                  className="text-sm font-medium truncate"
-                                  style={{ color: activeSessionId === session.id ? theme.colors.textMain : theme.colors.textDim }}
-                                >
-                                  {session.name}
-                                </span>
-                              </div>
+                                {session.name}
+                              </span>
                             )}
                             <div className="flex items-center gap-2 text-[10px] mt-0.5 opacity-70">
                               <Activity className="w-3 h-3" /> {session.toolType}
                             </div>
                           </div>
                           <div className="flex items-center gap-2 ml-2">
+                            {/* Bookmark toggle - show outline on hover for non-bookmarked */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleBookmark(session.id);
+                              }}
+                              className={`p-0.5 rounded hover:bg-white/10 transition-all ${session.bookmarked ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                              title={session.bookmarked ? "Remove bookmark" : "Add bookmark"}
+                            >
+                              <Bookmark
+                                className="w-3 h-3"
+                                style={{ color: theme.colors.accent }}
+                                fill={session.bookmarked ? theme.colors.accent : 'none'}
+                              />
+                            </button>
                             {/* Git Dirty Indicator (only in wide mode) */}
                             {leftSidebarOpen && session.isGitRepo && gitFileCounts.has(session.id) && gitFileCounts.get(session.id)! > 0 && (
                               <div className="flex items-center gap-0.5 text-[10px]" style={{ color: theme.colors.warning }}>
@@ -1056,26 +1064,34 @@ export function SessionList(props: SessionListProps) {
                         }}
                       />
                     ) : (
-                      <div
-                        className="flex items-center gap-1.5"
+                      <span
+                        className="text-sm font-medium truncate"
+                        style={{ color: activeSessionId === session.id ? theme.colors.textMain : theme.colors.textDim }}
                         onDoubleClick={() => startRenamingSession(session.id)}
                       >
-                        {session.bookmarked && (
-                          <Bookmark className="w-3 h-3 shrink-0" style={{ color: theme.colors.accent }} fill={theme.colors.accent} />
-                        )}
-                        <span
-                          className="text-sm font-medium truncate"
-                          style={{ color: activeSessionId === session.id ? theme.colors.textMain : theme.colors.textDim }}
-                        >
-                          {session.name}
-                        </span>
-                      </div>
+                        {session.name}
+                      </span>
                     )}
                     <div className="flex items-center gap-2 text-[10px] mt-0.5 opacity-70">
                       <Activity className="w-3 h-3" /> {session.toolType}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-2">
+                    {/* Bookmark toggle - show outline on hover for non-bookmarked */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleBookmark(session.id);
+                      }}
+                      className={`p-0.5 rounded hover:bg-white/10 transition-all ${session.bookmarked ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                      title={session.bookmarked ? "Remove bookmark" : "Add bookmark"}
+                    >
+                      <Bookmark
+                        className="w-3 h-3"
+                        style={{ color: theme.colors.accent }}
+                        fill={session.bookmarked ? theme.colors.accent : 'none'}
+                      />
+                    </button>
                     {/* Git Dirty Indicator (only in wide mode) */}
                     {leftSidebarOpen && session.isGitRepo && gitFileCounts.has(session.id) && gitFileCounts.get(session.id)! > 0 && (
                       <div className="flex items-center gap-0.5 text-[10px]" style={{ color: theme.colors.warning }}>

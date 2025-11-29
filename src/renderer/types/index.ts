@@ -102,6 +102,14 @@ export interface GlobalStats {
   totalActiveTimeMs: number;
 }
 
+// Recent Claude session for quick access breadcrumbs (per Maestro session)
+export interface RecentClaudeSession {
+  sessionId: string;
+  firstMessage: string;
+  timestamp: string;
+  sessionName?: string;
+}
+
 export interface Session {
   id: string;
   groupId?: string;
@@ -150,6 +158,9 @@ export interface Session {
   statusMessage?: string;
   // Timestamp when agent started processing (for elapsed time display)
   thinkingStartTime?: number;
+  // Tracks which mode (ai/terminal) triggered the busy state
+  // Used to show the correct busy indicator message when user switches modes
+  busySource?: 'ai' | 'terminal';
   // Message queue for AI mode - messages sent while busy are queued here
   messageQueue: LogEntry[];
   // Active time tracking - cumulative milliseconds of active use
@@ -158,6 +169,12 @@ export interface Session {
   claudeCommands?: { command: string; description: string; }[];
   // Bookmark flag - bookmarked sessions appear in a dedicated section at the top
   bookmarked?: boolean;
+  // Recent Claude sessions breadcrumbs for quick access (persisted per Maestro session)
+  recentClaudeSessions?: RecentClaudeSession[];
+  // Pending AI command that will trigger a synopsis on completion (e.g., '/commit')
+  pendingAICommandForSynopsis?: string;
+  // Custom batch runner prompt (persisted per session)
+  batchRunnerPrompt?: string;
 }
 
 export interface Group {
@@ -207,5 +224,6 @@ export interface CustomAICommand {
   description: string; // Short description shown in autocomplete
   prompt: string; // The actual prompt sent to the AI agent
   isBuiltIn?: boolean; // If true, cannot be deleted (only edited)
+  isSystemCommand?: boolean; // If true, handled by slashCommands.ts instead of sending prompt
 }
 

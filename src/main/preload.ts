@@ -67,6 +67,9 @@ contextBridge.exposeInMainWorld('maestro', {
     runCommand: (config: { sessionId: string; command: string; cwd: string; shell?: string }) =>
       ipcRenderer.invoke('process:runCommand', config),
 
+    // Get all active processes from ProcessManager
+    getActiveProcesses: () => ipcRenderer.invoke('process:getActiveProcesses'),
+
     // Event listeners
     onData: (callback: (sessionId: string, data: string) => void) => {
       const handler = (_: any, sessionId: string, data: string) => callback(sessionId, data);
@@ -106,6 +109,12 @@ contextBridge.exposeInMainWorld('maestro', {
       ipcRenderer.on('remote:interrupt', handler);
       return () => ipcRenderer.removeListener('remote:interrupt', handler);
     },
+    // Remote session selection from web interface - forwards to desktop's setActiveSessionId logic
+    onRemoteSelectSession: (callback: (sessionId: string) => void) => {
+      const handler = (_: any, sessionId: string) => callback(sessionId);
+      ipcRenderer.on('remote:selectSession', handler);
+      return () => ipcRenderer.removeListener('remote:selectSession', handler);
+    },
     // Stderr listener for runCommand (separate stream)
     onStderr: (callback: (sessionId: string, data: string) => void) => {
       const handler = (_: any, sessionId: string, data: string) => callback(sessionId, data);
@@ -138,6 +147,15 @@ contextBridge.exposeInMainWorld('maestro', {
     // Broadcast user input to web clients (for keeping web interface in sync)
     broadcastUserInput: (sessionId: string, command: string, inputMode: 'ai' | 'terminal') =>
       ipcRenderer.invoke('web:broadcastUserInput', sessionId, command, inputMode),
+    // Broadcast AutoRun state to web clients (for showing task progress on mobile)
+    broadcastAutoRunState: (sessionId: string, state: {
+      isRunning: boolean;
+      totalTasks: number;
+      completedTasks: number;
+      currentTaskIndex: number;
+      isStopping?: boolean;
+    } | null) =>
+      ipcRenderer.invoke('web:broadcastAutoRunState', sessionId, state),
   },
 
   // Git API
@@ -241,6 +259,23 @@ contextBridge.exposeInMainWorld('maestro', {
   claude: {
     listSessions: (projectPath: string) =>
       ipcRenderer.invoke('claude:listSessions', projectPath),
+    getGlobalStats: () =>
+      ipcRenderer.invoke('claude:getGlobalStats'),
+    onGlobalStatsUpdate: (callback: (stats: {
+      totalSessions: number;
+      totalMessages: number;
+      totalInputTokens: number;
+      totalOutputTokens: number;
+      totalCacheReadTokens: number;
+      totalCacheCreationTokens: number;
+      totalCostUsd: number;
+      totalSizeBytes: number;
+      isComplete: boolean;
+    }) => void) => {
+      const handler = (_: any, stats: any) => callback(stats);
+      ipcRenderer.on('claude:globalStatsUpdate', handler);
+      return () => ipcRenderer.removeListener('claude:globalStatsUpdate', handler);
+    },
     readSessionMessages: (projectPath: string, sessionId: string, options?: { offset?: number; limit?: number }) =>
       ipcRenderer.invoke('claude:readSessionMessages', projectPath, sessionId, options),
     searchSessions: (projectPath: string, query: string, searchMode: 'title' | 'user' | 'assistant' | 'all') =>
@@ -254,6 +289,8 @@ contextBridge.exposeInMainWorld('maestro', {
       ipcRenderer.invoke('claude:updateSessionName', projectPath, claudeSessionId, sessionName),
     getSessionOrigins: (projectPath: string) =>
       ipcRenderer.invoke('claude:getSessionOrigins', projectPath),
+    deleteMessagePair: (projectPath: string, sessionId: string, userMessageUuid: string, fallbackContent?: string) =>
+      ipcRenderer.invoke('claude:deleteMessagePair', projectPath, sessionId, userMessageUuid, fallbackContent),
   },
 
   // Temp file API (for batch processing)
@@ -284,6 +321,22 @@ contextBridge.exposeInMainWorld('maestro', {
       ipcRenderer.invoke('notification:show', title, body),
     speak: (text: string, command?: string) =>
       ipcRenderer.invoke('notification:speak', text, command),
+    stopSpeak: (ttsId: number) =>
+      ipcRenderer.invoke('notification:stopSpeak', ttsId),
+  },
+
+  // Attachments API (per-session image storage for scratchpad)
+  attachments: {
+    save: (sessionId: string, base64Data: string, filename: string) =>
+      ipcRenderer.invoke('attachments:save', sessionId, base64Data, filename),
+    load: (sessionId: string, filename: string) =>
+      ipcRenderer.invoke('attachments:load', sessionId, filename),
+    delete: (sessionId: string, filename: string) =>
+      ipcRenderer.invoke('attachments:delete', sessionId, filename),
+    list: (sessionId: string) =>
+      ipcRenderer.invoke('attachments:list', sessionId),
+    getPath: (sessionId: string) =>
+      ipcRenderer.invoke('attachments:getPath', sessionId),
   },
 });
 
@@ -309,12 +362,21 @@ export interface MaestroAPI {
     kill: (sessionId: string) => Promise<boolean>;
     resize: (sessionId: string, cols: number, rows: number) => Promise<boolean>;
     runCommand: (config: { sessionId: string; command: string; cwd: string; shell?: string }) => Promise<{ exitCode: number }>;
+    getActiveProcesses: () => Promise<Array<{
+      sessionId: string;
+      toolType: string;
+      pid: number;
+      cwd: string;
+      isTerminal: boolean;
+      isBatchMode: boolean;
+    }>>;
     onData: (callback: (sessionId: string, data: string) => void) => () => void;
     onExit: (callback: (sessionId: string, code: number) => void) => () => void;
     onSessionId: (callback: (sessionId: string, claudeSessionId: string) => void) => () => void;
     onRemoteCommand: (callback: (sessionId: string, command: string) => void) => () => void;
     onRemoteSwitchMode: (callback: (sessionId: string, mode: 'ai' | 'terminal') => void) => () => void;
     onRemoteInterrupt: (callback: (sessionId: string) => void) => () => void;
+    onRemoteSelectSession: (callback: (sessionId: string) => void) => () => void;
     onStderr: (callback: (sessionId: string, data: string) => void) => () => void;
     onCommandExit: (callback: (sessionId: string, code: number) => void) => () => void;
     onUsage: (callback: (sessionId: string, usageStats: {
@@ -427,6 +489,17 @@ export interface MaestroAPI {
       origin?: 'user' | 'auto'; // Maestro session origin, undefined for CLI sessions
       sessionName?: string; // User-defined session name from Maestro
     }>>;
+    onGlobalStatsUpdate: (callback: (stats: {
+      totalSessions: number;
+      totalMessages: number;
+      totalInputTokens: number;
+      totalOutputTokens: number;
+      totalCacheReadTokens: number;
+      totalCacheCreationTokens: number;
+      totalCostUsd: number;
+      totalSizeBytes: number;
+      isComplete: boolean;
+    }) => void) => () => void;
     readSessionMessages: (projectPath: string, sessionId: string, options?: { offset?: number; limit?: number }) => Promise<{
       messages: Array<{
         type: string;
@@ -452,6 +525,7 @@ export interface MaestroAPI {
     registerSessionOrigin: (projectPath: string, claudeSessionId: string, origin: 'user' | 'auto', sessionName?: string) => Promise<boolean>;
     updateSessionName: (projectPath: string, claudeSessionId: string, sessionName: string) => Promise<boolean>;
     getSessionOrigins: (projectPath: string) => Promise<Record<string, 'user' | 'auto' | { origin: 'user' | 'auto'; sessionName?: string }>>;
+    deleteMessagePair: (projectPath: string, sessionId: string, userMessageUuid: string, fallbackContent?: string) => Promise<{ success: boolean; linesRemoved?: number; error?: string }>;
   };
   tempfile: {
     write: (content: string, filename?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
@@ -482,7 +556,15 @@ export interface MaestroAPI {
   };
   notification: {
     show: (title: string, body: string) => Promise<{ success: boolean; error?: string }>;
-    speak: (text: string, command?: string) => Promise<{ success: boolean; error?: string }>;
+    speak: (text: string, command?: string) => Promise<{ success: boolean; ttsId?: number; error?: string }>;
+    stopSpeak: (ttsId: number) => Promise<{ success: boolean; error?: string }>;
+  };
+  attachments: {
+    save: (sessionId: string, base64Data: string, filename: string) => Promise<{ success: boolean; path?: string; filename?: string; error?: string }>;
+    load: (sessionId: string, filename: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
+    delete: (sessionId: string, filename: string) => Promise<{ success: boolean; error?: string }>;
+    list: (sessionId: string) => Promise<{ success: boolean; files: string[]; error?: string }>;
+    getPath: (sessionId: string) => Promise<{ success: boolean; path: string }>;
   };
 }
 

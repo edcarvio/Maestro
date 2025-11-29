@@ -12,6 +12,7 @@ interface ClaudeSession {
   firstMessage: string;
   messageCount: number;
   sizeBytes: number;
+  sessionName?: string; // Named session from Maestro
 }
 
 interface SessionMessage {
@@ -228,6 +229,7 @@ export function AgentSessionsModal({
   // Filter sessions by search and sort starred to top
   const filteredSessions = sessions
     .filter(s =>
+      (s.sessionName?.toLowerCase().includes(search.toLowerCase())) ||
       s.firstMessage.toLowerCase().includes(search.toLowerCase()) ||
       s.sessionId.toLowerCase().includes(search.toLowerCase())
     )
@@ -324,7 +326,7 @@ export function AgentSessionsModal({
               </button>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate" style={{ color: theme.colors.textMain }}>
-                  {viewingSession.firstMessage || 'Session Preview'}
+                  {viewingSession.sessionName || viewingSession.firstMessage || 'Session Preview'}
                 </div>
                 <div className="text-xs" style={{ color: theme.colors.textDim }}>
                   {totalMessages} messages • {formatRelativeTime(viewingSession.modifiedAt)}
@@ -335,7 +337,7 @@ export function AgentSessionsModal({
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
                 style={{
                   backgroundColor: theme.colors.accent,
-                  color: theme.colors.accentText,
+                  color: theme.colors.accentForeground,
                 }}
               >
                 <Play className="w-4 h-4" />
@@ -460,7 +462,7 @@ export function AgentSessionsModal({
                     </button>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate text-sm">
-                        {session.firstMessage || `Session ${session.sessionId.slice(0, 8)}...`}
+                        {session.sessionName || session.firstMessage || `Session ${session.sessionId.slice(0, 8)}...`}
                       </div>
                       <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: theme.colors.textDim }}>
                         <span className="flex items-center gap-1">

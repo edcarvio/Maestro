@@ -55,7 +55,7 @@ export const slashCommands: SlashCommand[] = [
         // Set session to busy while synopsizing
         setSessions(prev => prev.map(s => {
           if (s.id !== actualActiveId) return s;
-          return { ...s, state: 'busy', thinkingStartTime: Date.now(), statusMessage: 'Agent is synopsizing...' };
+          return { ...s, state: 'busy', busySource: 'ai', thinkingStartTime: Date.now(), statusMessage: 'Agent is synopsizing...' };
         }));
 
         const result = await spawnBackgroundSynopsis(
@@ -68,7 +68,7 @@ export const slashCommands: SlashCommand[] = [
         // Clear busy state
         setSessions(prev => prev.map(s => {
           if (s.id !== actualActiveId) return s;
-          return { ...s, state: 'idle', thinkingStartTime: undefined, statusMessage: undefined };
+          return { ...s, state: 'idle', busySource: undefined, thinkingStartTime: undefined, statusMessage: undefined };
         }));
 
         if (result.success && result.response) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { X, Key, Moon, Sun, Keyboard, Check, Terminal, Bell, Volume2, Cpu, Clock, Settings, Palette, Globe, Sparkles } from 'lucide-react';
+import { X, Key, Moon, Sun, Keyboard, Check, Terminal, Bell, Volume2, Square, Cpu, Clock, Settings, Palette, Globe, Sparkles } from 'lucide-react';
 import type { AgentConfig, Theme, Shortcut, ShellInfo, CustomAICommand } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
@@ -80,6 +80,9 @@ export function SettingsModal(props: SettingsModalProps) {
   const [shells, setShells] = useState<ShellInfo[]>([]);
   const [shellsLoading, setShellsLoading] = useState(false);
   const [shellsLoaded, setShellsLoaded] = useState(false);
+
+  // TTS test state
+  const [testTtsId, setTestTtsId] = useState<number | null>(null);
 
   // Layer stack integration
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
@@ -445,8 +448,8 @@ export function SettingsModal(props: SettingsModalProps) {
     if (e.key === 'Tab') {
       e.preventDefault();
       e.stopPropagation();
-      // Create ordered array: dark themes first (left-to-right, top-to-bottom), then light themes
-      const allThemes = [...(groupedThemes['dark'] || []), ...(groupedThemes['light'] || [])];
+      // Create ordered array: dark themes first, then light, then vibe (cycling back to dark)
+      const allThemes = [...(groupedThemes['dark'] || []), ...(groupedThemes['light'] || []), ...(groupedThemes['vibe'] || [])];
       const currentIndex = allThemes.findIndex((t: Theme) => t.id === props.activeThemeId);
 
       let newThemeId: string;
@@ -716,7 +719,7 @@ export function SettingsModal(props: SettingsModalProps) {
                         <button
                           onClick={addCustomFont}
                           className="px-3 py-2 rounded text-xs font-bold"
-                          style={{ backgroundColor: theme.colors.accent, color: 'white' }}
+                          style={{ backgroundColor: theme.colors.accent, color: theme.colors.accentForeground }}
                         >
                           Add
                         </button>
@@ -1229,7 +1232,7 @@ export function SettingsModal(props: SettingsModalProps) {
                   className="w-full py-3 rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{
                     backgroundColor: theme.colors.accent,
-                    color: 'white',
+                    color: theme.colors.accentForeground,
                   }}
                 >
                   {testingLLM ? 'Testing Connection...' : 'Test Connection'}
@@ -1434,25 +1437,53 @@ export function SettingsModal(props: SettingsModalProps) {
                       className="flex-1 p-2 rounded border bg-transparent outline-none text-sm font-mono"
                       style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
                     />
-                    <button
-                      onClick={async () => {
-                        console.log('[TTS] Test button clicked, command:', props.audioFeedbackCommand);
-                        try {
-                          const result = await window.maestro.notification.speak("Howdy, I'm Maestro, here to conduct your agentic tools into a well-tuned symphony.", props.audioFeedbackCommand);
-                          console.log('[TTS] Speak result:', result);
-                        } catch (err) {
-                          console.error('[TTS] Speak error:', err);
-                        }
-                      }}
-                      className="px-3 py-2 rounded text-xs font-medium transition-all"
-                      style={{
-                        backgroundColor: theme.colors.bgActivity,
-                        color: theme.colors.textMain,
-                        border: `1px solid ${theme.colors.border}`
-                      }}
-                    >
-                      Test
-                    </button>
+                    {testTtsId !== null ? (
+                      <button
+                        onClick={async () => {
+                          console.log('[TTS] Stop test button clicked, ttsId:', testTtsId);
+                          try {
+                            await window.maestro.notification.stopSpeak(testTtsId);
+                          } catch (err) {
+                            console.error('[TTS] Stop error:', err);
+                          }
+                          setTestTtsId(null);
+                        }}
+                        className="px-3 py-2 rounded text-xs font-medium transition-all flex items-center gap-1"
+                        style={{
+                          backgroundColor: theme.colors.error,
+                          color: '#fff',
+                          border: `1px solid ${theme.colors.error}`
+                        }}
+                      >
+                        <Square className="w-3 h-3" fill="currentColor" />
+                        Stop
+                      </button>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          console.log('[TTS] Test button clicked, command:', props.audioFeedbackCommand);
+                          try {
+                            const result = await window.maestro.notification.speak("Howdy, I'm Maestro, here to conduct your agentic tools into a well-tuned symphony.", props.audioFeedbackCommand);
+                            console.log('[TTS] Speak result:', result);
+                            if (result.success && result.ttsId) {
+                              setTestTtsId(result.ttsId);
+                              // Auto-clear after the message should be done (about 5 seconds for this phrase)
+                              setTimeout(() => setTestTtsId(null), 8000);
+                            }
+                          } catch (err) {
+                            console.error('[TTS] Speak error:', err);
+                          }
+                        }}
+                        className="px-3 py-2 rounded text-xs font-medium transition-all"
+                        style={{
+                          backgroundColor: theme.colors.bgActivity,
+                          color: theme.colors.textMain,
+                          border: `1px solid ${theme.colors.border}`
+                        }}
+                      >
+                        Test
+                      </button>
+                    )}
                   </div>
                   <p className="text-xs opacity-50 mt-2" style={{ color: theme.colors.textDim }}>
                     Command that accepts text via stdin. Examples: <code className="px-1 py-0.5 rounded" style={{ backgroundColor: theme.colors.bgActivity }}>say</code> (macOS), <code className="px-1 py-0.5 rounded" style={{ backgroundColor: theme.colors.bgActivity }}>espeak</code> (Linux), <code className="px-1 py-0.5 rounded" style={{ backgroundColor: theme.colors.bgActivity }}>festival --tts</code>

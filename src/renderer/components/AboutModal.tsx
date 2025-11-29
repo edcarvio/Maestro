@@ -1,49 +1,60 @@
-import React, { useEffect, useRef, useMemo } from 'react';
-import { X, Wand2, ExternalLink, FileCode, BarChart3 } from 'lucide-react';
-import type { Theme, Session, GlobalStats } from '../types';
+import React, { useEffect, useRef, useState } from 'react';
+import { X, Wand2, ExternalLink, FileCode, BarChart3, Loader2 } from 'lucide-react';
+import type { Theme, Session } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import pedramAvatar from '../assets/pedram-avatar.png';
 
+interface ClaudeGlobalStats {
+  totalSessions: number;
+  totalMessages: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCacheReadTokens: number;
+  totalCacheCreationTokens: number;
+  totalCostUsd: number;
+  totalSizeBytes: number;
+  isComplete?: boolean;
+}
+
 interface AboutModalProps {
   theme: Theme;
   sessions: Session[];
-  persistedStats: GlobalStats;
   onClose: () => void;
 }
 
-export function AboutModal({ theme, sessions, persistedStats, onClose }: AboutModalProps) {
+export function AboutModal({ theme, sessions, onClose }: AboutModalProps) {
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
   const layerIdRef = useRef<string>();
+  const [globalStats, setGlobalStats] = useState<ClaudeGlobalStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isStatsComplete, setIsStatsComplete] = useState(false);
 
-  // Calculate current session stats (in-memory, for this run)
-  const currentSessionStats = useMemo(() => {
-    let totalMessages = 0;
-    let totalActiveTimeMs = 0;
+  // Load global stats from all Claude projects on mount with streaming updates
+  useEffect(() => {
+    // Subscribe to streaming updates
+    const unsubscribe = window.maestro.claude.onGlobalStatsUpdate((stats) => {
+      setGlobalStats(stats);
+      setLoading(false);
+      if (stats.isComplete) {
+        setIsStatsComplete(true);
+      }
+    });
 
-    for (const session of sessions) {
-      // Count messages (AI logs from user source)
-      totalMessages += session.aiLogs.filter(log => log.source === 'user').length;
-      // Aggregate active time
-      totalActiveTimeMs += session.activeTimeMs || 0;
-    }
+    // Trigger the stats calculation (which will send streaming updates)
+    window.maestro.claude.getGlobalStats().catch((error) => {
+      console.error('Failed to load global Claude stats:', error);
+      setLoading(false);
+      setIsStatsComplete(true);
+    });
 
-    return { totalMessages, totalActiveTimeMs, totalSessions: sessions.length };
-  }, [sessions]);
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
-  // Combine persisted stats with current session stats
-  // Persisted stats track: tokens and cost (accumulated across restarts)
-  // Current session stats track: sessions, messages, active time (this run only, but messages/time could be persisted later)
-  const globalStats: GlobalStats = useMemo(() => ({
-    totalSessions: currentSessionStats.totalSessions,
-    totalMessages: currentSessionStats.totalMessages,
-    totalInputTokens: persistedStats.totalInputTokens,
-    totalOutputTokens: persistedStats.totalOutputTokens,
-    totalCacheReadTokens: persistedStats.totalCacheReadTokens,
-    totalCacheCreationTokens: persistedStats.totalCacheCreationTokens,
-    totalCostUsd: persistedStats.totalCostUsd,
-    totalActiveTimeMs: currentSessionStats.totalActiveTimeMs,
-  }), [persistedStats, currentSessionStats]);
+  // Calculate active time from current sessions
+  const totalActiveTimeMs = sessions.reduce((sum, s) => sum + (s.activeTimeMs || 0), 0);
 
   // Format token count with K/M suffix
   const formatTokens = (count: number): string => {
@@ -163,13 +174,21 @@ export function AboutModal({ theme, sessions, persistedStats, onClose }: AboutMo
             </div>
           </div>
 
-          {/* Global Usage Stats - show if we have any stats (sessions or persisted tokens/cost) */}
-          {(globalStats.totalSessions > 0 || globalStats.totalCostUsd > 0 || globalStats.totalInputTokens > 0) && (
-            <div className="p-4 rounded border" style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgActivity }}>
-              <div className="flex items-center gap-2 mb-3">
-                <BarChart3 className="w-4 h-4" style={{ color: theme.colors.accent }} />
-                <span className="text-sm font-bold" style={{ color: theme.colors.textMain }}>Global Statistics</span>
+          {/* Global Usage Stats - show loading or stats from all Claude projects */}
+          <div className="p-4 rounded border" style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgActivity }}>
+            <div className="flex items-center gap-2 mb-3">
+              <BarChart3 className="w-4 h-4" style={{ color: theme.colors.accent }} />
+              <span className="text-sm font-bold" style={{ color: theme.colors.textMain }}>Global Statistics</span>
+              {!isStatsComplete && (
+                <Loader2 className="w-3 h-3 animate-spin" style={{ color: theme.colors.textDim }} />
+              )}
+            </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-4 gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" style={{ color: theme.colors.textDim }} />
+                <span className="text-xs" style={{ color: theme.colors.textDim }}>Loading stats...</span>
               </div>
+            ) : globalStats ? (
               <div className="grid grid-cols-2 gap-3 text-xs">
                 {/* Sessions & Messages */}
                 <div className="flex justify-between">
@@ -205,24 +224,31 @@ export function AboutModal({ theme, sessions, persistedStats, onClose }: AboutMo
                   </>
                 )}
 
-                {/* Active Time */}
-                {globalStats.totalActiveTimeMs > 0 && (
+                {/* Active Time (from current Maestro sessions) */}
+                {totalActiveTimeMs > 0 && (
                   <div className="flex justify-between col-span-2 pt-2 border-t" style={{ borderColor: theme.colors.border }}>
                     <span style={{ color: theme.colors.textDim }}>Active Time</span>
-                    <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatDuration(globalStats.totalActiveTimeMs)}</span>
+                    <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatDuration(totalActiveTimeMs)}</span>
                   </div>
                 )}
 
-                {/* Total Cost */}
-                {globalStats.totalCostUsd > 0 && (
-                  <div className="flex justify-between col-span-2 pt-2 border-t" style={{ borderColor: theme.colors.border }}>
-                    <span style={{ color: theme.colors.textDim }}>Total Cost</span>
-                    <span className="font-mono font-bold" style={{ color: theme.colors.success }}>${globalStats.totalCostUsd.toFixed(2)}</span>
-                  </div>
-                )}
+                {/* Total Cost - shows pulsing green while counting, solid green when complete */}
+                <div className="flex justify-between col-span-2 pt-2 border-t" style={{ borderColor: theme.colors.border }}>
+                  <span style={{ color: theme.colors.textDim }}>Total Cost</span>
+                  <span
+                    className={`font-mono font-bold ${!isStatsComplete ? 'animate-pulse' : ''}`}
+                    style={{ color: theme.colors.success }}
+                  >
+                    ${globalStats.totalCostUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="text-xs text-center py-2" style={{ color: theme.colors.textDim }}>
+                No Claude sessions found
+              </div>
+            )}
+          </div>
 
           {/* Project Link */}
           <div className="pt-2 border-t" style={{ borderColor: theme.colors.border }}>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GitBranch, Plus, Minus, FileEdit } from 'lucide-react';
 import type { Theme } from '../types';
 import { gitService } from '../services/git';
@@ -24,6 +24,18 @@ export function GitStatusWidget({ cwd, isGitRepo, theme, onViewDiff }: GitStatus
   const [deletions, setDeletions] = useState(0);
   const [modified, setModified] = useState(0);
   const [loading, setLoading] = useState(false);
+  // Tooltip hover state with timeout for smooth UX
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  const tooltipTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup hover timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (tooltipTimeout.current) {
+        clearTimeout(tooltipTimeout.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isGitRepo) {
@@ -116,7 +128,23 @@ export function GitStatusWidget({ cwd, isGitRepo, theme, onViewDiff }: GitStatus
   const totalChanges = additions + deletions + modified;
 
   return (
-    <div className="relative group">
+    <div
+      className="relative"
+      onMouseEnter={() => {
+        // Clear any pending close timeout
+        if (tooltipTimeout.current) {
+          clearTimeout(tooltipTimeout.current);
+          tooltipTimeout.current = null;
+        }
+        setTooltipOpen(true);
+      }}
+      onMouseLeave={() => {
+        // Delay closing to allow mouse to reach the dropdown
+        tooltipTimeout.current = setTimeout(() => {
+          setTooltipOpen(false);
+        }, 150);
+      }}
+    >
       <button
         onClick={onViewDiff}
         className="flex items-center gap-2 px-2 py-1 rounded text-xs transition-colors hover:bg-white/5"
@@ -147,14 +175,39 @@ export function GitStatusWidget({ cwd, isGitRepo, theme, onViewDiff }: GitStatus
       </button>
 
       {/* Hover tooltip showing file list with GitHub-style diff bars */}
-      <div
-        className="absolute top-full left-0 mt-2 w-max max-w-[400px] rounded shadow-xl z-[100] opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity pointer-events-none"
-        style={{
-          backgroundColor: theme.colors.bgSidebar,
-          borderColor: theme.colors.border,
-          border: '1px solid'
-        }}
-      >
+      {tooltipOpen && (
+        <>
+          {/* Invisible bridge to prevent hover gap */}
+          <div
+            className="absolute left-0 right-0 h-3 pointer-events-auto"
+            style={{ top: '100%' }}
+            onMouseEnter={() => {
+              if (tooltipTimeout.current) {
+                clearTimeout(tooltipTimeout.current);
+                tooltipTimeout.current = null;
+              }
+              setTooltipOpen(true);
+            }}
+          />
+          <div
+            className="absolute top-full left-0 mt-2 w-max max-w-[400px] rounded shadow-xl z-[100] pointer-events-auto"
+            style={{
+              backgroundColor: theme.colors.bgSidebar,
+              border: `1px solid ${theme.colors.border}`
+            }}
+            onMouseEnter={() => {
+              if (tooltipTimeout.current) {
+                clearTimeout(tooltipTimeout.current);
+                tooltipTimeout.current = null;
+              }
+              setTooltipOpen(true);
+            }}
+            onMouseLeave={() => {
+              tooltipTimeout.current = setTimeout(() => {
+                setTooltipOpen(false);
+              }, 150);
+            }}
+          >
         <div
           className="text-[10px] uppercase font-bold p-3 border-b"
           style={{
@@ -212,16 +265,18 @@ export function GitStatusWidget({ cwd, isGitRepo, theme, onViewDiff }: GitStatus
             );
           })}
         </div>
-        <div
-          className="text-[10px] p-2 text-center border-t"
-          style={{
-            color: theme.colors.textDim,
-            borderColor: theme.colors.border
-          }}
-        >
-          Click to view full diff
-        </div>
-      </div>
+          <div
+            className="text-[10px] p-2 text-center border-t"
+            style={{
+              color: theme.colors.textDim,
+              borderColor: theme.colors.border
+            }}
+          >
+            Click to view full diff
+          </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

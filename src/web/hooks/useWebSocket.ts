@@ -57,6 +57,18 @@ export interface SessionData {
   usageStats?: UsageStats | null;
   lastResponse?: LastResponsePreview | null;
   claudeSessionId?: string | null;
+  thinkingStartTime?: number | null; // Timestamp when AI started thinking (for elapsed time display)
+}
+
+/**
+ * AutoRun state for batch processing
+ */
+export interface AutoRunState {
+  isRunning: boolean;
+  totalTasks: number;
+  completedTasks: number;
+  currentTaskIndex: number;
+  isStopping?: boolean;
 }
 
 /**
@@ -76,6 +88,7 @@ export type ServerMessageType =
   | 'session_exit'
   | 'theme'
   | 'custom_commands'
+  | 'autorun_state'
   | 'pong'
   | 'subscribed'
   | 'echo'
@@ -228,6 +241,16 @@ export interface CustomCommandsMessage extends ServerMessage {
 }
 
 /**
+ * AutoRun state message from server
+ * Indicates when batch processing is active on the desktop app
+ */
+export interface AutoRunStateMessage extends ServerMessage {
+  type: 'autorun_state';
+  sessionId: string;
+  state: AutoRunState | null;
+}
+
+/**
  * Error message from server
  */
 export interface ErrorMessage extends ServerMessage {
@@ -253,6 +276,7 @@ export type TypedServerMessage =
   | UserInputMessage
   | ThemeMessage
   | CustomCommandsMessage
+  | AutoRunStateMessage
   | ErrorMessage
   | ServerMessage;
 
@@ -280,6 +304,8 @@ export interface WebSocketEventHandlers {
   onThemeUpdate?: (theme: Theme) => void;
   /** Called when custom commands are received */
   onCustomCommands?: (commands: CustomCommand[]) => void;
+  /** Called when AutoRun state changes (batch processing on desktop) */
+  onAutoRunStateChange?: (sessionId: string, state: AutoRunState | null) => void;
   /** Called when connection state changes */
   onConnectionChange?: (state: WebSocketState) => void;
   /** Called when an error occurs */
@@ -565,6 +591,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         case 'custom_commands': {
           const commandsMsg = message as CustomCommandsMessage;
           handlersRef.current?.onCustomCommands?.(commandsMsg.commands);
+          break;
+        }
+
+        case 'autorun_state': {
+          const autoRunMsg = message as AutoRunStateMessage;
+          handlersRef.current?.onAutoRunStateChange?.(autoRunMsg.sessionId, autoRunMsg.state);
           break;
         }
 

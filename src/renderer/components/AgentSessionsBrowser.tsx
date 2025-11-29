@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Search, Clock, MessageSquare, HardDrive, Play, ChevronLeft, Loader2, Plus, X, List, Database, BarChart3, ChevronDown, User, Bot, DollarSign, Star, Zap, Timer, Hash, ArrowDownToLine, ArrowUpFromLine, Tag } from 'lucide-react';
+import { Search, Clock, MessageSquare, HardDrive, Play, ChevronLeft, Loader2, Plus, X, List, Database, BarChart3, ChevronDown, User, Bot, DollarSign, Star, Zap, Timer, Hash, ArrowDownToLine, ArrowUpFromLine, Tag, Edit3 } from 'lucide-react';
 import type { Theme, Session, LogEntry } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
@@ -45,7 +45,7 @@ interface AgentSessionsBrowserProps {
   activeSession: Session | undefined;
   activeClaudeSessionId: string | null;
   onClose: () => void;
-  onResumeSession: (claudeSessionId: string, messages: LogEntry[]) => void;
+  onResumeSession: (claudeSessionId: string, messages: LogEntry[], sessionName?: string) => void;
   onNewSession: () => void;
 }
 
@@ -74,8 +74,11 @@ export function AgentSessionsBrowser({
   const [totalMessages, setTotalMessages] = useState(0);
   const [messagesOffset, setMessagesOffset] = useState(0);
   const [starredSessions, setStarredSessions] = useState<Set<string>>(new Set());
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const selectedItemRef = useRef<HTMLButtonElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const searchModeDropdownRef = useRef<HTMLDivElement>(null);
@@ -134,6 +137,21 @@ export function AgentSessionsBrowser({
       });
     }
   }, [viewingSession, updateLayerHandler]);
+
+  // Restore focus and scroll position when returning from detail view to list view
+  const prevViewingSessionRef = useRef<ClaudeSession | null>(null);
+  useEffect(() => {
+    // If we just transitioned from viewing a session to list view
+    if (prevViewingSessionRef.current && !viewingSession) {
+      // Focus the search input and scroll to selected item after a short delay to ensure UI is ready
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+        selectedItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+    prevViewingSessionRef.current = viewingSession;
+  }, [viewingSession]);
 
   // Load messages when viewing a session (defined early for use in effects below)
   const loadMessages = useCallback(async (session: ClaudeSession, offset: number = 0) => {
@@ -224,6 +242,51 @@ export function AgentSessionsBrowser({
       await window.maestro.settings.set(starredKey, Array.from(newStarred));
     }
   }, [starredSessions, activeSession?.cwd]);
+
+  // Start renaming a session
+  const startRename = useCallback((session: ClaudeSession, e: React.MouseEvent) => {
+    e.stopPropagation(); // Don't trigger session view
+    setRenamingSessionId(session.sessionId);
+    setRenameValue(session.sessionName || '');
+    // Focus input after render
+    setTimeout(() => renameInputRef.current?.focus(), 50);
+  }, []);
+
+  // Cancel rename
+  const cancelRename = useCallback(() => {
+    setRenamingSessionId(null);
+    setRenameValue('');
+  }, []);
+
+  // Submit rename
+  const submitRename = useCallback(async (sessionId: string) => {
+    if (!activeSession?.cwd) return;
+
+    const trimmedName = renameValue.trim();
+    try {
+      await window.maestro.claude.updateSessionName(
+        activeSession.cwd,
+        sessionId,
+        trimmedName
+      );
+
+      // Update local state
+      setSessions(prev => prev.map(s =>
+        s.sessionId === sessionId
+          ? { ...s, sessionName: trimmedName || undefined }
+          : s
+      ));
+
+      // Also update viewingSession if we're renaming the currently viewed session
+      if (viewingSession?.sessionId === sessionId) {
+        setViewingSession(prev => prev ? { ...prev, sessionName: trimmedName || undefined } : null);
+      }
+    } catch (error) {
+      console.error('Failed to rename session:', error);
+    }
+
+    cancelRename();
+  }, [activeSession?.cwd, renameValue, viewingSession?.sessionId, cancelRename]);
 
   // Auto-view session when activeClaudeSessionId is provided (e.g., from history panel click)
   useEffect(() => {
@@ -457,7 +520,7 @@ export function AgentSessionsBrowser({
         source: msg.type === 'user' ? 'user' as const : 'stdout' as const,
         text: msg.content || (msg.toolUse ? `[Tool: ${msg.toolUse[0]?.name || 'unknown'}]` : '[No content]'),
       }));
-      onResumeSession(viewingSession.sessionId, logEntries);
+      onResumeSession(viewingSession.sessionId, logEntries, viewingSession.sessionName);
       onClose();
     }
   }, [viewingSession, messages, onResumeSession, onClose]);
@@ -506,9 +569,86 @@ export function AgentSessionsBrowser({
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <div className="flex flex-col min-w-0">
-                <div className="text-sm font-medium truncate max-w-md" style={{ color: theme.colors.textMain }}>
-                  {viewingSession.firstMessage || `Session ${viewingSession.sessionId.slice(0, 8)}...`}
-                </div>
+                {/* Session name with edit button */}
+                {renamingSessionId === viewingSession.sessionId ? (
+                  <div className="flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 flex-shrink-0" style={{ color: theme.colors.accent }} />
+                    <input
+                      ref={renameInputRef}
+                      type="text"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          submitRename(viewingSession.sessionId);
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          cancelRename();
+                        }
+                      }}
+                      onBlur={() => submitRename(viewingSession.sessionId)}
+                      placeholder="Enter session name..."
+                      className="bg-transparent outline-none text-sm font-semibold px-2 py-0.5 rounded border"
+                      style={{
+                        color: theme.colors.accent,
+                        borderColor: theme.colors.accent,
+                        backgroundColor: theme.colors.bgActivity,
+                      }}
+                      autoFocus
+                    />
+                  </div>
+                ) : viewingSession.sessionName ? (
+                  <div className="flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 flex-shrink-0" style={{ color: theme.colors.accent }} />
+                    <span
+                      className="text-sm font-semibold truncate max-w-md"
+                      style={{ color: theme.colors.accent }}
+                    >
+                      {viewingSession.sessionName}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRenamingSessionId(viewingSession.sessionId);
+                        setRenameValue(viewingSession.sessionName || '');
+                        setTimeout(() => renameInputRef.current?.focus(), 50);
+                      }}
+                      className="p-0.5 rounded hover:bg-white/10 transition-colors"
+                      title="Rename session"
+                    >
+                      <Edit3 className="w-3 h-3" style={{ color: theme.colors.accent }} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="text-sm font-medium truncate max-w-md"
+                      style={{ color: theme.colors.textMain }}
+                    >
+                      {viewingSession.firstMessage || `Session ${viewingSession.sessionId.slice(0, 8)}...`}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRenamingSessionId(viewingSession.sessionId);
+                        setRenameValue('');
+                        setTimeout(() => renameInputRef.current?.focus(), 50);
+                      }}
+                      className="p-0.5 rounded hover:bg-white/10 transition-colors"
+                      title="Add session name"
+                    >
+                      <Edit3 className="w-3 h-3" style={{ color: theme.colors.textDim }} />
+                    </button>
+                  </div>
+                )}
+                {/* First message shown as subtitle if session has a name */}
+                {viewingSession.sessionName && (
+                  <div className="text-xs truncate max-w-md" style={{ color: theme.colors.textDim }}>
+                    {viewingSession.firstMessage || `Session ${viewingSession.sessionId.slice(0, 8)}...`}
+                  </div>
+                )}
                 <div className="text-xs" style={{ color: theme.colors.textDim }}>
                   {totalMessages} messages • {formatRelativeTime(viewingSession.modifiedAt)}
                 </div>
@@ -934,9 +1074,38 @@ export function AgentSessionsBrowser({
                         />
                       </button>
                       <div className="flex-1 min-w-0">
-                        {/* Line 1: Session name (if available) with tag icon */}
-                        {session.sessionName && (
+                        {/* Line 1: Session name (if available) with tag icon - or inline rename input */}
+                        {renamingSessionId === session.sessionId ? (
                           <div className="flex items-center gap-1.5 mb-1">
+                            <Tag className="w-3.5 h-3.5 flex-shrink-0" style={{ color: theme.colors.accent }} />
+                            <input
+                              ref={renameInputRef}
+                              type="text"
+                              value={renameValue}
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                e.stopPropagation();
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  submitRename(session.sessionId);
+                                } else if (e.key === 'Escape') {
+                                  e.preventDefault();
+                                  cancelRename();
+                                }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              onBlur={() => submitRename(session.sessionId)}
+                              placeholder="Enter session name..."
+                              className="flex-1 bg-transparent outline-none text-sm font-semibold px-2 py-0.5 rounded border min-w-0"
+                              style={{
+                                color: theme.colors.accent,
+                                borderColor: theme.colors.accent,
+                                backgroundColor: theme.colors.bgActivity,
+                              }}
+                            />
+                          </div>
+                        ) : session.sessionName ? (
+                          <div className="flex items-center gap-1.5 mb-1 group/name">
                             <Tag className="w-3.5 h-3.5 flex-shrink-0" style={{ color: theme.colors.accent }} />
                             <span
                               className="font-semibold text-sm truncate"
@@ -944,14 +1113,35 @@ export function AgentSessionsBrowser({
                             >
                               {session.sessionName}
                             </span>
+                            <button
+                              onClick={(e) => startRename(session, e)}
+                              className="p-0.5 rounded opacity-0 group-hover/name:opacity-100 hover:bg-white/10 transition-all"
+                              title="Rename session"
+                            >
+                              <Edit3 className="w-3 h-3" style={{ color: theme.colors.accent }} />
+                            </button>
                           </div>
-                        )}
-                        {/* Line 2: First message / title */}
+                        ) : null}
+                        {/* Line 2: First message / title with optional rename button */}
                         <div
-                          className={`font-medium truncate text-sm ${session.sessionName ? 'mb-1' : 'mb-1.5'}`}
-                          style={{ color: session.sessionName ? theme.colors.textDim : theme.colors.textMain }}
+                          className={`flex items-center gap-1.5 ${session.sessionName ? 'mb-1' : 'mb-1.5'} group/title`}
                         >
-                          {session.firstMessage || `Session ${session.sessionId.slice(0, 8)}...`}
+                          <span
+                            className="font-medium truncate text-sm flex-1 min-w-0"
+                            style={{ color: session.sessionName ? theme.colors.textDim : theme.colors.textMain }}
+                          >
+                            {session.firstMessage || `Session ${session.sessionId.slice(0, 8)}...`}
+                          </span>
+                          {/* Rename button for sessions without a name (shows on hover) */}
+                          {!session.sessionName && renamingSessionId !== session.sessionId && (
+                            <button
+                              onClick={(e) => startRename(session, e)}
+                              className="p-0.5 rounded opacity-0 group-hover/title:opacity-100 hover:bg-white/10 transition-all shrink-0"
+                              title="Add session name"
+                            >
+                              <Edit3 className="w-3 h-3" style={{ color: theme.colors.textDim }} />
+                            </button>
+                          )}
                         </div>
                         {/* Line 2: Session origin pill + Session ID + stats + match info */}
                         <div className="flex items-center gap-3 text-xs" style={{ color: theme.colors.textDim }}>

@@ -58,6 +58,8 @@ export interface ThemeColors {
   accentDim: string;
   /** Text color for accent contexts */
   accentText: string;
+  /** Text color for use ON accent backgrounds (contrasting color) */
+  accentForeground: string;
   /** Success state color (green tones) */
   success: string;
   /** Warning state color (yellow/orange tones) */

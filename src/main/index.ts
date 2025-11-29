@@ -218,6 +218,7 @@ function createWebServer(): WebServer {
         usageStats: s.usageStats || null,
         lastResponse,
         claudeSessionId: s.claudeSessionId || null,
+        thinkingStartTime: s.thinkingStartTime || null,
       };
     });
   });
@@ -257,6 +258,28 @@ function createWebServer(): WebServer {
       prompt: string;
     }>;
     return customCommands;
+  });
+
+  // Set up callback for web server to fetch history entries
+  server.setGetHistoryCallback((projectPath?: string, sessionId?: string) => {
+    const allEntries = historyStore.get('entries', []);
+    let filteredEntries = allEntries;
+
+    // Filter by project path if provided
+    if (projectPath) {
+      filteredEntries = filteredEntries.filter(
+        (entry: HistoryEntry) => entry.projectPath === projectPath
+      );
+    }
+
+    // Filter by session ID if provided (excludes entries from other sessions)
+    if (sessionId) {
+      filteredEntries = filteredEntries.filter(
+        (entry: HistoryEntry) => !entry.sessionId || entry.sessionId === sessionId
+      );
+    }
+
+    return filteredEntries;
   });
 
   // Set up callback for web server to write commands to sessions
@@ -332,6 +355,20 @@ function createWebServer(): WebServer {
     // This ensures web mode switches go through exact same code path as desktop
     logger.debug(`Forwarding mode switch to renderer for session ${sessionId}: ${mode}`, 'WebServer');
     mainWindow.webContents.send('remote:switchMode', sessionId, mode);
+    return true;
+  });
+
+  // Set up callback for web server to select/switch to a session in the desktop
+  // This forwards to the renderer which handles state updates and broadcasts
+  server.setSelectSessionCallback(async (sessionId: string) => {
+    if (!mainWindow) {
+      logger.warn('mainWindow is null for selectSession', 'WebServer');
+      return false;
+    }
+
+    // Forward to renderer - it will handle session selection and broadcasts
+    logger.debug(`Forwarding session selection to renderer: ${sessionId}`, 'WebServer');
+    mainWindow.webContents.send('remote:selectSession', sessionId);
     return true;
   });
 
@@ -605,6 +642,21 @@ function setupIpcHandlers() {
     return false;
   });
 
+  // Broadcast AutoRun state to web clients (called when batch processing state changes)
+  ipcMain.handle('web:broadcastAutoRunState', async (_, sessionId: string, state: {
+    isRunning: boolean;
+    totalTasks: number;
+    completedTasks: number;
+    currentTaskIndex: number;
+    isStopping?: boolean;
+  } | null) => {
+    if (webServer && webServer.getWebClientCount() > 0) {
+      webServer.broadcastAutoRunState(sessionId, state);
+      return true;
+    }
+    return false;
+  });
+
   // Session/Process management
   ipcMain.handle('process:spawn', async (_, config: {
     sessionId: string;
@@ -690,6 +742,21 @@ function setupIpcHandlers() {
   ipcMain.handle('process:resize', async (_, sessionId: string, cols: number, rows: number) => {
     if (!processManager) throw new Error('Process manager not initialized');
     return processManager.resize(sessionId, cols, rows);
+  });
+
+  // Get all active processes managed by the ProcessManager
+  ipcMain.handle('process:getActiveProcesses', async () => {
+    if (!processManager) throw new Error('Process manager not initialized');
+    const processes = processManager.getAll();
+    // Return serializable process info (exclude non-serializable PTY/child process objects)
+    return processes.map(p => ({
+      sessionId: p.sessionId,
+      toolType: p.toolType,
+      pid: p.pid,
+      cwd: p.cwd,
+      isTerminal: p.isTerminal,
+      isBatchMode: p.isBatchMode || false,
+    }));
   });
 
   // Run a single command and capture only stdout/stderr (no PTY echo/prompts)
@@ -1223,7 +1290,7 @@ function setupIpcHandlers() {
 
   // Logger operations
   ipcMain.handle('logger:log', async (_event, level: string, message: string, context?: string, data?: unknown) => {
-    const logLevel = level as 'debug' | 'info' | 'warn' | 'error';
+    const logLevel = level as 'debug' | 'info' | 'warn' | 'error' | 'toast';
     switch (logLevel) {
       case 'debug':
         logger.debug(message, context, data);
@@ -1237,12 +1304,15 @@ function setupIpcHandlers() {
       case 'error':
         logger.error(message, context, data);
         break;
+      case 'toast':
+        logger.toast(message, context, data);
+        break;
     }
   });
 
   ipcMain.handle('logger:getLogs', async (_event, filter?: { level?: string; context?: string; limit?: number }) => {
     const typedFilter = filter ? {
-      level: filter.level as 'debug' | 'info' | 'warn' | 'error' | undefined,
+      level: filter.level as 'debug' | 'info' | 'warn' | 'error' | 'toast' | undefined,
       context: filter.context,
       limit: filter.limit,
     } : undefined;
@@ -1441,6 +1511,175 @@ function setupIpcHandlers() {
     }
   });
 
+  // Get global stats across ALL Claude projects (streams updates as it processes)
+  ipcMain.handle('claude:getGlobalStats', async () => {
+    // Helper to calculate cost from tokens
+    const calculateCost = (input: number, output: number, cacheRead: number, cacheCreation: number) => {
+      const inputCost = (input / 1_000_000) * 3;
+      const outputCost = (output / 1_000_000) * 15;
+      const cacheReadCost = (cacheRead / 1_000_000) * 0.30;
+      const cacheCreationCost = (cacheCreation / 1_000_000) * 3.75;
+      return inputCost + outputCost + cacheReadCost + cacheCreationCost;
+    };
+
+    // Helper to send update to renderer
+    const sendUpdate = (stats: {
+      totalSessions: number;
+      totalMessages: number;
+      totalInputTokens: number;
+      totalOutputTokens: number;
+      totalCacheReadTokens: number;
+      totalCacheCreationTokens: number;
+      totalCostUsd: number;
+      totalSizeBytes: number;
+      isComplete: boolean;
+    }) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('claude:globalStatsUpdate', stats);
+      }
+    };
+
+    try {
+      const os = await import('os');
+      const homeDir = os.default.homedir();
+      const claudeProjectsDir = path.join(homeDir, '.claude', 'projects');
+
+      // Check if the projects directory exists
+      try {
+        await fs.access(claudeProjectsDir);
+      } catch {
+        logger.info('No Claude projects directory found', 'ClaudeSessions');
+        const emptyStats = {
+          totalSessions: 0,
+          totalMessages: 0,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalCacheReadTokens: 0,
+          totalCacheCreationTokens: 0,
+          totalCostUsd: 0,
+          totalSizeBytes: 0,
+          isComplete: true,
+        };
+        sendUpdate(emptyStats);
+        return emptyStats;
+      }
+
+      // List all project directories
+      const projectDirs = await fs.readdir(claudeProjectsDir);
+
+      let totalSessions = 0;
+      let totalMessages = 0;
+      let totalInputTokens = 0;
+      let totalOutputTokens = 0;
+      let totalCacheReadTokens = 0;
+      let totalCacheCreationTokens = 0;
+      let totalSizeBytes = 0;
+      let processedProjects = 0;
+
+      // Process each project directory
+      for (const projectDir of projectDirs) {
+        const projectPath = path.join(claudeProjectsDir, projectDir);
+
+        try {
+          const stat = await fs.stat(projectPath);
+          if (!stat.isDirectory()) continue;
+
+          // List all .jsonl files in this project
+          const files = await fs.readdir(projectPath);
+          const sessionFiles = files.filter(f => f.endsWith('.jsonl'));
+          totalSessions += sessionFiles.length;
+
+          // Process each session file
+          for (const filename of sessionFiles) {
+            const filePath = path.join(projectPath, filename);
+
+            try {
+              const fileStat = await fs.stat(filePath);
+              totalSizeBytes += fileStat.size;
+
+              const content = await fs.readFile(filePath, 'utf-8');
+
+              // Count messages
+              const userMessageCount = (content.match(/"type"\s*:\s*"user"/g) || []).length;
+              const assistantMessageCount = (content.match(/"type"\s*:\s*"assistant"/g) || []).length;
+              totalMessages += userMessageCount + assistantMessageCount;
+
+              // Extract tokens
+              const inputMatches = content.matchAll(/"input_tokens"\s*:\s*(\d+)/g);
+              for (const m of inputMatches) totalInputTokens += parseInt(m[1], 10);
+
+              const outputMatches = content.matchAll(/"output_tokens"\s*:\s*(\d+)/g);
+              for (const m of outputMatches) totalOutputTokens += parseInt(m[1], 10);
+
+              const cacheReadMatches = content.matchAll(/"cache_read_input_tokens"\s*:\s*(\d+)/g);
+              for (const m of cacheReadMatches) totalCacheReadTokens += parseInt(m[1], 10);
+
+              const cacheCreationMatches = content.matchAll(/"cache_creation_input_tokens"\s*:\s*(\d+)/g);
+              for (const m of cacheCreationMatches) totalCacheCreationTokens += parseInt(m[1], 10);
+            } catch (err) {
+              // Skip files we can't read
+            }
+          }
+        } catch (err) {
+          // Skip directories we can't read
+        }
+
+        processedProjects++;
+
+        // Send update after each project (stream progress)
+        const currentCost = calculateCost(totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens);
+        sendUpdate({
+          totalSessions,
+          totalMessages,
+          totalInputTokens,
+          totalOutputTokens,
+          totalCacheReadTokens,
+          totalCacheCreationTokens,
+          totalCostUsd: currentCost,
+          totalSizeBytes,
+          isComplete: false,
+        });
+      }
+
+      // Calculate final cost
+      const totalCostUsd = calculateCost(totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens);
+
+      logger.info(`Global Claude stats: ${totalSessions} sessions, ${totalMessages} messages, $${totalCostUsd.toFixed(2)}`, 'ClaudeSessions');
+
+      const finalStats = {
+        totalSessions,
+        totalMessages,
+        totalInputTokens,
+        totalOutputTokens,
+        totalCacheReadTokens,
+        totalCacheCreationTokens,
+        totalCostUsd,
+        totalSizeBytes,
+        isComplete: true,
+      };
+
+      // Send final update with isComplete flag
+      sendUpdate(finalStats);
+
+      return finalStats;
+    } catch (error) {
+      logger.error('Error getting global Claude stats', 'ClaudeSessions', error);
+      const errorStats = {
+        totalSessions: 0,
+        totalMessages: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalCacheReadTokens: 0,
+        totalCacheCreationTokens: 0,
+        totalCostUsd: 0,
+        totalSizeBytes: 0,
+        isComplete: true,
+      };
+      sendUpdate(errorStats);
+      return errorStats;
+    }
+  });
+
   ipcMain.handle('claude:readSessionMessages', async (_event, projectPath: string, sessionId: string, options?: { offset?: number; limit?: number }) => {
     try {
       const os = await import('os');
@@ -1519,6 +1758,112 @@ function setupIpcHandlers() {
     } catch (error) {
       logger.error('Error reading Claude session messages', 'ClaudeSessions', { sessionId, error });
       return { messages: [], total: 0, hasMore: false };
+    }
+  });
+
+  // Delete a message pair (user message and its response) from Claude session
+  // Can match by UUID or by content (for messages created in current session without UUID)
+  ipcMain.handle('claude:deleteMessagePair', async (
+    _event,
+    projectPath: string,
+    sessionId: string,
+    userMessageUuid: string,
+    fallbackContent?: string // Optional: message content to match if UUID not found
+  ) => {
+    try {
+      const os = await import('os');
+      const homeDir = os.default.homedir();
+      const claudeProjectsDir = path.join(homeDir, '.claude', 'projects');
+
+      const encodedPath = projectPath.replace(/\//g, '-');
+      const sessionFile = path.join(claudeProjectsDir, encodedPath, `${sessionId}.jsonl`);
+
+      const content = await fs.readFile(sessionFile, 'utf-8');
+      const lines = content.split('\n').filter(l => l.trim());
+
+      // Parse all lines and find the user message
+      const parsedLines: Array<{ line: string; entry: any }> = [];
+      let userMessageIndex = -1;
+
+      for (let i = 0; i < lines.length; i++) {
+        try {
+          const entry = JSON.parse(lines[i]);
+          parsedLines.push({ line: lines[i], entry });
+
+          // First try to match by UUID
+          if (entry.uuid === userMessageUuid && entry.type === 'user') {
+            userMessageIndex = parsedLines.length - 1;
+          }
+        } catch {
+          // Keep malformed lines as-is
+          parsedLines.push({ line: lines[i], entry: null });
+        }
+      }
+
+      // If UUID match failed and we have fallback content, try matching by content
+      if (userMessageIndex === -1 && fallbackContent) {
+        // Normalize content for comparison (trim whitespace)
+        const normalizedFallback = fallbackContent.trim();
+
+        // Search from the end (most recent first) for a matching user message
+        for (let i = parsedLines.length - 1; i >= 0; i--) {
+          const entry = parsedLines[i].entry;
+          if (entry?.type === 'user') {
+            // Extract text content from message
+            let messageText = '';
+            if (entry.message?.content) {
+              if (typeof entry.message.content === 'string') {
+                messageText = entry.message.content;
+              } else if (Array.isArray(entry.message.content)) {
+                const textBlocks = entry.message.content.filter((b: any) => b.type === 'text');
+                messageText = textBlocks.map((b: any) => b.text).join('\n');
+              }
+            }
+
+            if (messageText.trim() === normalizedFallback) {
+              userMessageIndex = i;
+              logger.info('Found message by content match', 'ClaudeSessions', { sessionId, index: i });
+              break;
+            }
+          }
+        }
+      }
+
+      if (userMessageIndex === -1) {
+        logger.warn('User message not found for deletion', 'ClaudeSessions', { sessionId, userMessageUuid, hasFallback: !!fallbackContent });
+        return { success: false, error: 'User message not found' };
+      }
+
+      // Find the end of the response (next user message or end of file)
+      // We need to delete from userMessageIndex to the next user message (exclusive)
+      let endIndex = parsedLines.length;
+      for (let i = userMessageIndex + 1; i < parsedLines.length; i++) {
+        if (parsedLines[i].entry?.type === 'user') {
+          endIndex = i;
+          break;
+        }
+      }
+
+      // Remove the message pair
+      const linesToKeep = [
+        ...parsedLines.slice(0, userMessageIndex),
+        ...parsedLines.slice(endIndex)
+      ];
+
+      // Write back to file
+      const newContent = linesToKeep.map(p => p.line).join('\n') + '\n';
+      await fs.writeFile(sessionFile, newContent, 'utf-8');
+
+      logger.info(`Deleted message pair from Claude session`, 'ClaudeSessions', {
+        sessionId,
+        userMessageUuid,
+        linesRemoved: endIndex - userMessageIndex
+      });
+
+      return { success: true, linesRemoved: endIndex - userMessageIndex };
+    } catch (error) {
+      logger.error('Error deleting message from Claude session', 'ClaudeSessions', { sessionId, userMessageUuid, error });
+      return { success: false, error: String(error) };
     }
   });
 
@@ -1931,9 +2276,21 @@ function setupIpcHandlers() {
     }
   });
 
-  // Audio feedback using system TTS command (non-blocking)
+  // Track active TTS processes by ID for stopping
+  const activeTtsProcesses = new Map<number, { process: ReturnType<typeof import('child_process').spawn>; command: string }>();
+  let ttsProcessIdCounter = 0;
+
+  // Audio feedback using system TTS command - pipes text via stdin
   ipcMain.handle('notification:speak', async (_event, text: string, command?: string) => {
     console.log('[TTS Main] notification:speak called, text length:', text?.length, 'command:', command);
+
+    // Log the incoming request with full details for debugging
+    logger.info('TTS speak request received', 'TTS', {
+      command: command || '(default: say)',
+      textLength: text?.length || 0,
+      textPreview: text ? (text.length > 200 ? text.substring(0, 200) + '...' : text) : '(no text)',
+    });
+
     try {
       const { spawn } = await import('child_process');
       const fullCommand = command || 'say'; // Default to macOS 'say' command
@@ -1945,33 +2302,220 @@ function setupIpcHandlers() {
       const ttsCommand = parts[0].replace(/^"|"$/g, ''); // Remove surrounding quotes if present
       const ttsArgs = parts.slice(1).map(arg => arg.replace(/^"|"$/g, '')); // Remove quotes from args
 
-      // Add the text as the final argument (this is how most TTS commands work)
-      ttsArgs.push(text);
+      console.log('[TTS Main] Spawning:', ttsCommand, 'with args:', ttsArgs);
 
-      console.log('[TTS Main] Spawning:', ttsCommand, 'with args count:', ttsArgs.length);
-
-      // Spawn the TTS process without waiting for it to complete (non-blocking)
-      // This runs in the background and won't block the main process
-      const child = spawn(ttsCommand, ttsArgs, {
-        stdio: ['ignore', 'ignore', 'ignore'],
-        detached: true, // Run independently
+      // Log the full command being executed
+      logger.info('TTS executing command', 'TTS', {
+        executable: ttsCommand,
+        argsCount: ttsArgs.length,
+        fullArgs: ttsArgs,
+        textLength: text?.length || 0,
       });
+
+      // Spawn the TTS process with stdin pipe so we can write text to it
+      const child = spawn(ttsCommand, ttsArgs, {
+        stdio: ['pipe', 'ignore', 'pipe'], // stdin: pipe, stdout: ignore, stderr: pipe for errors
+      });
+
+      // Generate a unique ID for this TTS process
+      const ttsId = ++ttsProcessIdCounter;
+      activeTtsProcesses.set(ttsId, { process: child, command: ttsCommand });
+
+      // Write the text to stdin and close it
+      if (child.stdin) {
+        child.stdin.write(text);
+        child.stdin.end();
+      }
 
       child.on('error', (err) => {
         console.error('[TTS Main] Spawn error:', err);
+        logger.error('TTS spawn error', 'TTS', {
+          error: String(err),
+          command: ttsCommand,
+          textPreview: text ? (text.length > 100 ? text.substring(0, 100) + '...' : text) : '(no text)',
+        });
+        activeTtsProcesses.delete(ttsId);
       });
 
-      // Unref to allow the parent to exit independently
-      child.unref();
+      // Capture stderr for debugging
+      let stderrOutput = '';
+      if (child.stderr) {
+        child.stderr.on('data', (data) => {
+          stderrOutput += data.toString();
+        });
+      }
 
-      console.log('[TTS Main] Process spawned successfully');
-      logger.debug('Started audio feedback', 'Notification', { command: ttsCommand, args: ttsArgs.length, textLength: text.length });
-      return { success: true };
+      child.on('close', (code) => {
+        console.log('[TTS Main] Process exited with code:', code);
+        if (code !== 0 && stderrOutput) {
+          console.error('[TTS Main] stderr:', stderrOutput);
+          logger.error('TTS process error output', 'TTS', {
+            exitCode: code,
+            stderr: stderrOutput,
+            command: ttsCommand,
+          });
+        }
+        activeTtsProcesses.delete(ttsId);
+      });
+
+      console.log('[TTS Main] Process spawned successfully with ID:', ttsId);
+      logger.info('TTS process spawned successfully', 'TTS', {
+        ttsId,
+        command: ttsCommand,
+        argsCount: ttsArgs.length,
+        textLength: text?.length || 0,
+      });
+      return { success: true, ttsId };
     } catch (error) {
       console.error('[TTS Main] Error starting audio feedback:', error);
-      logger.error('Error starting audio feedback', 'Notification', error);
+      logger.error('TTS error starting audio feedback', 'TTS', {
+        error: String(error),
+        command: command || '(default: say)',
+        textPreview: text ? (text.length > 100 ? text.substring(0, 100) + '...' : text) : '(no text)',
+      });
       return { success: false, error: String(error) };
     }
+  });
+
+  // Stop a running TTS process
+  ipcMain.handle('notification:stopSpeak', async (_event, ttsId: number) => {
+    console.log('[TTS Main] notification:stopSpeak called for ID:', ttsId);
+
+    const ttsProcess = activeTtsProcesses.get(ttsId);
+    if (!ttsProcess) {
+      console.log('[TTS Main] No active TTS process found with ID:', ttsId);
+      return { success: false, error: 'No active TTS process with that ID' };
+    }
+
+    try {
+      // Kill the process and all its children
+      ttsProcess.process.kill('SIGTERM');
+      activeTtsProcesses.delete(ttsId);
+
+      logger.info('TTS process stopped', 'TTS', {
+        ttsId,
+        command: ttsProcess.command,
+      });
+
+      console.log('[TTS Main] TTS process killed successfully');
+      return { success: true };
+    } catch (error) {
+      console.error('[TTS Main] Error stopping TTS process:', error);
+      logger.error('TTS error stopping process', 'TTS', {
+        ttsId,
+        error: String(error),
+      });
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // Attachments API - store images per Maestro session
+  // Images are stored in userData/attachments/{sessionId}/{filename}
+  ipcMain.handle('attachments:save', async (_event, sessionId: string, base64Data: string, filename: string) => {
+    try {
+      const userDataPath = app.getPath('userData');
+      const attachmentsDir = path.join(userDataPath, 'attachments', sessionId);
+
+      // Ensure the attachments directory exists
+      await fs.mkdir(attachmentsDir, { recursive: true });
+
+      // Extract the base64 content (remove data:image/...;base64, prefix if present)
+      const base64Match = base64Data.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
+      let buffer: Buffer;
+      let finalFilename = filename;
+
+      if (base64Match) {
+        const extension = base64Match[1];
+        buffer = Buffer.from(base64Match[2], 'base64');
+        // Update filename with correct extension if not already present
+        if (!filename.includes('.')) {
+          finalFilename = `${filename}.${extension}`;
+        }
+      } else {
+        // Assume raw base64
+        buffer = Buffer.from(base64Data, 'base64');
+      }
+
+      const filePath = path.join(attachmentsDir, finalFilename);
+      await fs.writeFile(filePath, buffer);
+
+      logger.info(`Saved attachment: ${filePath}`, 'Attachments', { sessionId, filename: finalFilename, size: buffer.length });
+      return { success: true, path: filePath, filename: finalFilename };
+    } catch (error) {
+      logger.error('Error saving attachment', 'Attachments', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('attachments:load', async (_event, sessionId: string, filename: string) => {
+    try {
+      const userDataPath = app.getPath('userData');
+      const filePath = path.join(userDataPath, 'attachments', sessionId, filename);
+
+      const buffer = await fs.readFile(filePath);
+      const base64 = buffer.toString('base64');
+
+      // Determine MIME type from extension
+      const ext = path.extname(filename).toLowerCase().slice(1);
+      const mimeTypes: Record<string, string> = {
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'gif': 'image/gif',
+        'webp': 'image/webp',
+        'svg': 'image/svg+xml',
+      };
+      const mimeType = mimeTypes[ext] || 'image/png';
+
+      logger.debug(`Loaded attachment: ${filePath}`, 'Attachments', { sessionId, filename, size: buffer.length });
+      return { success: true, dataUrl: `data:${mimeType};base64,${base64}` };
+    } catch (error) {
+      logger.error('Error loading attachment', 'Attachments', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('attachments:delete', async (_event, sessionId: string, filename: string) => {
+    try {
+      const userDataPath = app.getPath('userData');
+      const filePath = path.join(userDataPath, 'attachments', sessionId, filename);
+
+      await fs.unlink(filePath);
+      logger.info(`Deleted attachment: ${filePath}`, 'Attachments', { sessionId, filename });
+      return { success: true };
+    } catch (error) {
+      logger.error('Error deleting attachment', 'Attachments', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('attachments:list', async (_event, sessionId: string) => {
+    try {
+      const userDataPath = app.getPath('userData');
+      const attachmentsDir = path.join(userDataPath, 'attachments', sessionId);
+
+      try {
+        const files = await fs.readdir(attachmentsDir);
+        const imageFiles = files.filter(f => /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(f));
+        logger.debug(`Listed attachments for session: ${sessionId}`, 'Attachments', { count: imageFiles.length });
+        return { success: true, files: imageFiles };
+      } catch (err: any) {
+        if (err.code === 'ENOENT') {
+          // Directory doesn't exist yet - no attachments
+          return { success: true, files: [] };
+        }
+        throw err;
+      }
+    } catch (error) {
+      logger.error('Error listing attachments', 'Attachments', error);
+      return { success: false, error: String(error), files: [] };
+    }
+  });
+
+  ipcMain.handle('attachments:getPath', async (_event, sessionId: string) => {
+    const userDataPath = app.getPath('userData');
+    const attachmentsDir = path.join(userDataPath, 'attachments', sessionId);
+    return { success: true, path: attachmentsDir };
   });
 }
 

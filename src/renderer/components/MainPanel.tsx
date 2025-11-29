@@ -9,14 +9,7 @@ import { GitStatusWidget } from './GitStatusWidget';
 import { AgentSessionsBrowser } from './AgentSessionsBrowser';
 import { gitService } from '../services/git';
 import { formatActiveTime } from '../utils/theme';
-import type { Session, Theme, Shortcut, FocusArea, BatchRunState } from '../types';
-
-// Recent Claude session for quick access
-interface RecentClaudeSession {
-  sessionId: string;
-  firstMessage: string;
-  timestamp: string;
-}
+import type { Session, Theme, Shortcut, FocusArea, BatchRunState, RecentClaudeSession } from '../types';
 
 interface SlashCommand {
   command: string;
@@ -31,6 +24,7 @@ interface MainPanelProps {
   activeSession: Session | null;
   theme: Theme;
   fontFamily: string;
+  isMobileLandscape?: boolean;
   activeFocus: FocusArea;
   outputSearchOpen: boolean;
   outputSearchQuery: string;
@@ -44,6 +38,10 @@ interface MainPanelProps {
   slashCommandOpen: boolean;
   slashCommands: SlashCommand[];
   selectedSlashCommandIndex: number;
+  // Tab completion props
+  tabCompletionOpen?: boolean;
+  tabCompletionSuggestions?: import('../hooks/useTabCompletion').TabCompletionSuggestion[];
+  selectedTabCompletionIndex?: number;
   previewFile: { name: string; content: string; path: string } | null;
   markdownRawMode: boolean;
   shortcuts: Record<string, Shortcut>;
@@ -51,13 +49,14 @@ interface MainPanelProps {
   maxOutputLines: number;
   gitDiffPreview: string | null;
   fileTreeFilterOpen: boolean;
+  logLevel?: string; // Current log level setting for LogViewer
 
   // Setters
   setGitDiffPreview: (preview: string | null) => void;
   setLogViewerOpen: (open: boolean) => void;
   setAgentSessionsOpen: (open: boolean) => void;
   setActiveClaudeSessionId: (id: string | null) => void;
-  onResumeClaudeSession: (claudeSessionId: string, messages: import('../types').LogEntry[]) => void;
+  onResumeClaudeSession: (claudeSessionId: string, messages: import('../types').LogEntry[], sessionName?: string) => void;
   onNewClaudeSession: () => void;
   setActiveFocus: (focus: FocusArea) => void;
   setOutputSearchOpen: (open: boolean) => void;
@@ -72,6 +71,9 @@ interface MainPanelProps {
   setCommandHistorySelectedIndex: (index: number) => void;
   setSlashCommandOpen: (open: boolean) => void;
   setSelectedSlashCommandIndex: (index: number) => void;
+  // Tab completion setters
+  setTabCompletionOpen?: (open: boolean) => void;
+  setSelectedTabCompletionIndex?: (index: number) => void;
   setPreviewFile: (file: { name: string; content: string; path: string } | null) => void;
   setMarkdownRawMode: (mode: boolean) => void;
   setAboutModalOpen: (open: boolean) => void;
@@ -115,8 +117,10 @@ export function MainPanel(props: MainPanelProps) {
     logViewerOpen, agentSessionsOpen, activeClaudeSessionId, activeSession, theme, activeFocus, outputSearchOpen, outputSearchQuery,
     inputValue, enterToSendAI, enterToSendTerminal, stagedImages, commandHistoryOpen, commandHistoryFilter,
     commandHistorySelectedIndex, slashCommandOpen, slashCommands, selectedSlashCommandIndex,
+    tabCompletionOpen, tabCompletionSuggestions, selectedTabCompletionIndex,
+    setTabCompletionOpen, setSelectedTabCompletionIndex,
     previewFile, markdownRawMode, shortcuts, rightPanelOpen, maxOutputLines, gitDiffPreview,
-    fileTreeFilterOpen, setGitDiffPreview, setLogViewerOpen, setAgentSessionsOpen, setActiveClaudeSessionId,
+    fileTreeFilterOpen, logLevel, setGitDiffPreview, setLogViewerOpen, setAgentSessionsOpen, setActiveClaudeSessionId,
     onResumeClaudeSession, onNewClaudeSession, setActiveFocus, setOutputSearchOpen, setOutputSearchQuery,
     setInputValue, setEnterToSendAI, setEnterToSendTerminal, setStagedImages, setLightboxImage, setCommandHistoryOpen,
     setCommandHistoryFilter, setCommandHistorySelectedIndex, setSlashCommandOpen,
@@ -124,7 +128,8 @@ export function MainPanel(props: MainPanelProps) {
     setAboutModalOpen, setRightPanelOpen, setGitLogOpen, inputRef, logsEndRef, terminalOutputRef,
     fileTreeContainerRef, fileTreeFilterInputRef, toggleInputMode, processInput, handleInterrupt,
     handleInputKeyDown, handlePaste, handleDrop, getContextColor, setActiveSessionId,
-    batchRunState, onStopBatchRun, showConfirmation, onRemoveQueuedMessage
+    batchRunState, onStopBatchRun, showConfirmation, onRemoveQueuedMessage,
+    isMobileLandscape = false
   } = props;
 
   const isAutoModeActive = batchRunState?.isRunning || false;
@@ -132,19 +137,22 @@ export function MainPanel(props: MainPanelProps) {
 
   // Context window tooltip hover state
   const [contextTooltipOpen, setContextTooltipOpen] = useState(false);
+  const contextTooltipTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Session ID copied notification
   const [showSessionIdCopied, setShowSessionIdCopied] = useState(false);
   // Git pill tooltip hover state
   const [gitTooltipOpen, setGitTooltipOpen] = useState(false);
+  const gitTooltipTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Agent sessions tooltip hover state
   const [sessionsTooltipOpen, setSessionsTooltipOpen] = useState(false);
+  const sessionsTooltipTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Session ID pill overlay state (hover-triggered with delay for smooth UX)
   const [sessionPillOverlayOpen, setSessionPillOverlayOpen] = useState(false);
   const [sessionPillRenaming, setSessionPillRenaming] = useState(false);
   const [sessionPillRenameValue, setSessionPillRenameValue] = useState('');
   const sessionPillHoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Bookmarked and named Claude sessions (stored globally)
-  const [bookmarkedSessions, setBookmarkedSessions] = useState<Set<string>>(new Set());
+  // Starred and named Claude sessions (stored per project cwd)
+  const [starredSessions, setStarredSessions] = useState<Set<string>>(new Set());
   const [namedSessions, setNamedSessions] = useState<Record<string, string>>({});
   const sessionPillRef = useRef<HTMLDivElement>(null);
   // Panel width for responsive hiding of widgets
@@ -209,13 +217,17 @@ export function MainPanel(props: MainPanelProps) {
     return () => clearInterval(interval);
   }, [activeSession?.id, activeSession?.isGitRepo, activeSession?.cwd, activeSession?.shellCwd, activeSession?.inputMode]);
 
-  // Load bookmarked and named Claude sessions from settings
+  // Load starred and named Claude sessions from settings (per project cwd)
   useEffect(() => {
     const loadSessionMetadata = async () => {
+      if (!activeSession?.cwd) return;
       try {
-        const savedBookmarked = await window.maestro.settings.get('bookmarkedClaudeSessions');
-        if (savedBookmarked && Array.isArray(savedBookmarked)) {
-          setBookmarkedSessions(new Set(savedBookmarked));
+        const starredKey = `starredClaudeSessions:${activeSession.cwd}`;
+        const savedStarred = await window.maestro.settings.get(starredKey);
+        if (savedStarred && Array.isArray(savedStarred)) {
+          setStarredSessions(new Set(savedStarred));
+        } else {
+          setStarredSessions(new Set());
         }
         const savedNamed = await window.maestro.settings.get('namedClaudeSessions');
         if (savedNamed && typeof savedNamed === 'object') {
@@ -226,31 +238,34 @@ export function MainPanel(props: MainPanelProps) {
       }
     };
     loadSessionMetadata();
-  }, []);
+  }, [activeSession?.cwd]);
 
-  // Toggle bookmark for current session
-  const toggleBookmark = useCallback(async () => {
-    if (!activeSession?.claudeSessionId) return;
+  // Toggle star for current session
+  const toggleStar = useCallback(async () => {
+    if (!activeSession?.claudeSessionId || !activeSession?.cwd) return;
     const sessionId = activeSession.claudeSessionId;
-    const newBookmarked = new Set(bookmarkedSessions);
-    if (newBookmarked.has(sessionId)) {
-      newBookmarked.delete(sessionId);
+    const newStarred = new Set(starredSessions);
+    if (newStarred.has(sessionId)) {
+      newStarred.delete(sessionId);
     } else {
-      newBookmarked.add(sessionId);
+      newStarred.add(sessionId);
     }
-    setBookmarkedSessions(newBookmarked);
+    setStarredSessions(newStarred);
     try {
-      await window.maestro.settings.set('bookmarkedClaudeSessions', Array.from(newBookmarked));
+      const starredKey = `starredClaudeSessions:${activeSession.cwd}`;
+      await window.maestro.settings.set(starredKey, Array.from(newStarred));
     } catch (error) {
-      console.error('Failed to save bookmarked sessions:', error);
+      console.error('Failed to save starred sessions:', error);
     }
-  }, [activeSession?.claudeSessionId, bookmarkedSessions]);
+  }, [activeSession?.claudeSessionId, activeSession?.cwd, starredSessions]);
 
   // Rename current session
   const saveSessionName = useCallback(async () => {
-    if (!activeSession?.claudeSessionId) return;
+    if (!activeSession?.claudeSessionId || !activeSession?.cwd) return;
     const sessionId = activeSession.claudeSessionId;
     const name = sessionPillRenameValue.trim();
+
+    // Update local state for immediate UI feedback
     const newNamed = { ...namedSessions };
     if (name) {
       newNamed[sessionId] = name;
@@ -260,12 +275,20 @@ export function MainPanel(props: MainPanelProps) {
     setNamedSessions(newNamed);
     setSessionPillRenaming(false);
     setSessionPillRenameValue('');
+
     try {
+      // Save to backend storage so it shows in Claude session list view
+      await window.maestro.claude.updateSessionName(
+        activeSession.cwd,
+        sessionId,
+        name
+      );
+      // Also save to local settings for quick lookup in main panel
       await window.maestro.settings.set('namedClaudeSessions', newNamed);
     } catch (error) {
       console.error('Failed to save session name:', error);
     }
-  }, [activeSession?.claudeSessionId, sessionPillRenameValue, namedSessions]);
+  }, [activeSession?.claudeSessionId, activeSession?.cwd, sessionPillRenameValue, namedSessions]);
 
   // Close session pill overlay when clicking outside (mainly for rename mode)
   useEffect(() => {
@@ -279,11 +302,20 @@ export function MainPanel(props: MainPanelProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [sessionPillOverlayOpen]);
 
-  // Cleanup hover timeout on unmount
+  // Cleanup hover timeouts on unmount
   useEffect(() => {
     return () => {
       if (sessionPillHoverTimeout.current) {
         clearTimeout(sessionPillHoverTimeout.current);
+      }
+      if (gitTooltipTimeout.current) {
+        clearTimeout(gitTooltipTimeout.current);
+      }
+      if (contextTooltipTimeout.current) {
+        clearTimeout(contextTooltipTimeout.current);
+      }
+      if (sessionsTooltipTimeout.current) {
+        clearTimeout(sessionsTooltipTimeout.current);
       }
     };
   }, []);
@@ -333,7 +365,7 @@ export function MainPanel(props: MainPanelProps) {
   if (logViewerOpen) {
     return (
       <div className="flex-1 flex flex-col min-w-0 relative" style={{ backgroundColor: theme.colors.bgMain }}>
-        <LogViewer theme={theme} onClose={() => setLogViewerOpen(false)} />
+        <LogViewer theme={theme} onClose={() => setLogViewerOpen(false)} logLevel={logLevel} />
       </div>
     );
   }
@@ -382,15 +414,29 @@ export function MainPanel(props: MainPanelProps) {
           style={{ backgroundColor: theme.colors.bgMain, ringColor: theme.colors.accent }}
           onClick={() => setActiveFocus('main')}
         >
-          {/* Top Bar */}
+          {/* Top Bar (hidden in mobile landscape for focused reading) */}
+          {!isMobileLandscape && (
           <div ref={headerRef} className="h-16 border-b flex items-center justify-between px-6 shrink-0" style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgSidebar }}>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 text-sm font-medium">
                 {activeSession.name}
                 <div
                   className="relative"
-                  onMouseEnter={() => activeSession.isGitRepo && setGitTooltipOpen(true)}
-                  onMouseLeave={() => setGitTooltipOpen(false)}
+                  onMouseEnter={() => {
+                    if (!activeSession.isGitRepo) return;
+                    // Clear any pending close timeout
+                    if (gitTooltipTimeout.current) {
+                      clearTimeout(gitTooltipTimeout.current);
+                      gitTooltipTimeout.current = null;
+                    }
+                    setGitTooltipOpen(true);
+                  }}
+                  onMouseLeave={() => {
+                    // Delay closing to allow mouse to reach the dropdown
+                    gitTooltipTimeout.current = setTimeout(() => {
+                      setGitTooltipOpen(false);
+                    }, 150);
+                  }}
                 >
                   <span
                     className={`flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border cursor-pointer ${activeSession.isGitRepo ? 'border-orange-500/30 text-orange-500 bg-orange-500/10 hover:bg-orange-500/20' : 'border-blue-500/30 text-blue-500 bg-blue-500/10'}`}
@@ -407,17 +453,41 @@ export function MainPanel(props: MainPanelProps) {
                     ) : 'LOCAL'}
                   </span>
                   {activeSession.isGitRepo && gitTooltipOpen && gitInfo && (
-                    <div
-                      className="absolute top-full left-0 pt-2 w-80 z-50 pointer-events-none"
-                    >
+                    <>
+                      {/* Invisible bridge to prevent hover gap */}
                       <div
-                        className="rounded shadow-xl pointer-events-auto"
-                        style={{
-                          backgroundColor: theme.colors.bgSidebar,
-                          borderColor: theme.colors.border,
-                          border: '1px solid'
+                        className="absolute left-0 right-0 h-3 pointer-events-auto"
+                        style={{ top: '100%' }}
+                        onMouseEnter={() => {
+                          if (gitTooltipTimeout.current) {
+                            clearTimeout(gitTooltipTimeout.current);
+                            gitTooltipTimeout.current = null;
+                          }
+                          setGitTooltipOpen(true);
+                        }}
+                      />
+                      <div
+                        className="absolute top-full left-0 pt-2 w-80 z-50 pointer-events-auto"
+                        onMouseEnter={() => {
+                          if (gitTooltipTimeout.current) {
+                            clearTimeout(gitTooltipTimeout.current);
+                            gitTooltipTimeout.current = null;
+                          }
+                          setGitTooltipOpen(true);
+                        }}
+                        onMouseLeave={() => {
+                          gitTooltipTimeout.current = setTimeout(() => {
+                            setGitTooltipOpen(false);
+                          }, 150);
                         }}
                       >
+                        <div
+                          className="rounded shadow-xl"
+                          style={{
+                            backgroundColor: theme.colors.bgSidebar,
+                            border: `1px solid ${theme.colors.border}`
+                          }}
+                        >
                       {/* Branch */}
                       <div className="p-3 border-b" style={{ borderColor: theme.colors.border }}>
                         <div className="text-[10px] uppercase font-bold mb-2" style={{ color: theme.colors.textDim }}>Branch</div>
@@ -487,9 +557,10 @@ export function MainPanel(props: MainPanelProps) {
                             </span>
                           )}
                         </div>
-                      </div>
+                        </div>
                       </div>
                     </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -526,18 +597,31 @@ export function MainPanel(props: MainPanelProps) {
                   }}
                 >
                   <div
-                    className="flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border cursor-default hover:opacity-80 transition-opacity"
+                    className="flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border cursor-default hover:opacity-80 transition-opacity max-w-[200px]"
                     style={{ backgroundColor: theme.colors.accent + '20', color: theme.colors.accent, borderColor: theme.colors.accent + '30' }}
+                    title={namedSessions[activeSession.claudeSessionId] || activeSession.claudeSessionId}
                   >
-                    {bookmarkedSessions.has(activeSession.claudeSessionId) && (
-                      <Star className="w-2.5 h-2.5 fill-current" />
+                    {starredSessions.has(activeSession.claudeSessionId) && (
+                      <Star className="w-2.5 h-2.5 fill-current shrink-0" />
                     )}
-                    {namedSessions[activeSession.claudeSessionId] || activeSession.claudeSessionId.split('-')[0].toUpperCase()}
+                    <span className="truncate">
+                      {namedSessions[activeSession.claudeSessionId] || activeSession.claudeSessionId.split('-')[0].toUpperCase()}
+                    </span>
                   </div>
 
                   {/* Invisible bridge to prevent hover gap issues */}
                   {sessionPillOverlayOpen && (
-                    <div className="absolute left-0 right-0 h-2" style={{ top: '100%' }} />
+                    <div
+                      className="absolute left-0 right-0 h-3 pointer-events-auto"
+                      style={{ top: '100%' }}
+                      onMouseEnter={() => {
+                        if (sessionPillHoverTimeout.current) {
+                          clearTimeout(sessionPillHoverTimeout.current);
+                          sessionPillHoverTimeout.current = null;
+                        }
+                        setSessionPillOverlayOpen(true);
+                      }}
+                    />
                   )}
 
                   {/* Overlay dropdown */}
@@ -550,6 +634,15 @@ export function MainPanel(props: MainPanelProps) {
                         minWidth: '280px'
                       }}
                     >
+                      {/* Session name display (if named) */}
+                      {namedSessions[activeSession.claudeSessionId] && (
+                        <div
+                          className="px-3 py-2 text-xs font-medium border-b"
+                          style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
+                        >
+                          {namedSessions[activeSession.claudeSessionId]}
+                        </div>
+                      )}
                       {/* Session ID display */}
                       <div
                         className="px-3 py-2 text-[10px] font-mono border-b"
@@ -621,19 +714,19 @@ export function MainPanel(props: MainPanelProps) {
                           )}
                         </button>
 
-                        {/* Bookmark */}
+                        {/* Star */}
                         <button
                           onClick={() => {
-                            toggleBookmark();
+                            toggleStar();
                           }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 transition-colors"
                           style={{ color: theme.colors.textMain }}
                         >
                           <Star
-                            className={`w-3.5 h-3.5 ${bookmarkedSessions.has(activeSession.claudeSessionId!) ? 'fill-current' : ''}`}
-                            style={{ color: bookmarkedSessions.has(activeSession.claudeSessionId!) ? theme.colors.warning : theme.colors.textDim }}
+                            className={`w-3.5 h-3.5 ${starredSessions.has(activeSession.claudeSessionId!) ? 'fill-current' : ''}`}
+                            style={{ color: starredSessions.has(activeSession.claudeSessionId!) ? theme.colors.warning : theme.colors.textDim }}
                           />
-                          {bookmarkedSessions.has(activeSession.claudeSessionId!) ? 'Remove Bookmark' : 'Bookmark Session'}
+                          {starredSessions.has(activeSession.claudeSessionId!) ? 'Unstar Session' : 'Star Session'}
                         </button>
 
                         {/* Rename */}
@@ -712,8 +805,20 @@ export function MainPanel(props: MainPanelProps) {
               {/* Context Window Widget with Tooltip */}
               <div
                 className="flex flex-col items-end mr-2 relative cursor-pointer"
-                onMouseEnter={() => setContextTooltipOpen(true)}
-                onMouseLeave={() => setContextTooltipOpen(false)}
+                onMouseEnter={() => {
+                  // Clear any pending close timeout
+                  if (contextTooltipTimeout.current) {
+                    clearTimeout(contextTooltipTimeout.current);
+                    contextTooltipTimeout.current = null;
+                  }
+                  setContextTooltipOpen(true);
+                }}
+                onMouseLeave={() => {
+                  // Delay closing to allow mouse to reach the dropdown
+                  contextTooltipTimeout.current = setTimeout(() => {
+                    setContextTooltipOpen(false);
+                  }, 150);
+                }}
               >
                 <span className="text-[10px] font-bold uppercase" style={{ color: theme.colors.textDim }}>Context Window</span>
                 <div className="w-24 h-1.5 rounded-full mt-1 overflow-hidden" style={{ backgroundColor: theme.colors.border }}>
@@ -728,11 +833,38 @@ export function MainPanel(props: MainPanelProps) {
 
                 {/* Context Window Tooltip */}
                 {contextTooltipOpen && activeSession.inputMode === 'ai' && activeSession.usageStats && (
-                  <div className="absolute top-full right-0 pt-2 w-64 z-50">
+                  <>
+                    {/* Invisible bridge to prevent hover gap */}
                     <div
-                      className="border rounded-lg p-3 shadow-xl"
-                      style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}
+                      className="absolute left-0 right-0 h-3 pointer-events-auto"
+                      style={{ top: '100%' }}
+                      onMouseEnter={() => {
+                        if (contextTooltipTimeout.current) {
+                          clearTimeout(contextTooltipTimeout.current);
+                          contextTooltipTimeout.current = null;
+                        }
+                        setContextTooltipOpen(true);
+                      }}
+                    />
+                    <div
+                      className="absolute top-full right-0 pt-2 w-64 z-50 pointer-events-auto"
+                      onMouseEnter={() => {
+                        if (contextTooltipTimeout.current) {
+                          clearTimeout(contextTooltipTimeout.current);
+                          contextTooltipTimeout.current = null;
+                        }
+                        setContextTooltipOpen(true);
+                      }}
+                      onMouseLeave={() => {
+                        contextTooltipTimeout.current = setTimeout(() => {
+                          setContextTooltipOpen(false);
+                        }, 150);
+                      }}
                     >
+                      <div
+                        className="border rounded-lg p-3 shadow-xl"
+                        style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}
+                      >
                       <div className="text-[10px] uppercase font-bold mb-3" style={{ color: theme.colors.textDim }}>Context Details</div>
 
                       <div className="space-y-2">
@@ -788,19 +920,35 @@ export function MainPanel(props: MainPanelProps) {
                           </div>
                         </div>
                       </div>
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
 
               {/* Agent Sessions Button with Recent Sessions Hover */}
               <div
                 className="relative"
-                onMouseEnter={() => setSessionsTooltipOpen(true)}
-                onMouseLeave={() => setSessionsTooltipOpen(false)}
+                onMouseEnter={() => {
+                  // Clear any pending close timeout
+                  if (sessionsTooltipTimeout.current) {
+                    clearTimeout(sessionsTooltipTimeout.current);
+                    sessionsTooltipTimeout.current = null;
+                  }
+                  setSessionsTooltipOpen(true);
+                }}
+                onMouseLeave={() => {
+                  // Delay closing to allow mouse to reach the dropdown
+                  sessionsTooltipTimeout.current = setTimeout(() => {
+                    setSessionsTooltipOpen(false);
+                  }, 150);
+                }}
               >
                 <button
-                  onClick={() => setAgentSessionsOpen(true)}
+                  onClick={() => {
+                    setActiveClaudeSessionId(null);
+                    setAgentSessionsOpen(true);
+                  }}
                   className="p-2 rounded hover:bg-white/5"
                   title={`Agent Sessions (${shortcuts.agentSessions.keys.join('+').replace('Meta', 'Cmd').replace('Shift', '\u21E7')})`}
                 >
@@ -809,61 +957,108 @@ export function MainPanel(props: MainPanelProps) {
 
                 {/* Recent Sessions Hover Overlay */}
                 {sessionsTooltipOpen && recentClaudeSessions.length > 0 && (
-                  <div
-                    className="absolute top-full right-0 mt-1 w-72 rounded-lg border shadow-xl z-50"
-                    style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}
-                    onMouseEnter={() => setSessionsTooltipOpen(true)}
-                    onMouseLeave={() => setSessionsTooltipOpen(false)}
-                  >
+                  <>
+                    {/* Invisible bridge to prevent hover gap */}
+                    <div
+                      className="absolute left-0 right-0 h-3 pointer-events-auto"
+                      style={{ top: '100%' }}
+                      onMouseEnter={() => {
+                        if (sessionsTooltipTimeout.current) {
+                          clearTimeout(sessionsTooltipTimeout.current);
+                          sessionsTooltipTimeout.current = null;
+                        }
+                        setSessionsTooltipOpen(true);
+                      }}
+                    />
+                    <div
+                      className="absolute top-full right-0 mt-1 w-72 rounded-lg border shadow-xl z-50 pointer-events-auto"
+                      style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}
+                      onMouseEnter={() => {
+                        if (sessionsTooltipTimeout.current) {
+                          clearTimeout(sessionsTooltipTimeout.current);
+                          sessionsTooltipTimeout.current = null;
+                        }
+                        setSessionsTooltipOpen(true);
+                      }}
+                      onMouseLeave={() => {
+                        sessionsTooltipTimeout.current = setTimeout(() => {
+                          setSessionsTooltipOpen(false);
+                        }, 150);
+                      }}
+                    >
                     <div
                       className="px-3 py-2 text-xs font-bold uppercase border-b"
                       style={{ color: theme.colors.textDim, borderColor: theme.colors.border }}
                     >
                       Recent Sessions
                     </div>
-                    <div className="max-h-64 overflow-y-auto scrollbar-thin">
-                      {recentClaudeSessions.slice(0, 5).map((session) => (
-                        <button
-                          key={session.sessionId}
-                          onClick={() => {
-                            onResumeRecentSession(session.sessionId);
-                            setSessionsTooltipOpen(false);
-                          }}
-                          className="w-full text-left px-3 py-2 hover:bg-white/5 transition-colors flex items-center gap-2"
-                        >
-                          <Play className="w-3 h-3 shrink-0" style={{ color: theme.colors.accent }} />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs truncate" style={{ color: theme.colors.textMain }}>
-                              {session.firstMessage || `Session ${session.sessionId.slice(0, 8)}...`}
+                    <div className="max-h-80 overflow-y-auto scrollbar-thin">
+                      {recentClaudeSessions.slice(0, 8).map((session) => {
+                        const isStarred = starredSessions.has(session.sessionId);
+                        const sessionName = namedSessions[session.sessionId] || session.sessionName;
+                        const hasName = !!sessionName;
+
+                        return (
+                          <button
+                            key={session.sessionId}
+                            onClick={() => {
+                              onResumeRecentSession(session.sessionId);
+                              setSessionsTooltipOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-white/5 transition-colors flex items-center gap-2"
+                          >
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Play className="w-3 h-3" style={{ color: theme.colors.accent }} />
+                              {isStarred && (
+                                <Star className="w-3 h-3 fill-current" style={{ color: theme.colors.warning }} />
+                              )}
                             </div>
-                            <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
-                              {(() => {
-                                const date = new Date(session.timestamp);
-                                const now = new Date();
-                                const diffMs = now.getTime() - date.getTime();
-                                const diffMins = Math.floor(diffMs / 60000);
-                                const diffHours = Math.floor(diffMins / 60);
-                                if (diffMins < 1) return 'just now';
-                                if (diffMins < 60) return `${diffMins}m ago`;
-                                if (diffHours < 24) return `${diffHours}h ago`;
-                                return date.toLocaleDateString();
-                              })()}
+                            <div className="flex-1 min-w-0">
+                              {hasName ? (
+                                <>
+                                  <div className="text-xs font-medium truncate" style={{ color: theme.colors.textMain }}>
+                                    {sessionName}
+                                  </div>
+                                  <div className="text-[10px] truncate" style={{ color: theme.colors.textDim }}>
+                                    {session.firstMessage || `Session ${session.sessionId.slice(0, 8)}...`}
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="text-xs truncate" style={{ color: theme.colors.textMain }}>
+                                  {session.firstMessage || `Session ${session.sessionId.slice(0, 8)}...`}
+                                </div>
+                              )}
+                              <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
+                                {(() => {
+                                  const date = new Date(session.timestamp);
+                                  const now = new Date();
+                                  const diffMs = now.getTime() - date.getTime();
+                                  const diffMins = Math.floor(diffMs / 60000);
+                                  const diffHours = Math.floor(diffMins / 60);
+                                  if (diffMins < 1) return 'just now';
+                                  if (diffMins < 60) return `${diffMins}m ago`;
+                                  if (diffHours < 24) return `${diffHours}h ago`;
+                                  return date.toLocaleDateString();
+                                })()}
+                              </div>
                             </div>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div
-                      className="px-3 py-2 text-xs border-t text-center cursor-pointer hover:bg-white/5"
-                      style={{ color: theme.colors.accent, borderColor: theme.colors.border }}
-                      onClick={() => {
-                        setAgentSessionsOpen(true);
-                        setSessionsTooltipOpen(false);
-                      }}
-                    >
-                      View all sessions →
+                      <div
+                        className="px-3 py-2 text-xs border-t text-center cursor-pointer hover:bg-white/5"
+                        style={{ color: theme.colors.accent, borderColor: theme.colors.border }}
+                        onClick={() => {
+                          setActiveClaudeSessionId(null);
+                          setAgentSessionsOpen(true);
+                          setSessionsTooltipOpen(false);
+                        }}
+                      >
+                        View all sessions →
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
               {!rightPanelOpen && (
@@ -873,6 +1068,7 @@ export function MainPanel(props: MainPanelProps) {
               )}
             </div>
           </div>
+          )}
 
           {/* Show File Preview in main area when open, otherwise show terminal output and input */}
           {previewFile ? (
@@ -921,7 +1117,8 @@ export function MainPanel(props: MainPanelProps) {
                 audioFeedbackCommand={props.audioFeedbackCommand}
               />
 
-              {/* Input Area */}
+              {/* Input Area (hidden in mobile landscape for focused reading) */}
+              {!isMobileLandscape && (
               <InputArea
                 session={activeSession}
                 theme={theme}
@@ -943,6 +1140,11 @@ export function MainPanel(props: MainPanelProps) {
                 slashCommands={slashCommands}
                 selectedSlashCommandIndex={selectedSlashCommandIndex}
                 setSelectedSlashCommandIndex={setSelectedSlashCommandIndex}
+                tabCompletionOpen={tabCompletionOpen}
+                setTabCompletionOpen={setTabCompletionOpen}
+                tabCompletionSuggestions={tabCompletionSuggestions}
+                selectedTabCompletionIndex={selectedTabCompletionIndex}
+                setSelectedTabCompletionIndex={setSelectedTabCompletionIndex}
                 inputRef={inputRef}
                 handleInputKeyDown={handleInputKeyDown}
                 handlePaste={handlePaste}
@@ -953,6 +1155,7 @@ export function MainPanel(props: MainPanelProps) {
                 onInputFocus={handleInputFocus}
                 isAutoModeActive={isAutoModeActive}
               />
+              )}
             </>
           )}
 
@@ -964,7 +1167,7 @@ export function MainPanel(props: MainPanelProps) {
             className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 px-6 py-4 rounded-lg shadow-2xl text-base font-bold animate-in fade-in zoom-in-95 duration-200 z-50"
             style={{
               backgroundColor: theme.colors.accent,
-              color: '#FFFFFF',
+              color: theme.colors.accentForeground,
               textShadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
             }}
           >

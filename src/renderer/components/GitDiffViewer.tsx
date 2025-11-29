@@ -95,7 +95,7 @@ export function GitDiffViewer({ diffText, cwd, theme, onClose }: GitDiffViewerPr
       >
         <div
           className="w-[85%] max-w-[1400px] h-[90%] rounded-lg shadow-2xl flex flex-col overflow-hidden"
-          style={{ backgroundColor: theme.colors.bgMain, borderColor: theme.colors.border, border: '1px solid' }}
+          style={{ backgroundColor: theme.colors.bgMain, border: `1px solid ${theme.colors.border}` }}
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"

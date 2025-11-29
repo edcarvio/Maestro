@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { BatchRunState, Session, HistoryEntry } from '../types';
 
 // Regex to count unchecked markdown checkboxes: - [ ] task
@@ -15,11 +15,21 @@ const DEFAULT_BATCH_STATE: BatchRunState = {
   sessionIds: []
 };
 
+interface BatchCompleteInfo {
+  sessionId: string;
+  sessionName: string;
+  completedTasks: number;
+  totalTasks: number;
+  wasStopped: boolean;
+  elapsedTimeMs: number;
+}
+
 interface UseBatchProcessorProps {
   sessions: Session[];
   onUpdateSession: (sessionId: string, updates: Partial<Session>) => void;
   onSpawnAgent: (sessionId: string, prompt: string) => Promise<{ success: boolean; response?: string; claudeSessionId?: string }>;
   onAddHistoryEntry: (entry: Omit<HistoryEntry, 'id'>) => void;
+  onComplete?: (info: BatchCompleteInfo) => void;
 }
 
 interface UseBatchProcessorReturn {
@@ -56,7 +66,8 @@ export function useBatchProcessor({
   sessions,
   onUpdateSession,
   onSpawnAgent,
-  onAddHistoryEntry
+  onAddHistoryEntry,
+  onComplete
 }: UseBatchProcessorProps): UseBatchProcessorReturn {
   // Batch states per session
   const [batchRunStates, setBatchRunStates] = useState<Record<string, BatchRunState>>({});
@@ -86,6 +97,25 @@ export function useBatchProcessor({
     setCustomPrompts(prev => ({ ...prev, [sessionId]: prompt }));
   }, []);
 
+  // Broadcast batch run state changes to web interface
+  useEffect(() => {
+    // Broadcast state for each session that has batch state
+    Object.entries(batchRunStates).forEach(([sessionId, state]) => {
+      if (state.isRunning || state.completedTasks > 0) {
+        window.maestro.web.broadcastAutoRunState(sessionId, {
+          isRunning: state.isRunning,
+          totalTasks: state.totalTasks,
+          completedTasks: state.completedTasks,
+          currentTaskIndex: state.currentTaskIndex,
+          isStopping: state.isStopping,
+        });
+      } else {
+        // When not running and no completed tasks, broadcast null to clear the state
+        window.maestro.web.broadcastAutoRunState(sessionId, null);
+      }
+    });
+  }, [batchRunStates]);
+
   /**
    * Start a batch processing run for a specific session
    */
@@ -95,6 +125,9 @@ export function useBatchProcessor({
       console.error('Session not found for batch processing:', sessionId);
       return;
     }
+
+    // Track batch start time for completion notification
+    const batchStartTime = Date.now();
 
     // Count tasks
     const totalTasks = countUnfinishedTasks(scratchpadContent);
@@ -299,7 +332,20 @@ export function useBatchProcessor({
     }));
 
     scratchpadPathRefs.current[sessionId] = null;
-  }, [sessions, onUpdateSession, onSpawnAgent, onAddHistoryEntry]);
+
+    // Call completion callback if provided
+    if (onComplete) {
+      const wasStopped = stopRequestedRefs.current[sessionId] || false;
+      onComplete({
+        sessionId,
+        sessionName: session.name || session.cwd.split('/').pop() || 'Unknown',
+        completedTasks: completedCount,
+        totalTasks,
+        wasStopped,
+        elapsedTimeMs: Date.now() - batchStartTime
+      });
+    }
+  }, [sessions, onUpdateSession, onSpawnAgent, onAddHistoryEntry, onComplete]);
 
   /**
    * Request to stop the batch run for a specific session after current task completes

@@ -105,8 +105,8 @@ export function RenameSessionModal(props: RenameSessionModalProps) {
             <button
               onClick={handleRename}
               disabled={!value.trim()}
-              className="px-4 py-2 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: theme.colors.accent }}
+              className="px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: theme.colors.accent, color: theme.colors.accentForeground }}
             >
               Rename
             </button>

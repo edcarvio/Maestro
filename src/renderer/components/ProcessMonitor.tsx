@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ChevronRight, ChevronDown, X, Activity } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { ChevronRight, ChevronDown, X, Activity, RefreshCw } from 'lucide-react';
 import type { Session, Group, Theme } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
@@ -11,6 +11,15 @@ interface ProcessMonitorProps {
   onClose: () => void;
 }
 
+interface ActiveProcess {
+  sessionId: string;
+  toolType: string;
+  pid: number;
+  cwd: string;
+  isTerminal: boolean;
+  isBatchMode: boolean;
+}
+
 interface ProcessNode {
   id: string;
   type: 'group' | 'session' | 'process';
@@ -18,20 +27,36 @@ interface ProcessNode {
   emoji?: string;
   sessionId?: string;
   pid?: number;
-  processType?: 'ai' | 'terminal';
+  processType?: 'ai' | 'terminal' | 'batch';
   isAlive?: boolean;
   expanded?: boolean;
   children?: ProcessNode[];
+  toolType?: string;
+  cwd?: string;
 }
 
 export function ProcessMonitor(props: ProcessMonitorProps) {
   const { theme, sessions, groups, onClose } = props;
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [activeProcesses, setActiveProcesses] = useState<ActiveProcess[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedNodeRef = useRef<HTMLButtonElement | HTMLDivElement>(null);
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
   const layerIdRef = useRef<string>();
+
+  // Fetch active processes from ProcessManager
+  const fetchActiveProcesses = useCallback(async () => {
+    try {
+      const processes = await window.maestro.process.getActiveProcesses();
+      setActiveProcesses(processes);
+    } catch (error) {
+      console.error('Failed to fetch active processes:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   // Register layer on mount
   useEffect(() => {
@@ -56,6 +81,15 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
     }
   }, [onClose, updateLayerHandler]);
 
+  // Fetch processes on mount and poll for updates
+  useEffect(() => {
+    fetchActiveProcesses();
+
+    // Poll every 2 seconds to keep process list updated
+    const interval = setInterval(fetchActiveProcesses, 2000);
+    return () => clearInterval(interval);
+  }, [fetchActiveProcesses]);
+
   useEffect(() => {
     containerRef.current?.focus();
   }, []);
@@ -77,7 +111,33 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
     });
   };
 
-  // Build the process tree
+  // Parse the base session ID from a process session ID
+  // Process session IDs are formatted as: {baseSessionId}-ai, {baseSessionId}-terminal, {baseSessionId}-batch-{timestamp}
+  const parseBaseSessionId = (processSessionId: string): string => {
+    // Try to match common suffixes
+    const suffixes = ['-ai', '-terminal'];
+    for (const suffix of suffixes) {
+      if (processSessionId.endsWith(suffix)) {
+        return processSessionId.slice(0, -suffix.length);
+      }
+    }
+    // Check for batch mode pattern: {sessionId}-batch-{timestamp}
+    const batchMatch = processSessionId.match(/^(.+)-batch-\d+$/);
+    if (batchMatch) {
+      return batchMatch[1];
+    }
+    // Return as-is if no known suffix
+    return processSessionId;
+  };
+
+  // Determine process type from session ID
+  const getProcessType = (processSessionId: string): 'ai' | 'terminal' | 'batch' => {
+    if (processSessionId.endsWith('-terminal')) return 'terminal';
+    if (processSessionId.match(/-batch-\d+$/)) return 'batch';
+    return 'ai';
+  };
+
+  // Build the process tree using real active processes
   const buildProcessTree = (): ProcessNode[] => {
     const tree: ProcessNode[] = [];
 
@@ -93,6 +153,81 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
         ungroupedSessions.push(session);
       }
     });
+
+    // Map active processes to their base session IDs
+    const processesMap = new Map<string, ActiveProcess[]>();
+    activeProcesses.forEach(proc => {
+      const baseId = parseBaseSessionId(proc.sessionId);
+      const existing = processesMap.get(baseId) || [];
+      processesMap.set(baseId, [...existing, proc]);
+    });
+
+    // Build session node with active processes
+    const buildSessionNode = (session: Session): ProcessNode => {
+      const sessionNode: ProcessNode = {
+        id: `session-${session.id}`,
+        type: 'session',
+        label: session.name,
+        sessionId: session.id,
+        expanded: expandedNodes.has(`session-${session.id}`),
+        children: []
+      };
+
+      // Get active processes for this session
+      const sessionProcesses = processesMap.get(session.id) || [];
+
+      // Add each active process
+      sessionProcesses.forEach(proc => {
+        const processType = getProcessType(proc.sessionId);
+        let label: string;
+        if (processType === 'terminal') {
+          label = 'Terminal Shell';
+        } else if (processType === 'batch') {
+          label = `AI Agent (${proc.toolType}) - Batch`;
+        } else {
+          label = `AI Agent (${proc.toolType})`;
+        }
+
+        sessionNode.children!.push({
+          id: `process-${proc.sessionId}`,
+          type: 'process',
+          label,
+          pid: proc.pid,
+          processType,
+          sessionId: session.id,
+          isAlive: true, // Active processes are always alive
+          toolType: proc.toolType,
+          cwd: proc.cwd
+        });
+      });
+
+      // If no active processes, show placeholder based on session state
+      if (sessionNode.children!.length === 0) {
+        // Show what could be running based on session type
+        if (session.toolType !== 'terminal') {
+          sessionNode.children!.push({
+            id: `process-${session.id}-ai-inactive`,
+            type: 'process',
+            label: `AI Agent (${session.toolType})`,
+            pid: session.aiPid > 0 ? session.aiPid : undefined,
+            processType: 'ai',
+            sessionId: session.id,
+            isAlive: false
+          });
+        }
+        sessionNode.children!.push({
+          id: `process-${session.id}-terminal-inactive`,
+          type: 'process',
+          label: 'Terminal Shell',
+          pid: session.terminalPid > 0 ? session.terminalPid : undefined,
+          processType: 'terminal',
+          sessionId: session.id,
+          isAlive: false
+        });
+      }
+
+      return sessionNode;
+    };
 
     // Add grouped sessions
     groups.forEach(group => {
@@ -122,45 +257,6 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
     }
 
     return tree;
-  };
-
-  const buildSessionNode = (session: Session): ProcessNode => {
-    const sessionNode: ProcessNode = {
-      id: `session-${session.id}`,
-      type: 'session',
-      label: session.name,
-      sessionId: session.id,
-      expanded: expandedNodes.has(`session-${session.id}`),
-      children: []
-    };
-
-    // Add AI process
-    if (session.aiPid) {
-      sessionNode.children!.push({
-        id: `process-${session.id}-ai`,
-        type: 'process',
-        label: `AI Agent (${session.toolType})`,
-        pid: session.aiPid,
-        processType: 'ai',
-        sessionId: session.id,
-        isAlive: session.state !== 'idle' || session.inputMode === 'ai'
-      });
-    }
-
-    // Add Terminal process
-    if (session.terminalPid) {
-      sessionNode.children!.push({
-        id: `process-${session.id}-terminal`,
-        type: 'process',
-        label: 'Terminal Shell',
-        pid: session.terminalPid,
-        processType: 'terminal',
-        sessionId: session.id,
-        isAlive: session.state !== 'idle' || session.inputMode === 'terminal'
-      });
-    }
-
-    return sessionNode;
   };
 
   // Build flat list of visible nodes for keyboard navigation
@@ -267,6 +363,12 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
           }
         }
         break;
+
+      case 'r':
+      case 'R':
+        e.preventDefault();
+        fetchActiveProcesses();
+        break;
     }
   };
 
@@ -317,6 +419,9 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
     }
 
     if (node.type === 'session') {
+      // Count active processes for this session
+      const activeCount = node.children?.filter(c => c.isAlive).length || 0;
+
       return (
         <div key={node.id}>
           <button
@@ -339,10 +444,18 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
                 <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: theme.colors.textDim }} />
             )}
             {!hasChildren && <div className="w-4 h-4 flex-shrink-0" />}
-            <Activity className="w-4 h-4 flex-shrink-0" style={{ color: theme.colors.accent }} />
+            <Activity className="w-4 h-4 flex-shrink-0" style={{ color: activeCount > 0 ? theme.colors.success : theme.colors.textDim }} />
             <span>{node.label}</span>
-            <span className="text-xs ml-auto" style={{ color: theme.colors.textDim }}>
-              Session: {node.sessionId?.substring(0, 8)}...
+            <span className="text-xs ml-auto flex items-center gap-2" style={{ color: theme.colors.textDim }}>
+              {activeCount > 0 && (
+                <span
+                  className="px-1.5 py-0.5 rounded text-xs"
+                  style={{ backgroundColor: `${theme.colors.success}20`, color: theme.colors.success }}
+                >
+                  {activeCount} running
+                </span>
+              )}
+              <span>Session: {node.sessionId?.substring(0, 8)}...</span>
             </span>
           </button>
           {isExpanded && hasChildren && (
@@ -382,7 +495,7 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
           />
           <span className="text-sm">{node.label}</span>
           <span className="text-xs ml-auto font-mono" style={{ color: theme.colors.textDim }}>
-            PID: {node.pid}
+            {node.pid ? `PID: ${node.pid}` : 'No PID'}
           </span>
           <span
             className="text-xs px-2 py-0.5 rounded"
@@ -401,6 +514,7 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
   };
 
   const processTree = buildProcessTree();
+  const totalActiveProcesses = activeProcesses.length;
 
   return (
     <div
@@ -428,21 +542,49 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
             <h2 className="text-lg font-semibold" style={{ color: theme.colors.textMain }}>
               System Processes
             </h2>
+            {totalActiveProcesses > 0 && (
+              <span
+                className="text-xs px-2 py-1 rounded-full"
+                style={{ backgroundColor: `${theme.colors.success}20`, color: theme.colors.success }}
+              >
+                {totalActiveProcesses} active
+              </span>
+            )}
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded hover:bg-opacity-10"
-            style={{ color: theme.colors.textDim }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.accent}20`}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchActiveProcesses()}
+              className="p-1.5 rounded hover:bg-opacity-10 flex items-center gap-1"
+              style={{ color: theme.colors.textDim }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.accent}20`}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              title="Refresh (R)"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1 rounded hover:bg-opacity-10"
+              style={{ color: theme.colors.textDim }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.accent}20`}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Process tree */}
         <div className="overflow-y-auto flex-1 scrollbar-thin">
-          {processTree.length === 0 ? (
+          {isLoading ? (
+            <div
+              className="px-6 py-8 text-center flex items-center justify-center gap-2"
+              style={{ color: theme.colors.textDim }}
+            >
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              Loading processes...
+            </div>
+          ) : processTree.length === 0 ? (
             <div
               className="px-6 py-8 text-center"
               style={{ color: theme.colors.textDim }}
@@ -466,7 +608,7 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
         >
           <div className="flex items-center gap-4">
             <span>{sessions.length} {sessions.length === 1 ? 'session' : 'sessions'} • {groups.length} {groups.length === 1 ? 'group' : 'groups'}</span>
-            <span style={{ opacity: 0.7 }}>↑↓ navigate • ←→ collapse/expand</span>
+            <span style={{ opacity: 0.7 }}>↑↓ navigate • ←→ collapse/expand • R refresh</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: theme.colors.success }} />

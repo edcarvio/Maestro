@@ -22,6 +22,43 @@ export interface GitNumstat {
   }>;
 }
 
+/**
+ * Convert a git remote URL to a browser-friendly URL
+ * Supports GitHub, GitLab, Bitbucket, and other common hosts
+ */
+function remoteUrlToBrowserUrl(remoteUrl: string): string | null {
+  if (!remoteUrl) return null;
+
+  let url = remoteUrl.trim();
+
+  // Handle SSH format: git@github.com:user/repo.git
+  if (url.startsWith('git@')) {
+    // git@github.com:user/repo.git -> https://github.com/user/repo
+    url = url
+      .replace(/^git@/, 'https://')
+      .replace(/:([^/])/, '/$1') // Replace first : with / (but not :// from https)
+      .replace(/\.git$/, '');
+    return url;
+  }
+
+  // Handle HTTPS format: https://github.com/user/repo.git
+  if (url.startsWith('https://') || url.startsWith('http://')) {
+    url = url.replace(/\.git$/, '');
+    return url;
+  }
+
+  // Handle SSH format without git@: ssh://git@github.com/user/repo.git
+  if (url.startsWith('ssh://')) {
+    url = url
+      .replace(/^ssh:\/\/git@/, 'https://')
+      .replace(/^ssh:\/\//, 'https://')
+      .replace(/\.git$/, '');
+    return url;
+  }
+
+  return null;
+}
+
 export const gitService = {
   /**
    * Check if a directory is a git repository
@@ -114,6 +151,23 @@ export const gitService = {
     } catch (error) {
       console.error('Git numstat error:', error);
       return { files: [] };
+    }
+  },
+
+  /**
+   * Get the browser-friendly URL for the remote repository
+   * Returns null if no remote or URL cannot be parsed
+   */
+  async getRemoteBrowserUrl(cwd: string): Promise<string | null> {
+    try {
+      const result = await window.maestro.git.remote(cwd);
+      if (result.stdout) {
+        return remoteUrlToBrowserUrl(result.stdout);
+      }
+      return null;
+    } catch (error) {
+      console.error('Git remote error:', error);
+      return null;
     }
   }
 };

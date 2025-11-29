@@ -9,6 +9,8 @@
  * - Session name and working directory (truncated)
  * - Color-coded status indicator
  * - Thinking indicator when AI is processing
+ * - Elapsed time display while AI is thinking (mm:ss or hh:mm:ss)
+ * - Token count display (total tokens, compact format for mobile)
  * - Cost tracker showing session spend
  * - Context window usage bar
  * - Collapsible last response preview (first 3 lines)
@@ -16,7 +18,7 @@
  * - Compact design optimized for mobile viewports
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, memo } from 'react';
 import { useThemeColors } from '../components/ThemeProvider';
 import { StatusDot, type SessionStatus } from '../components/Badge';
 import type { Session, UsageStats, LastResponsePreview } from '../hooks/useSessions';
@@ -260,6 +262,127 @@ function ThinkingIndicator() {
           }
         }
       `}</style>
+    </span>
+  );
+}
+
+/**
+ * Format elapsed time as mm:ss or hh:mm:ss
+ */
+function formatElapsedTime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+}
+
+/**
+ * ElapsedTimeDisplay component - shows live elapsed time while AI is thinking
+ * Displays time in mm:ss or hh:mm:ss format, updating every second.
+ */
+const ElapsedTimeDisplay = memo(function ElapsedTimeDisplay({
+  thinkingStartTime,
+}: {
+  thinkingStartTime: number;
+}) {
+  const colors = useThemeColors();
+  const [elapsedSeconds, setElapsedSeconds] = useState(
+    Math.floor((Date.now() - thinkingStartTime) / 1000)
+  );
+
+  useEffect(() => {
+    // Update immediately with current value
+    setElapsedSeconds(Math.floor((Date.now() - thinkingStartTime) / 1000));
+
+    // Update every second
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - thinkingStartTime) / 1000));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [thinkingStartTime]);
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '3px',
+        fontSize: '11px',
+        fontWeight: 600,
+        fontFamily: 'monospace',
+        color: colors.warning,
+        backgroundColor: `${colors.warning}15`,
+        padding: '2px 6px',
+        borderRadius: '4px',
+        lineHeight: 1,
+        flexShrink: 0,
+      }}
+      title={`Thinking for ${formatElapsedTime(elapsedSeconds)}`}
+      aria-label={`AI has been thinking for ${formatElapsedTime(elapsedSeconds)}`}
+    >
+      <span style={{ fontSize: '10px' }}>⏱</span>
+      <span>{formatElapsedTime(elapsedSeconds)}</span>
+    </span>
+  );
+});
+
+/**
+ * TokenCount component - displays total token count in a compact format
+ * Shows total tokens (input + output) for mobile-friendly display.
+ */
+function TokenCount({ usageStats }: { usageStats?: UsageStats | null }) {
+  const colors = useThemeColors();
+
+  // Don't render if no usage stats or no token data
+  if (!usageStats) {
+    return null;
+  }
+
+  const inputTokens = usageStats.inputTokens ?? 0;
+  const outputTokens = usageStats.outputTokens ?? 0;
+  const totalTokens = inputTokens + outputTokens;
+
+  // Don't show if no tokens yet
+  if (totalTokens === 0) {
+    return null;
+  }
+
+  // Format with K suffix for thousands
+  const formatTokens = (count: number): string => {
+    if (count >= 1000000) {
+      return `${(count / 1000000).toFixed(1)}M`;
+    }
+    if (count >= 1000) {
+      return `${(count / 1000).toFixed(1)}K`;
+    }
+    return count.toString();
+  };
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '3px',
+        fontSize: '11px',
+        fontWeight: 500,
+        color: colors.textDim,
+        backgroundColor: `${colors.textDim}15`,
+        padding: '2px 6px',
+        borderRadius: '4px',
+        lineHeight: 1,
+        flexShrink: 0,
+      }}
+      title={`Input: ${inputTokens.toLocaleString()} | Output: ${outputTokens.toLocaleString()} | Total: ${totalTokens.toLocaleString()} tokens`}
+      aria-label={`${totalTokens.toLocaleString()} tokens used`}
+    >
+      <span style={{ fontSize: '10px' }}>📊</span>
+      <span>{formatTokens(totalTokens)}</span>
     </span>
   );
 }
@@ -590,8 +713,9 @@ export function SessionStatusBanner({
   const isThinking = sessionState === 'busy';
   const truncatedCwd = truncatePath(session.cwd);
 
-  // Access lastResponse from session (if available from web data)
+  // Access lastResponse and thinkingStartTime from session (if available from web data)
   const lastResponse = (session as any).lastResponse as LastResponsePreview | undefined;
+  const thinkingStartTime = (session as any).thinkingStartTime as number | undefined;
 
   return (
     <div
@@ -666,6 +790,14 @@ export function SessionStatusBanner({
 
             {/* Cost tracker */}
             <CostTracker usageStats={session.usageStats} />
+
+            {/* Token count (compact, total only for mobile) */}
+            <TokenCount usageStats={session.usageStats} />
+
+            {/* Elapsed time when thinking */}
+            {isThinking && thinkingStartTime && (
+              <ElapsedTimeDisplay thinkingStartTime={thinkingStartTime} />
+            )}
 
             {/* Context usage bar */}
             <ContextUsageBar usageStats={session.usageStats} />

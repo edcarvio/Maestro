@@ -343,3 +343,35 @@ p, span, div, article, section {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Restore list styling for markdown preview prose containers */
+.prose ul {
+  list-style-type: disc !important;
+  list-style-position: outside !important;
+}
+
+.prose ol {
+  list-style-type: decimal !important;
+  list-style-position: outside !important;
+}
+
+.prose li {
+  display: list-item !important;
+}
+
+/* Nested lists */
+.prose ul ul {
+  list-style-type: circle !important;
+}
+
+.prose ul ul ul {
+  list-style-type: square !important;
+}
+
+.prose ol ol {
+  list-style-type: lower-alpha !important;
+}
+
+.prose ol ol ol {
+  list-style-type: lower-roman !important;
+}

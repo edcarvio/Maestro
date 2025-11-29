@@ -228,6 +228,7 @@ interface HistoryPanelProps {
   session: Session;
   theme: Theme;
   onJumpToClaudeSession?: (claudeSessionId: string) => void;
+  onResumeSession?: (claudeSessionId: string) => void;
 }
 
 export interface HistoryPanelHandle {
@@ -240,7 +241,7 @@ const MAX_HISTORY_IN_MEMORY = 500;  // Maximum entries to keep in memory
 const INITIAL_DISPLAY_COUNT = 50;   // Initial entries to render
 const LOAD_MORE_COUNT = 50;         // Entries to add when scrolling
 
-export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPanelProps>(function HistoryPanel({ session, theme, onJumpToClaudeSession }, ref) {
+export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPanelProps>(function HistoryPanel({ session, theme, onJumpToClaudeSession, onResumeSession }, ref) {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [activeFilters, setActiveFilters] = useState<Set<HistoryEntryType>>(new Set(['AUTO', 'USER']));
   const [isLoading, setIsLoading] = useState(true);
@@ -689,6 +690,7 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
           entry={detailModalEntry}
           onClose={closeDetailModal}
           onJumpToClaudeSession={onJumpToClaudeSession}
+          onResumeSession={onResumeSession}
           onDelete={handleDeleteEntry}
         />
       )}

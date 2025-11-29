@@ -343,8 +343,8 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
           <button
             onClick={handleCreate}
             disabled={!selectedAgent || !agents.find(a => a.id === selectedAgent)?.available}
-            className="px-4 py-2 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: theme.colors.accent }}
+            className="px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: theme.colors.accent, color: theme.colors.accentForeground }}
           >
             Create Agent
           </button>

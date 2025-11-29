@@ -639,6 +639,7 @@ export function FilePreview({ file, onClose, theme, markdownRawMode, setMarkdown
               .prose p { color: ${theme.colors.textMain}; margin: 0.5em 0; }
               .prose ul, .prose ol { color: ${theme.colors.textMain}; margin: 0.5em 0; padding-left: 1.5em; }
               .prose li { margin: 0.25em 0; }
+              .prose li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.5em; }
               .prose code { background-color: ${theme.colors.bgActivity}; color: ${theme.colors.textMain}; padding: 0.2em 0.4em; border-radius: 3px; font-size: 0.9em; }
               .prose pre { background-color: ${theme.colors.bgActivity}; color: ${theme.colors.textMain}; padding: 1em; border-radius: 6px; overflow-x: auto; }
               .prose pre code { background: none; padding: 0; }
@@ -740,7 +741,7 @@ export function FilePreview({ file, onClose, theme, markdownRawMode, setMarkdown
           className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 px-6 py-4 rounded-lg shadow-2xl text-base font-bold animate-in fade-in zoom-in-95 duration-200 z-50"
           style={{
             backgroundColor: theme.colors.accent,
-            color: '#FFFFFF',
+            color: theme.colors.accentForeground,
             textShadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
           }}
         >

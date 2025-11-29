@@ -23,6 +23,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#6366f1',
       accentDim: 'rgba(99, 102, 241, 0.2)',
       accentText: '#a5b4fc',
+      accentForeground: '#ffffff',
       success: '#22c55e',
       warning: '#eab308',
       error: '#ef4444'
@@ -42,6 +43,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#fd971f',
       accentDim: 'rgba(253, 151, 31, 0.2)',
       accentText: '#fdbf6f',
+      accentForeground: '#1e1f1c',
       success: '#a6e22e',
       warning: '#e6db74',
       error: '#f92672'
@@ -61,6 +63,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#88c0d0',
       accentDim: 'rgba(136, 192, 208, 0.2)',
       accentText: '#8fbcbb',
+      accentForeground: '#2e3440',
       success: '#a3be8c',
       warning: '#ebcb8b',
       error: '#bf616a'
@@ -80,6 +83,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#7aa2f7',
       accentDim: 'rgba(122, 162, 247, 0.2)',
       accentText: '#7dcfff',
+      accentForeground: '#1a1b26',
       success: '#9ece6a',
       warning: '#e0af68',
       error: '#f7768e'
@@ -99,6 +103,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#89b4fa',
       accentDim: 'rgba(137, 180, 250, 0.2)',
       accentText: '#89dceb',
+      accentForeground: '#1e1e2e',
       success: '#a6e3a1',
       warning: '#f9e2af',
       error: '#f38ba8'
@@ -118,6 +123,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#83a598',
       accentDim: 'rgba(131, 165, 152, 0.2)',
       accentText: '#8ec07c',
+      accentForeground: '#1d2021',
       success: '#b8bb26',
       warning: '#fabd2f',
       error: '#fb4934'
@@ -138,6 +144,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#0969da',
       accentDim: 'rgba(9, 105, 218, 0.1)',
       accentText: '#0969da',
+      accentForeground: '#ffffff',
       success: '#1a7f37',
       warning: '#9a6700',
       error: '#cf222e'
@@ -157,6 +164,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#2aa198',
       accentDim: 'rgba(42, 161, 152, 0.1)',
       accentText: '#2aa198',
+      accentForeground: '#fdf6e3',
       success: '#859900',
       warning: '#b58900',
       error: '#dc322f'
@@ -176,6 +184,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#4078f2',
       accentDim: 'rgba(64, 120, 242, 0.1)',
       accentText: '#4078f2',
+      accentForeground: '#ffffff',
       success: '#50a14f',
       warning: '#c18401',
       error: '#e45649'
@@ -195,6 +204,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#458588',
       accentDim: 'rgba(69, 133, 136, 0.1)',
       accentText: '#076678',
+      accentForeground: '#fbf1c7',
       success: '#98971a',
       warning: '#d79921',
       error: '#cc241d'
@@ -214,6 +224,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#1e66f5',
       accentDim: 'rgba(30, 102, 245, 0.1)',
       accentText: '#1e66f5',
+      accentForeground: '#ffffff',
       success: '#40a02b',
       warning: '#df8e1d',
       error: '#d20f39'
@@ -233,6 +244,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#55b4d4',
       accentDim: 'rgba(85, 180, 212, 0.1)',
       accentText: '#399ee6',
+      accentForeground: '#1a1a1a',
       success: '#86b300',
       warning: '#f2ae49',
       error: '#f07171'
@@ -250,11 +262,12 @@ export const THEMES: Record<ThemeId, Theme> = {
       border: '#4a2a6a',
       textMain: '#e8d5f5',
       textDim: '#b89fd0',
-      accent: '#d4af37',
-      accentDim: 'rgba(212, 175, 55, 0.25)',
-      accentText: '#ffd700',
+      accent: '#ff69b4',
+      accentDim: 'rgba(255, 105, 180, 0.25)',
+      accentText: '#ff8dc7',
+      accentForeground: '#1a0f24',
       success: '#7cb342',
-      warning: '#ff69b4',
+      warning: '#d4af37',
       error: '#da70d6'
     }
   },
@@ -263,18 +276,19 @@ export const THEMES: Record<ThemeId, Theme> = {
     name: "Maestro's Choice",
     mode: 'vibe',
     colors: {
-      bgMain: '#0a0a0f',
-      bgSidebar: '#05050a',
-      bgActivity: '#12121a',
-      border: '#2a2a3a',
-      textMain: '#f0e6d3',
-      textDim: '#8a8078',
-      accent: '#c9a227',
-      accentDim: 'rgba(201, 162, 39, 0.2)',
-      accentText: '#e6b830',
-      success: '#4a9c6d',
-      warning: '#c9a227',
-      error: '#8b2942'
+      bgMain: '#1a1a24',
+      bgSidebar: '#141420',
+      bgActivity: '#24243a',
+      border: '#3a3a5a',
+      textMain: '#fff8e8',
+      textDim: '#a8a0a0',
+      accent: '#f4c430',
+      accentDim: 'rgba(244, 196, 48, 0.25)',
+      accentText: '#ffd54f',
+      accentForeground: '#1a1a24',
+      success: '#66d9a0',
+      warning: '#f4c430',
+      error: '#e05070'
     }
   },
   'dre-synth': {
@@ -285,14 +299,15 @@ export const THEMES: Record<ThemeId, Theme> = {
       bgMain: '#0d0221',
       bgSidebar: '#0a0118',
       bgActivity: '#150530',
-      border: '#2a1050',
+      border: '#00d4aa',
       textMain: '#f0e6ff',
-      textDim: '#9080b0',
-      accent: '#ff2a6d',
-      accentDim: 'rgba(255, 42, 109, 0.25)',
-      accentText: '#ff6b9d',
-      success: '#05ffa1',
-      warning: '#00f5d4',
+      textDim: '#60e0d0',
+      accent: '#00ffcc',
+      accentDim: 'rgba(0, 255, 204, 0.25)',
+      accentText: '#40ffdd',
+      accentForeground: '#0d0221',
+      success: '#00ffcc',
+      warning: '#ff2a6d',
       error: '#ff2a6d'
     }
   },
@@ -310,6 +325,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#cc0033',
       accentDim: 'rgba(204, 0, 51, 0.25)',
       accentText: '#ff3355',
+      accentForeground: '#ffffff',
       success: '#f5f5f5',
       warning: '#cc0033',
       error: '#cc0033'

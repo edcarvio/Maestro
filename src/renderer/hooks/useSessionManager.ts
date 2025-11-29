@@ -3,6 +3,17 @@ import type { Session, Group, ToolType, LogEntry } from '../types';
 import { generateId } from '../utils/ids';
 import { gitService } from '../services/git';
 
+// Strip leading emojis from a string for alphabetical sorting
+const stripLeadingEmojis = (str: string): string => {
+  const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F?|\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?)+\s*/gu;
+  return str.replace(emojiRegex, '').trim();
+};
+
+// Compare two names, ignoring leading emojis for alphabetization
+const compareNamesIgnoringEmojis = (a: string, b: string): number => {
+  return stripLeadingEmojis(a).localeCompare(stripLeadingEmojis(b));
+};
+
 export interface UseSessionManagerReturn {
   // State
   sessions: Session[];
@@ -144,22 +155,23 @@ export function useSessionManager(): UseSessionManagerReturn {
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0] || null;
 
   // Create sorted sessions array that matches visual display order
+  // Note: sorting ignores leading emojis for proper alphabetization
   const sortedSessions = useMemo(() => {
     const sorted: Session[] = [];
 
-    // First, add sessions from sorted groups
-    const sortedGroups = [...groups].sort((a, b) => a.name.localeCompare(b.name));
+    // First, add sessions from sorted groups (ignoring leading emojis)
+    const sortedGroups = [...groups].sort((a, b) => compareNamesIgnoringEmojis(a.name, b.name));
     sortedGroups.forEach(group => {
       const groupSessions = sessions
         .filter(s => s.groupId === group.id)
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .sort((a, b) => compareNamesIgnoringEmojis(a.name, b.name));
       sorted.push(...groupSessions);
     });
 
-    // Then, add ungrouped sessions (sorted alphabetically)
+    // Then, add ungrouped sessions (sorted alphabetically, ignoring leading emojis)
     const ungroupedSessions = sessions
       .filter(s => !s.groupId)
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => compareNamesIgnoringEmojis(a.name, b.name));
     sorted.push(...ungroupedSessions);
 
     return sorted;
@@ -245,7 +257,8 @@ export function useSessionManager(): UseSessionManagerReturn {
         shellCwd: workingDir,
         aiCommandHistory: [],
         shellCommandHistory: [],
-        messageQueue: []
+        messageQueue: [],
+        recentClaudeSessions: []
       };
       setSessions(prev => [...prev, newSession]);
       setActiveSessionId(newId);

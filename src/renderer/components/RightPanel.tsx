@@ -64,6 +64,7 @@ interface RightPanelProps {
   onOpenBatchRunner?: () => void;
   onStopBatchRun?: () => void;
   onJumpToClaudeSession?: (claudeSessionId: string) => void;
+  onResumeSession?: (claudeSessionId: string) => void;
 }
 
 export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function RightPanel(props, ref) {
@@ -74,7 +75,7 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
     filteredFileTree, selectedFileIndex, setSelectedFileIndex, previewFile, fileTreeContainerRef,
     fileTreeFilterInputRef, toggleFolder, handleFileClick, expandAllFolders, collapseAllFolders,
     updateSessionWorkingDirectory, refreshFileTree, setSessions, updateScratchPad, updateScratchPadState,
-    batchRunState, onOpenBatchRunner, onStopBatchRun, onJumpToClaudeSession
+    batchRunState, onOpenBatchRunner, onStopBatchRun, onJumpToClaudeSession, onResumeSession
   } = props;
 
   const historyPanelRef = useRef<HistoryPanelHandle>(null);
@@ -119,15 +120,16 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
             e.preventDefault();
             const startX = e.clientX;
             const startWidth = rightPanelWidth;
+            let currentWidth = startWidth;
 
             const handleMouseMove = (e: MouseEvent) => {
               const delta = startX - e.clientX; // Reversed for right panel
-              const newWidth = Math.max(384, Math.min(800, startWidth + delta));
-              setRightPanelWidthState(newWidth);
+              currentWidth = Math.max(384, Math.min(800, startWidth + delta));
+              setRightPanelWidthState(currentWidth);
             };
 
             const handleMouseUp = () => {
-              window.maestro.settings.set('rightPanelWidth', rightPanelWidth);
+              window.maestro.settings.set('rightPanelWidth', currentWidth);
               document.removeEventListener('mousemove', handleMouseMove);
               document.removeEventListener('mouseup', handleMouseUp);
             };
@@ -218,6 +220,7 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
             session={session}
             theme={theme}
             onJumpToClaudeSession={onJumpToClaudeSession}
+            onResumeSession={onResumeSession}
           />
         )}
 
@@ -226,6 +229,7 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
             content={session.scratchPadContent}
             onChange={updateScratchPad}
             theme={theme}
+            sessionId={session.id}
             initialMode={session.scratchPadMode || 'edit'}
             initialCursorPosition={session.scratchPadCursorPosition || 0}
             initialEditScrollPos={session.scratchPadEditScrollPos || 0}
@@ -234,6 +238,7 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
             batchRunState={batchRunState}
             onOpenBatchRunner={onOpenBatchRunner}
             onStopBatchRun={onStopBatchRun}
+            sessionState={session.state}
           />
         )}
       </div>

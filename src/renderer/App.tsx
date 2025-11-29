@@ -21,7 +21,8 @@ import { BatchRunnerModal } from './components/BatchRunnerModal';
 
 // Import custom hooks
 import { useBatchProcessor } from './hooks/useBatchProcessor';
-import { useSettings, useActivityTracker } from './hooks';
+import { useSettings, useActivityTracker, useMobileLandscape } from './hooks';
+import { useTabCompletion } from './hooks/useTabCompletion';
 
 // Import contexts
 import { useLayerStack } from './contexts/LayerStackContext';
@@ -43,12 +44,30 @@ import { fuzzyMatch } from './utils/search';
 import { shouldOpenExternally, loadFileTree, getAllFolderPaths, flattenTree } from './utils/fileExplorer';
 import { substituteTemplateVariables } from './utils/templateVariables';
 
+// Strip leading emojis from a string for alphabetical sorting
+// Matches common emoji patterns at the start of the string
+const stripLeadingEmojis = (str: string): string => {
+  // Match emojis at the start: emoji characters, variation selectors, ZWJ sequences, etc.
+  const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F?|\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?)+\s*/gu;
+  return str.replace(emojiRegex, '').trim();
+};
+
+// Compare two names, ignoring leading emojis for alphabetization
+const compareNamesIgnoringEmojis = (a: string, b: string): number => {
+  const aStripped = stripLeadingEmojis(a);
+  const bStripped = stripLeadingEmojis(b);
+  return aStripped.localeCompare(bStripped);
+};
+
 export default function MaestroConsole() {
   // --- LAYER STACK (for blocking shortcuts when modals are open) ---
   const { hasOpenLayers, hasOpenModal } = useLayerStack();
 
   // --- TOAST NOTIFICATIONS ---
   const { addToast, setDefaultDuration: setToastDefaultDuration } = useToast();
+
+  // --- MOBILE LANDSCAPE MODE (reading-only view) ---
+  const isMobileLandscape = useMobileLandscape();
 
   // --- SETTINGS (from useSettings hook) ---
   const settings = useSettings();
@@ -88,7 +107,16 @@ export default function MaestroConsole() {
   // Track if initial data has been loaded to prevent overwriting on mount
   const initialLoadComplete = useRef(false);
 
-  const [activeSessionId, setActiveSessionId] = useState<string>(sessions[0]?.id || 's1');
+  const [activeSessionId, setActiveSessionIdInternal] = useState<string>(sessions[0]?.id || 's1');
+
+  // Track current position in visual order for cycling (allows same session to appear twice)
+  const cyclePositionRef = useRef<number>(-1);
+
+  // Wrapper that resets cycle position when session is changed via click (not cycling)
+  const setActiveSessionId = useCallback((id: string) => {
+    cyclePositionRef.current = -1; // Reset so next cycle finds first occurrence
+    setActiveSessionIdInternal(id);
+  }, []);
 
   // Input State - separate for AI and terminal modes
   const [aiInputValue, setAiInputValue] = useState('');
@@ -101,6 +129,7 @@ export default function MaestroConsole() {
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [activeRightTab, setActiveRightTab] = useState<RightPanelTab>('files');
   const [activeFocus, setActiveFocus] = useState<FocusArea>('main');
+  const [bookmarksCollapsed, setBookmarksCollapsed] = useState(false);
 
   // File Explorer State
   const [previewFile, setPreviewFile] = useState<{name: string; content: string; path: string} | null>(null);
@@ -157,13 +186,6 @@ export default function MaestroConsole() {
   const [agentSessionsOpen, setAgentSessionsOpen] = useState(false);
   const [activeClaudeSessionId, setActiveClaudeSessionId] = useState<string | null>(null);
 
-  // Recent Claude sessions for quick access (breadcrumbs when session hopping)
-  const [recentClaudeSessions, setRecentClaudeSessions] = useState<Array<{
-    sessionId: string;
-    firstMessage: string;
-    timestamp: string;
-  }>>([]);
-
   // Batch Runner Modal State
   const [batchRunnerModalOpen, setBatchRunnerModalOpen] = useState(false);
   const [renameGroupId, setRenameGroupId] = useState<string | null>(null);
@@ -179,6 +201,10 @@ export default function MaestroConsole() {
   const [commandHistoryOpen, setCommandHistoryOpen] = useState(false);
   const [commandHistoryFilter, setCommandHistoryFilter] = useState('');
   const [commandHistorySelectedIndex, setCommandHistorySelectedIndex] = useState(0);
+
+  // Tab Completion State (terminal mode only)
+  const [tabCompletionOpen, setTabCompletionOpen] = useState(false);
+  const [selectedTabCompletionIndex, setSelectedTabCompletionIndex] = useState(0);
 
   // Flash notification state (for inline notifications like "Commands disabled while agent is working")
   const [flashNotification, setFlashNotification] = useState<string | null>(null);
@@ -425,6 +451,11 @@ export default function MaestroConsole() {
       } finally {
         // Mark initial load as complete to enable persistence
         initialLoadComplete.current = true;
+
+        // Hide the splash screen now that the app is ready
+        if (typeof window.__hideSplash === 'function') {
+          window.__hideSplash();
+        }
       }
     };
     loadSessionsAndGroups();
@@ -548,6 +579,8 @@ export default function MaestroConsole() {
       // React 18 StrictMode may call state updater functions multiple times
       let toastData: { title: string; summary: string; groupName: string; projectName: string; duration: number } | null = null;
       let queuedMessageToProcess: { sessionId: string; message: LogEntry } | null = null;
+      // Track if we need to run synopsis after completion (for /commit and other AI commands)
+      let synopsisData: { sessionId: string; cwd: string; claudeSessionId: string; command: string; groupName: string; projectName: string } | null = null;
 
       if (isFromAi) {
         const currentSession = sessionsRef.current.find(s => s.id === actualSessionId);
@@ -564,8 +597,10 @@ export default function MaestroConsole() {
             const lastAiLog = currentSession.aiLogs.filter(log => log.source === 'stdout' || log.source === 'ai').pop();
             const duration = currentSession.thinkingStartTime ? Date.now() - currentSession.thinkingStartTime : 0;
 
-            // Get group name for this session
-            const sessionGroup = groupsRef.current.find((g: any) => g.sessionIds?.includes(actualSessionId));
+            // Get group name for this session (sessions have groupId, groups have id)
+            const sessionGroup = currentSession.groupId
+              ? groupsRef.current.find((g: any) => g.id === currentSession.groupId)
+              : null;
             const groupName = sessionGroup?.name || 'Ungrouped';
             const projectName = currentSession.name || currentSession.cwd.split('/').pop() || 'Unknown';
 
@@ -590,6 +625,18 @@ export default function MaestroConsole() {
             }
 
             toastData = { title, summary, groupName, projectName, duration };
+
+            // Check if this was a custom AI command that should trigger synopsis
+            if (currentSession.pendingAICommandForSynopsis && currentSession.claudeSessionId) {
+              synopsisData = {
+                sessionId: actualSessionId,
+                cwd: currentSession.cwd,
+                claudeSessionId: currentSession.claudeSessionId,
+                command: currentSession.pendingAICommandForSynopsis,
+                groupName,
+                projectName
+              };
+            }
           }
         }
       }
@@ -605,17 +652,20 @@ export default function MaestroConsole() {
             return {
               ...s,
               state: 'busy' as SessionState,
+              busySource: 'ai',
               aiLogs: [...s.aiLogs, nextMessage],
               messageQueue: remainingQueue,
               thinkingStartTime: Date.now()
             };
           }
 
-          // Task complete
+          // Task complete - also clear pending AI command flag
           return {
             ...s,
             state: 'idle' as SessionState,
-            thinkingStartTime: undefined
+            busySource: undefined,
+            thinkingStartTime: undefined,
+            pendingAICommandForSynopsis: undefined
           };
         }
 
@@ -630,6 +680,7 @@ export default function MaestroConsole() {
         return {
           ...s,
           state: 'idle' as SessionState,
+          busySource: undefined,
           shellLogs: [...s.shellLogs, exitLog]
         };
       }));
@@ -650,6 +701,46 @@ export default function MaestroConsole() {
             taskDuration: toastData!.duration,
           });
         }, 0);
+      }
+
+      // Run synopsis in parallel if this was a custom AI command (like /commit)
+      // This creates a USER history entry to track the work
+      if (synopsisData && spawnBackgroundSynopsisRef.current && addHistoryEntryRef.current) {
+        const SYNOPSIS_PROMPT = 'Synopsize our recent work in 2-3 sentences max.';
+        const startTime = Date.now();
+
+        spawnBackgroundSynopsisRef.current(
+          synopsisData.sessionId,
+          synopsisData.cwd,
+          synopsisData.claudeSessionId,
+          SYNOPSIS_PROMPT
+        ).then(result => {
+          const duration = Date.now() - startTime;
+          if (result.success && result.response && addHistoryEntryRef.current) {
+            addHistoryEntryRef.current({
+              type: 'USER',
+              summary: result.response,
+              claudeSessionId: synopsisData!.claudeSessionId
+            });
+
+            // Show toast for synopsis completion
+            addToastRef.current({
+              type: 'info',
+              title: `Synopsis (${synopsisData!.command})`,
+              message: result.response,
+              group: synopsisData!.groupName,
+              project: synopsisData!.projectName,
+              taskDuration: duration,
+            });
+
+            // Refresh history panel if available
+            if (rightPanelRef.current) {
+              rightPanelRef.current.refreshHistoryPanel();
+            }
+          }
+        }).catch(err => {
+          console.error('[onProcessExit] Synopsis failed:', err);
+        });
       }
     });
 
@@ -764,11 +855,12 @@ export default function MaestroConsole() {
           return {
             ...s,
             state: 'idle' as SessionState,
+            busySource: undefined,
             shellLogs: [...s.shellLogs, exitLog]
           };
         }
 
-        return { ...s, state: 'idle' as SessionState };
+        return { ...s, state: 'idle' as SessionState, busySource: undefined };
       }));
     });
 
@@ -888,6 +980,9 @@ export default function MaestroConsole() {
     [sessions, activeSessionId]
   );
   const theme = THEMES[activeThemeId];
+
+  // Tab completion hook for terminal mode
+  const { getSuggestions: getTabCompletionSuggestions } = useTabCompletion(activeSession);
 
   // Broadcast active session change to web clients
   useEffect(() => {
@@ -1014,6 +1109,29 @@ export default function MaestroConsole() {
     };
   }, []);
 
+  // Handle remote session selection from web interface
+  // This allows web clients to switch the active session in the desktop app
+  useEffect(() => {
+    const unsubscribeSelectSession = window.maestro.process.onRemoteSelectSession((sessionId: string) => {
+      console.log('[Remote] Received session selection from web interface:', { sessionId });
+
+      // Check if session exists
+      const session = sessionsRef.current.find(s => s.id === sessionId);
+      if (!session) {
+        console.log('[Remote] Session not found for selection:', sessionId);
+        return;
+      }
+
+      // Switch to the session (same as clicking in SessionList)
+      setActiveSessionId(sessionId);
+      console.log('[Remote] Switched to session:', sessionId);
+    });
+
+    return () => {
+      unsubscribeSelectSession();
+    };
+  }, []);
+
   // Combine built-in slash commands with custom AI commands for autocomplete
   const allSlashCommands = useMemo(() => {
     const customCommandsAsSlash = customAICommands.map(cmd => ({
@@ -1033,6 +1151,14 @@ export default function MaestroConsole() {
   const stagedImages = aiStagedImages;
   const setStagedImages = setAiStagedImages;
 
+  // Tab completion suggestions (must be after inputValue is defined)
+  const tabCompletionSuggestions = useMemo(() => {
+    if (!tabCompletionOpen || !activeSession || activeSession.inputMode !== 'terminal') {
+      return [];
+    }
+    return getTabCompletionSuggestions(inputValue);
+  }, [tabCompletionOpen, activeSession, inputValue, getTabCompletionSuggestions]);
+
   // --- BATCH PROCESSOR ---
   // Helper to spawn a Claude agent and wait for completion (for a specific session)
   const spawnAgentForSession = useCallback(async (sessionId: string, prompt: string): Promise<{ success: boolean; response?: string; claudeSessionId?: string }> => {
@@ -1050,7 +1176,7 @@ export default function MaestroConsole() {
 
       // Set session to busy with thinking start time
       setSessions(prev => prev.map(s =>
-        s.id === sessionId ? { ...s, state: 'busy' as SessionState, thinkingStartTime: Date.now() } : s
+        s.id === sessionId ? { ...s, state: 'busy' as SessionState, busySource: 'ai', thinkingStartTime: Date.now() } : s
       ));
 
       // Create a promise that resolves when the agent completes
@@ -1090,7 +1216,7 @@ export default function MaestroConsole() {
             // Reset session state to idle, but do NOT overwrite the main session's claudeSessionId
             // The batch task's claudeSessionId is separate and returned via resolve() for tracking purposes
             setSessions(prev => prev.map(s =>
-              s.id === sessionId ? { ...s, state: 'idle' as SessionState, thinkingStartTime: undefined } : s
+              s.id === sessionId ? { ...s, state: 'idle' as SessionState, busySource: undefined, thinkingStartTime: undefined } : s
             ));
 
             resolve({ success: true, response: responseText, claudeSessionId });
@@ -1257,8 +1383,6 @@ export default function MaestroConsole() {
     activeBatchSessionIds,
     startBatchRun,
     stopBatchRun,
-    customPrompts,
-    setCustomPrompt
   } = useBatchProcessor({
     sessions,
     onUpdateSession: (sessionId, updates) => {
@@ -1274,6 +1398,34 @@ export default function MaestroConsole() {
       });
       // Refresh history panel to show the new entry
       rightPanelRef.current?.refreshHistoryPanel();
+    },
+    onComplete: (info) => {
+      // Find group name for the session
+      const sessionGroup = groups.find(g => g.sessionIds?.includes(info.sessionId));
+      const groupName = sessionGroup?.name || 'Ungrouped';
+
+      // Determine toast type and message based on completion status
+      const isSuccess = info.completedTasks > 0 && !info.wasStopped;
+      const toastType = info.wasStopped ? 'warning' : (info.completedTasks === info.totalTasks ? 'success' : 'info');
+
+      // Build message
+      let message: string;
+      if (info.wasStopped) {
+        message = `Stopped after completing ${info.completedTasks} of ${info.totalTasks} tasks`;
+      } else if (info.completedTasks === info.totalTasks) {
+        message = `All ${info.totalTasks} ${info.totalTasks === 1 ? 'task' : 'tasks'} completed successfully`;
+      } else {
+        message = `Completed ${info.completedTasks} of ${info.totalTasks} tasks`;
+      }
+
+      addToast({
+        type: toastType,
+        title: 'Auto-Run Complete',
+        message,
+        group: groupName,
+        project: info.sessionName,
+        taskDuration: info.elapsedTimeMs,
+      });
     }
   });
 
@@ -1314,6 +1466,48 @@ export default function MaestroConsole() {
     }
   }, [activeSession]);
 
+  // Handler to resume a Claude session directly (loads messages into main panel)
+  const handleResumeSession = useCallback(async (claudeSessionId: string) => {
+    if (!activeSession?.cwd) return;
+
+    try {
+      // Load the session messages
+      const result = await window.maestro.claude.readSessionMessages(
+        activeSession.cwd,
+        claudeSessionId,
+        { offset: 0, limit: 100 }
+      );
+
+      // Convert to log entries
+      const messages: LogEntry[] = result.messages.map((msg: { type: string; content: string; timestamp: string; uuid: string }) => ({
+        id: msg.uuid || generateId(),
+        timestamp: new Date(msg.timestamp).getTime(),
+        source: msg.type === 'user' ? 'user' as const : 'stdout' as const,
+        text: msg.content || ''
+      }));
+
+      // Update the session
+      setSessions(prev => prev.map(s => {
+        if (s.id !== activeSession.id) return s;
+        // Move the session to front of recent list if it exists
+        const existingRecent = s.recentClaudeSessions || [];
+        const recentSession = existingRecent.find(r => r.sessionId === claudeSessionId);
+        const firstMessage = messages.find(m => m.source === 'user')?.text || '';
+        const newRecentEntry = {
+          sessionId: claudeSessionId,
+          firstMessage: firstMessage.slice(0, 100),
+          timestamp: new Date().toISOString()
+        };
+        const filtered = existingRecent.filter(r => r.sessionId !== claudeSessionId);
+        const updatedRecent = [recentSession ? { ...recentSession, timestamp: new Date().toISOString() } : newRecentEntry, ...filtered].slice(0, 10);
+        return { ...s, claudeSessionId, aiLogs: messages, state: 'idle', inputMode: 'ai', recentClaudeSessions: updatedRecent };
+      }));
+      setActiveClaudeSessionId(claudeSessionId);
+    } catch (error) {
+      console.error('Failed to resume session:', error);
+    }
+  }, [activeSession?.cwd, activeSession?.id]);
+
   // Handler to open lightbox with optional context images for navigation
   const handleSetLightboxImage = useCallback((image: string | null, contextImages?: string[]) => {
     setLightboxImage(image);
@@ -1321,22 +1515,23 @@ export default function MaestroConsole() {
   }, []);
 
   // Create sorted sessions array that matches visual display order (includes ALL sessions)
+  // Note: sorting ignores leading emojis for proper alphabetization
   const sortedSessions = useMemo(() => {
     const sorted: Session[] = [];
 
-    // First, add sessions from sorted groups
-    const sortedGroups = [...groups].sort((a, b) => a.name.localeCompare(b.name));
+    // First, add sessions from sorted groups (ignoring leading emojis)
+    const sortedGroups = [...groups].sort((a, b) => compareNamesIgnoringEmojis(a.name, b.name));
     sortedGroups.forEach(group => {
       const groupSessions = sessions
         .filter(s => s.groupId === group.id)
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .sort((a, b) => compareNamesIgnoringEmojis(a.name, b.name));
       sorted.push(...groupSessions);
     });
 
-    // Then, add ungrouped sessions (sorted alphabetically)
+    // Then, add ungrouped sessions (sorted alphabetically, ignoring leading emojis)
     const ungroupedSessions = sessions
       .filter(s => !s.groupId)
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => compareNamesIgnoringEmojis(a.name, b.name));
     sorted.push(...ungroupedSessions);
 
     return sorted;
@@ -1476,16 +1671,22 @@ export default function MaestroConsole() {
         if (e.key === 'Tab') return;
 
         const isCycleShortcut = (e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === '[' || e.key === ']');
+        // Allow sidebar toggle shortcuts (Alt+Cmd+Arrow) even when modals are open
+        const isLayoutShortcut = e.altKey && (e.metaKey || e.ctrlKey) && (e.key === 'ArrowLeft' || e.key === 'ArrowRight');
 
         if (hasOpenModal()) {
-          // TRUE MODAL is open - block ALL shortcuts from App.tsx
+          // TRUE MODAL is open - block most shortcuts from App.tsx
           // The modal's own handler will handle Cmd+Shift+[] if it supports it
-          return;
+          // BUT allow layout shortcuts (sidebar toggles) to work
+          if (!isLayoutShortcut) {
+            return;
+          }
+          // Fall through to handle layout shortcuts below
         } else {
           // Only OVERLAYS are open (FilePreview, LogViewer, etc.)
           // Allow Cmd+Shift+[] to fall through to App.tsx handler
           // (which will cycle right panel tabs when previewFile is set)
-          if (!isCycleShortcut) {
+          if (!isCycleShortcut && !isLayoutShortcut) {
             return;
           }
           // Fall through to cyclePrev/cycleNext logic below
@@ -1498,15 +1699,15 @@ export default function MaestroConsole() {
       }
 
       // Sidebar navigation with arrow keys (works when sidebar has focus)
-      if (activeFocus === 'sidebar' && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft')) {
+      if (activeFocus === 'sidebar' && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === ' ')) {
         e.preventDefault();
         if (sortedSessions.length === 0) return;
 
         // Get the currently selected session
         const currentSession = sortedSessions[selectedSidebarIndex];
 
-        // ArrowLeft: Close the current group and jump to nearest visible session
-        if (e.key === 'ArrowLeft' && currentSession?.groupId) {
+        // Space: Close the current group and jump to nearest visible session
+        if (e.key === ' ' && currentSession?.groupId) {
           const currentGroup = groups.find(g => g.id === currentSession.groupId);
           if (currentGroup && !currentGroup.collapsed) {
             // Collapse the group
@@ -1770,6 +1971,7 @@ export default function MaestroConsole() {
       else if (isShortcut(e, 'agentSessions')) {
         e.preventDefault();
         if (activeSession?.toolType === 'claude-code') {
+          setActiveClaudeSessionId(null);
           setAgentSessionsOpen(true);
         }
       }
@@ -1782,7 +1984,7 @@ export default function MaestroConsole() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [shortcuts, activeFocus, activeRightTab, sessions, selectedSidebarIndex, activeSessionId, quickActionOpen, settingsModalOpen, shortcutsHelpOpen, newInstanceModalOpen, aboutModalOpen, processMonitorOpen, logViewerOpen, createGroupModalOpen, confirmModalOpen, renameInstanceModalOpen, renameGroupModalOpen, activeSession, previewFile, fileTreeFilter, fileTreeFilterOpen, gitDiffPreview, gitLogOpen, lightboxImage, hasOpenLayers, hasOpenModal, visibleSessions, sortedSessions, groups]);
+  }, [shortcuts, activeFocus, activeRightTab, sessions, selectedSidebarIndex, activeSessionId, quickActionOpen, settingsModalOpen, shortcutsHelpOpen, newInstanceModalOpen, aboutModalOpen, processMonitorOpen, logViewerOpen, createGroupModalOpen, confirmModalOpen, renameInstanceModalOpen, renameGroupModalOpen, activeSession, previewFile, fileTreeFilter, fileTreeFilterOpen, gitDiffPreview, gitLogOpen, lightboxImage, hasOpenLayers, hasOpenModal, visibleSessions, sortedSessions, groups, bookmarksCollapsed, leftSidebarOpen]);
 
   // Sync selectedSidebarIndex with activeSessionId
   // IMPORTANT: Only sync when activeSessionId changes, NOT when sortedSessions changes
@@ -1824,26 +2026,78 @@ export default function MaestroConsole() {
 
   // --- ACTIONS ---
   const cycleSession = (dir: 'next' | 'prev') => {
-    // When left sidebar is collapsed, cycle through ALL sessions (groups not visible)
-    // When left sidebar is open, only cycle through visible sessions (not in collapsed groups)
-    const visibleSessions = leftSidebarOpen
-      ? sortedSessions.filter(session => {
-          if (!session.groupId) return true; // Ungrouped sessions are always visible
-          const group = groups.find(g => g.id === session.groupId);
-          return group && !group.collapsed; // Only include if group is not collapsed
-        })
-      : sortedSessions; // All sessions when sidebar is collapsed
+    // Build the visual order of sessions as they appear in the sidebar.
+    // This matches the actual rendering order in SessionList.tsx:
+    // 1. Bookmarks section (if open) - sorted alphabetically
+    // 2. Groups (sorted alphabetically) - each with sessions sorted alphabetically
+    // 3. Ungrouped sessions - sorted alphabetically
+    //
+    // A bookmarked session visually appears in BOTH the bookmarks section AND its
+    // regular location (group or ungrouped). The same session can appear twice in
+    // the visual order. We track the current position with cyclePositionRef to
+    // allow cycling through duplicate occurrences correctly.
 
-    if (visibleSessions.length === 0) return;
+    const visualOrder: Session[] = [];
 
-    const currentIndex = visibleSessions.findIndex(s => s.id === activeSessionId);
+    if (leftSidebarOpen) {
+      // Bookmarks section (if expanded and has bookmarked sessions)
+      if (!bookmarksCollapsed) {
+        const bookmarkedSessions = sessions
+          .filter(s => s.bookmarked)
+          .sort((a, b) => compareNamesIgnoringEmojis(a.name, b.name));
+        visualOrder.push(...bookmarkedSessions);
+      }
+
+      // Groups (sorted alphabetically), with each group's sessions
+      const sortedGroups = [...groups].sort((a, b) => compareNamesIgnoringEmojis(a.name, b.name));
+      for (const group of sortedGroups) {
+        if (!group.collapsed) {
+          const groupSessions = sessions
+            .filter(s => s.groupId === group.id)
+            .sort((a, b) => compareNamesIgnoringEmojis(a.name, b.name));
+          visualOrder.push(...groupSessions);
+        }
+      }
+
+      // Ungrouped sessions (sorted alphabetically)
+      const ungroupedSessions = sessions
+        .filter(s => !s.groupId)
+        .sort((a, b) => compareNamesIgnoringEmojis(a.name, b.name));
+      visualOrder.push(...ungroupedSessions);
+    } else {
+      // Sidebar collapsed: cycle through all sessions in their sorted order
+      visualOrder.push(...sortedSessions);
+    }
+
+    if (visualOrder.length === 0) return;
+
+    // Determine current position in visual order
+    // If cyclePositionRef is valid and points to our current session, use it
+    // Otherwise, find the first occurrence of our current session
+    let currentIndex = cyclePositionRef.current;
+    if (currentIndex < 0 || currentIndex >= visualOrder.length ||
+        visualOrder[currentIndex].id !== activeSessionId) {
+      // Position is invalid or doesn't match current session - find first occurrence
+      currentIndex = visualOrder.findIndex(s => s.id === activeSessionId);
+    }
+
+    if (currentIndex === -1) {
+      // Current session not visible, select first visible session
+      cyclePositionRef.current = 0;
+      setActiveSessionIdInternal(visualOrder[0].id);
+      return;
+    }
+
+    // Move to next/prev in visual order
     let nextIndex;
     if (dir === 'next') {
-      nextIndex = currentIndex === visibleSessions.length - 1 ? 0 : currentIndex + 1;
+      nextIndex = currentIndex === visualOrder.length - 1 ? 0 : currentIndex + 1;
     } else {
-      nextIndex = currentIndex === 0 ? visibleSessions.length - 1 : currentIndex - 1;
+      nextIndex = currentIndex === 0 ? visualOrder.length - 1 : currentIndex - 1;
     }
-    setActiveSessionId(visibleSessions[nextIndex].id);
+
+    cyclePositionRef.current = nextIndex;
+    setActiveSessionIdInternal(visualOrder[nextIndex].id);
   };
 
   const showConfirmation = (message: string, onConfirm: () => void) => {
@@ -1981,6 +2235,9 @@ export default function MaestroConsole() {
       if (s.id !== activeSessionId) return s;
       return { ...s, inputMode: s.inputMode === 'ai' ? 'terminal' : 'ai' };
     }));
+    // Close any open dropdowns when switching modes
+    setTabCompletionOpen(false);
+    setSlashCommandOpen(false);
   };
 
   // Toggle global live mode (enables web interface for all sessions)
@@ -2265,7 +2522,32 @@ export default function MaestroConsole() {
               { session: activeSession, gitBranch }
             );
 
+            // Queue the command if AI is busy (same as regular messages)
+            if (activeSession.state === 'busy') {
+              const queuedEntry: LogEntry = {
+                id: generateId(),
+                timestamp: Date.now(),
+                source: 'user',
+                text: substitutedPrompt,
+                aiCommand: {
+                  command: matchingCustomCommand.command,
+                  description: matchingCustomCommand.description
+                }
+              };
+
+              setSessions(prev => prev.map(s => {
+                if (s.id !== activeSessionId) return s;
+                return {
+                  ...s,
+                  messageQueue: [...s.messageQueue, queuedEntry],
+                  aiCommandHistory: Array.from(new Set([...(s.aiCommandHistory || []), commandText])).slice(-50),
+                };
+              }));
+              return;
+            }
+
             // Add user log showing the command with its interpolated prompt
+            // Also track this command for automatic synopsis on completion
             setSessions(prev => prev.map(s => {
               if (s.id !== activeSessionId) return s;
               return {
@@ -2280,7 +2562,9 @@ export default function MaestroConsole() {
                     description: matchingCustomCommand.description
                   }
                 }],
-                aiCommandHistory: Array.from(new Set([...(s.aiCommandHistory || []), commandText])).slice(-50)
+                aiCommandHistory: Array.from(new Set([...(s.aiCommandHistory || []), commandText])).slice(-50),
+                // Track this command so we can run synopsis on completion
+                pendingAICommandForSynopsis: matchingCustomCommand.command
               };
             }));
 
@@ -2388,6 +2672,7 @@ export default function MaestroConsole() {
         ...s,
         [targetLogKey]: [...s[targetLogKey], newEntry],
         state: 'busy',
+        busySource: currentMode,
         thinkingStartTime: currentMode === 'ai' ? Date.now() : s.thinkingStartTime,
         contextUsage: Math.min(s.contextUsage + 5, 100),
         shellCwd: newShellCwd,
@@ -2572,6 +2857,7 @@ export default function MaestroConsole() {
           return {
             ...s,
             state: 'busy' as SessionState,
+            busySource: 'terminal',
             shellLogs: [...s.shellLogs, {
               id: generateId(),
               timestamp: Date.now(),
@@ -2598,6 +2884,7 @@ export default function MaestroConsole() {
             return {
               ...s,
               state: 'idle' as SessionState,
+              busySource: undefined,
               shellLogs: [...s.shellLogs, {
                 id: generateId(),
                 timestamp: Date.now(),
@@ -2769,6 +3056,7 @@ export default function MaestroConsole() {
           return {
             ...s,
             state: 'busy' as SessionState,
+            busySource: 'ai',
             thinkingStartTime: Date.now(),
             aiLogs: [...s.aiLogs, {
               id: generateId(),
@@ -2802,6 +3090,7 @@ export default function MaestroConsole() {
           return {
             ...s,
             state: 'idle' as SessionState,
+            busySource: undefined,
             aiLogs: [...s.aiLogs, {
               id: generateId(),
               timestamp: Date.now(),
@@ -2941,6 +3230,39 @@ export default function MaestroConsole() {
       return; // Let the modal handle keys
     }
 
+    // Handle tab completion dropdown (terminal mode only)
+    if (tabCompletionOpen && activeSession?.inputMode === 'terminal') {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedTabCompletionIndex(prev =>
+          Math.min(prev + 1, tabCompletionSuggestions.length - 1)
+        );
+        return;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedTabCompletionIndex(prev => Math.max(prev - 1, 0));
+        return;
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        if (tabCompletionSuggestions[selectedTabCompletionIndex]) {
+          setInputValue(tabCompletionSuggestions[selectedTabCompletionIndex].value);
+        }
+        setTabCompletionOpen(false);
+        return;
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (tabCompletionSuggestions[selectedTabCompletionIndex]) {
+          setInputValue(tabCompletionSuggestions[selectedTabCompletionIndex].value);
+        }
+        setTabCompletionOpen(false);
+        return;
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setTabCompletionOpen(false);
+        return;
+      }
+    }
+
     // Handle slash command autocomplete
     if (slashCommandOpen) {
       const isTerminalMode = activeSession.inputMode === 'terminal';
@@ -3063,6 +3385,23 @@ export default function MaestroConsole() {
         setCommandHistoryOpen(true);
         setCommandHistoryFilter(inputValue);
         setCommandHistorySelectedIndex(0);
+      }
+    } else if (e.key === 'Tab') {
+      // Tab completion only in terminal mode when not showing slash commands
+      if (activeSession?.inputMode === 'terminal' && !slashCommandOpen && inputValue.trim()) {
+        e.preventDefault();
+        // Get suggestions and show dropdown if there are any
+        const suggestions = getTabCompletionSuggestions(inputValue);
+        if (suggestions.length > 0) {
+          // If only one suggestion, auto-complete it
+          if (suggestions.length === 1) {
+            setInputValue(suggestions[0].value);
+          } else {
+            // Show dropdown for multiple suggestions
+            setSelectedTabCompletionIndex(0);
+            setTabCompletionOpen(true);
+          }
+        }
       }
     }
   };
@@ -3393,7 +3732,7 @@ export default function MaestroConsole() {
   }, [activeFocus, activeRightTab, flatFileList, selectedFileIndex, activeSession?.fileExplorerExpanded, activeSessionId, setSessions, toggleFolder, handleFileClick]);
 
   return (
-      <div className="flex h-screen w-full font-mono overflow-hidden transition-colors duration-300 pt-10"
+      <div className={`flex h-screen w-full font-mono overflow-hidden transition-colors duration-300 ${isMobileLandscape ? 'pt-0' : 'pt-10'}`}
            style={{
              backgroundColor: theme.colors.bgMain,
              color: theme.colors.textMain,
@@ -3401,13 +3740,15 @@ export default function MaestroConsole() {
              fontSize: `${fontSize}px`
            }}>
 
-      {/* --- DRAGGABLE TITLE BAR --- */}
+      {/* --- DRAGGABLE TITLE BAR (hidden in mobile landscape) --- */}
+      {!isMobileLandscape && (
       <div
         className="fixed top-0 left-0 right-0 h-10"
         style={{
           WebkitAppRegion: 'drag',
         } as React.CSSProperties}
       />
+      )}
 
       {/* --- MODALS --- */}
       {quickActionOpen && (
@@ -3444,6 +3785,7 @@ export default function MaestroConsole() {
           setProcessMonitorOpen={setProcessMonitorOpen}
           setActiveRightTab={setActiveRightTab}
           setAgentSessionsOpen={setAgentSessionsOpen}
+          setActiveClaudeSessionId={setActiveClaudeSessionId}
           setGitDiffPreview={setGitDiffPreview}
           setGitLogOpen={setGitLogOpen}
           startFreshSession={() => {
@@ -3515,7 +3857,6 @@ export default function MaestroConsole() {
         <AboutModal
           theme={theme}
           sessions={sessions}
-          persistedStats={globalStats}
           onClose={() => setAboutModalOpen(false)}
         />
       )}
@@ -3586,52 +3927,56 @@ export default function MaestroConsole() {
         />
       )}
 
-      {/* --- LEFT SIDEBAR --- */}
-      <ErrorBoundary>
-        <SessionList
-          theme={theme}
-          sessions={sessions}
-          groups={groups}
-          sortedSessions={sortedSessions}
-          activeSessionId={activeSessionId}
-          leftSidebarOpen={leftSidebarOpen}
-          leftSidebarWidthState={leftSidebarWidth}
-          activeFocus={activeFocus}
-          selectedSidebarIndex={selectedSidebarIndex}
-          editingGroupId={editingGroupId}
-          editingSessionId={editingSessionId}
-          draggingSessionId={draggingSessionId}
-          shortcuts={shortcuts}
-          isLiveMode={isLiveMode}
-          webInterfaceUrl={webInterfaceUrl}
-          toggleGlobalLive={toggleGlobalLive}
-          setActiveFocus={setActiveFocus}
-          setActiveSessionId={setActiveSessionId}
-          setLeftSidebarOpen={setLeftSidebarOpen}
-          setLeftSidebarWidthState={setLeftSidebarWidth}
-          setShortcutsHelpOpen={setShortcutsHelpOpen}
-          setSettingsModalOpen={setSettingsModalOpen}
-          setSettingsTab={setSettingsTab}
-          setAboutModalOpen={setAboutModalOpen}
-          setLogViewerOpen={setLogViewerOpen}
-          setProcessMonitorOpen={setProcessMonitorOpen}
-          toggleGroup={toggleGroup}
-          handleDragStart={handleDragStart}
-          handleDragOver={handleDragOver}
-          handleDropOnGroup={handleDropOnGroup}
-          handleDropOnUngrouped={handleDropOnUngrouped}
-          finishRenamingGroup={finishRenamingGroup}
-          finishRenamingSession={finishRenamingSession}
-          startRenamingGroup={startRenamingGroup}
-          startRenamingSession={startRenamingSession}
-          showConfirmation={showConfirmation}
-          setGroups={setGroups}
-          setSessions={setSessions}
-          createNewGroup={createNewGroup}
-          addNewSession={addNewSession}
-          activeBatchSessionIds={activeBatchSessionIds}
-        />
-      </ErrorBoundary>
+      {/* --- LEFT SIDEBAR (hidden in mobile landscape) --- */}
+      {!isMobileLandscape && (
+        <ErrorBoundary>
+          <SessionList
+            theme={theme}
+            sessions={sessions}
+            groups={groups}
+            sortedSessions={sortedSessions}
+            activeSessionId={activeSessionId}
+            leftSidebarOpen={leftSidebarOpen}
+            leftSidebarWidthState={leftSidebarWidth}
+            activeFocus={activeFocus}
+            selectedSidebarIndex={selectedSidebarIndex}
+            editingGroupId={editingGroupId}
+            editingSessionId={editingSessionId}
+            draggingSessionId={draggingSessionId}
+            shortcuts={shortcuts}
+            isLiveMode={isLiveMode}
+            webInterfaceUrl={webInterfaceUrl}
+            toggleGlobalLive={toggleGlobalLive}
+            bookmarksCollapsed={bookmarksCollapsed}
+            setBookmarksCollapsed={setBookmarksCollapsed}
+            setActiveFocus={setActiveFocus}
+            setActiveSessionId={setActiveSessionId}
+            setLeftSidebarOpen={setLeftSidebarOpen}
+            setLeftSidebarWidthState={setLeftSidebarWidth}
+            setShortcutsHelpOpen={setShortcutsHelpOpen}
+            setSettingsModalOpen={setSettingsModalOpen}
+            setSettingsTab={setSettingsTab}
+            setAboutModalOpen={setAboutModalOpen}
+            setLogViewerOpen={setLogViewerOpen}
+            setProcessMonitorOpen={setProcessMonitorOpen}
+            toggleGroup={toggleGroup}
+            handleDragStart={handleDragStart}
+            handleDragOver={handleDragOver}
+            handleDropOnGroup={handleDropOnGroup}
+            handleDropOnUngrouped={handleDropOnUngrouped}
+            finishRenamingGroup={finishRenamingGroup}
+            finishRenamingSession={finishRenamingSession}
+            startRenamingGroup={startRenamingGroup}
+            startRenamingSession={startRenamingSession}
+            showConfirmation={showConfirmation}
+            setGroups={setGroups}
+            setSessions={setSessions}
+            createNewGroup={createNewGroup}
+            addNewSession={addNewSession}
+            activeBatchSessionIds={activeBatchSessionIds}
+          />
+        </ErrorBoundary>
+      )}
 
       {/* --- CENTER WORKSPACE --- */}
       <MainPanel
@@ -3641,6 +3986,7 @@ export default function MaestroConsole() {
         activeSession={activeSession}
         theme={theme}
         fontFamily={fontFamily}
+        isMobileLandscape={isMobileLandscape}
         activeFocus={activeFocus}
         outputSearchOpen={outputSearchOpen}
         outputSearchQuery={outputSearchQuery}
@@ -3661,38 +4007,41 @@ export default function MaestroConsole() {
         maxOutputLines={maxOutputLines}
         gitDiffPreview={gitDiffPreview}
         fileTreeFilterOpen={fileTreeFilterOpen}
+        logLevel={logLevel}
         setGitDiffPreview={setGitDiffPreview}
         setLogViewerOpen={setLogViewerOpen}
         setAgentSessionsOpen={setAgentSessionsOpen}
         setActiveClaudeSessionId={setActiveClaudeSessionId}
-        onResumeClaudeSession={(claudeSessionId: string, messages: LogEntry[]) => {
+        onResumeClaudeSession={(claudeSessionId: string, messages: LogEntry[], sessionName?: string) => {
           // Update the active session with the selected Claude session ID and load messages
           // Also reset state to 'idle' since we're just loading historical messages
           // Switch to AI mode since we're resuming an AI session
           console.log('[onResumeClaudeSession] Resuming session:', claudeSessionId, 'activeSession:', activeSession?.id, activeSession?.claudeSessionId);
           if (activeSession) {
+            // Track this session in recent sessions list
+            const firstMessage = messages.find(m => m.source === 'user')?.text || '';
+            const newRecentSession = {
+              sessionId: claudeSessionId,
+              firstMessage: firstMessage.slice(0, 100),
+              timestamp: new Date().toISOString(),
+              sessionName
+            };
+
             setSessions(prev => {
               console.log('[onResumeClaudeSession] Updating sessions, looking for id:', activeSession.id);
-              const updated = prev.map(s =>
-                s.id === activeSession.id ? { ...s, claudeSessionId, aiLogs: messages, state: 'idle', inputMode: 'ai' } : s
-              );
+              const updated = prev.map(s => {
+                if (s.id !== activeSession.id) return s;
+                // Update recent sessions: remove if exists, add to front, keep max 10
+                const existingRecent = s.recentClaudeSessions || [];
+                const filtered = existingRecent.filter(r => r.sessionId !== claudeSessionId);
+                const updatedRecent = [newRecentSession, ...filtered].slice(0, 10);
+                return { ...s, claudeSessionId, aiLogs: messages, state: 'idle', inputMode: 'ai', recentClaudeSessions: updatedRecent };
+              });
               const updatedSession = updated.find(s => s.id === activeSession.id);
               console.log('[onResumeClaudeSession] Updated session claudeSessionId:', updatedSession?.claudeSessionId);
               return updated;
             });
             setActiveClaudeSessionId(claudeSessionId);
-
-            // Track this session in recent sessions list
-            const firstMessage = messages.find(m => m.source === 'user')?.text || '';
-            setRecentClaudeSessions(prev => {
-              // Remove if already exists
-              const filtered = prev.filter(s => s.sessionId !== claudeSessionId);
-              // Add to front
-              return [
-                { sessionId: claudeSessionId, firstMessage: firstMessage.slice(0, 100), timestamp: new Date().toISOString() },
-                ...filtered
-              ].slice(0, 10); // Keep only last 10
-            });
           }
         }}
         onNewClaudeSession={() => {
@@ -3734,6 +4083,11 @@ export default function MaestroConsole() {
         setCommandHistorySelectedIndex={setCommandHistorySelectedIndex}
         setSlashCommandOpen={setSlashCommandOpen}
         setSelectedSlashCommandIndex={setSelectedSlashCommandIndex}
+        tabCompletionOpen={tabCompletionOpen}
+        setTabCompletionOpen={setTabCompletionOpen}
+        tabCompletionSuggestions={tabCompletionSuggestions}
+        selectedTabCompletionIndex={selectedTabCompletionIndex}
+        setSelectedTabCompletionIndex={setSelectedTabCompletionIndex}
         setPreviewFile={setPreviewFile}
         setMarkdownRawMode={setMarkdownRawMode}
         setAboutModalOpen={setAboutModalOpen}
@@ -3757,17 +4111,20 @@ export default function MaestroConsole() {
         onDeleteLog={(logId: string): number | null => {
           if (!activeSession) return null;
 
+          const isAIMode = activeSession.inputMode === 'ai';
+          const logs = isAIMode ? activeSession.aiLogs : activeSession.shellLogs;
+
           // Find the log entry and its index
-          const logIndex = activeSession.shellLogs.findIndex(log => log.id === logId);
+          const logIndex = logs.findIndex(log => log.id === logId);
           if (logIndex === -1) return null;
 
-          const log = activeSession.shellLogs[logIndex];
-          if (log.source !== 'user') return null; // Only delete user commands
+          const log = logs[logIndex];
+          if (log.source !== 'user') return null; // Only delete user commands/messages
 
           // Find the next user command index (or end of array)
-          let endIndex = activeSession.shellLogs.length;
-          for (let i = logIndex + 1; i < activeSession.shellLogs.length; i++) {
-            if (activeSession.shellLogs[i].source === 'user') {
+          let endIndex = logs.length;
+          for (let i = logIndex + 1; i < logs.length; i++) {
+            if (logs[i].source === 'user') {
               endIndex = i;
               break;
             }
@@ -3775,8 +4132,8 @@ export default function MaestroConsole() {
 
           // Remove logs from logIndex to endIndex (exclusive)
           const newLogs = [
-            ...activeSession.shellLogs.slice(0, logIndex),
-            ...activeSession.shellLogs.slice(endIndex)
+            ...logs.slice(0, logIndex),
+            ...logs.slice(endIndex)
           ];
 
           // Find the index of the next user command in the NEW array
@@ -3798,17 +4155,53 @@ export default function MaestroConsole() {
             }
           }
 
-          // Also remove from shell command history (this is for terminal mode)
-          const commandText = log.text.trim();
-          const newShellCommandHistory = (activeSession.shellCommandHistory || []).filter(
-            cmd => cmd !== commandText
-          );
+          if (isAIMode) {
+            // For AI mode, also delete from the Claude session JSONL file
+            // This ensures the context is actually removed for future interactions
+            if (activeSession.claudeSessionId && activeSession.cwd) {
+              // Delete asynchronously - don't block the UI update
+              window.maestro.claude.deleteMessagePair(
+                activeSession.cwd,
+                activeSession.claudeSessionId,
+                logId, // This is the UUID if loaded from Claude session
+                log.text // Fallback: match by content if UUID doesn't match
+              ).then(result => {
+                if (result.success) {
+                  console.log('[onDeleteLog] Deleted message pair from Claude session', {
+                    linesRemoved: result.linesRemoved
+                  });
+                } else {
+                  console.warn('[onDeleteLog] Failed to delete from Claude session:', result.error);
+                }
+              }).catch(err => {
+                console.error('[onDeleteLog] Error deleting from Claude session:', err);
+              });
+            }
 
-          setSessions(sessions.map(s =>
-            s.id === activeSession.id
-              ? { ...s, shellLogs: newLogs, shellCommandHistory: newShellCommandHistory }
-              : s
-          ));
+            // Update aiLogs and aiCommandHistory
+            const commandText = log.text.trim();
+            const newAICommandHistory = (activeSession.aiCommandHistory || []).filter(
+              cmd => cmd !== commandText
+            );
+
+            setSessions(sessions.map(s =>
+              s.id === activeSession.id
+                ? { ...s, aiLogs: newLogs, aiCommandHistory: newAICommandHistory }
+                : s
+            ));
+          } else {
+            // Terminal mode - update shellLogs and shellCommandHistory
+            const commandText = log.text.trim();
+            const newShellCommandHistory = (activeSession.shellCommandHistory || []).filter(
+              cmd => cmd !== commandText
+            );
+
+            setSessions(sessions.map(s =>
+              s.id === activeSession.id
+                ? { ...s, shellLogs: newLogs, shellCommandHistory: newShellCommandHistory }
+                : s
+            ));
+          }
 
           return nextUserCommandIndex;
         }}
@@ -3823,7 +4216,7 @@ export default function MaestroConsole() {
           }));
         }}
         audioFeedbackCommand={audioFeedbackCommand}
-        recentClaudeSessions={recentClaudeSessions}
+        recentClaudeSessions={activeSession?.recentClaudeSessions || []}
         onResumeRecentSession={async (sessionId: string) => {
           // Resume a session from the recent sessions list
           if (!activeSession?.cwd) return;
@@ -3844,65 +4237,70 @@ export default function MaestroConsole() {
               text: msg.content || ''
             }));
 
-            // Update the session
-            setSessions(prev => prev.map(s =>
-              s.id === activeSession.id ? { ...s, claudeSessionId: sessionId, aiLogs: messages, state: 'idle', inputMode: 'ai' } : s
-            ));
+            // Update the session and move to front of recent list
+            setSessions(prev => prev.map(s => {
+              if (s.id !== activeSession.id) return s;
+              // Move the session to front of recent list
+              const existingRecent = s.recentClaudeSessions || [];
+              const recentSession = existingRecent.find(r => r.sessionId === sessionId);
+              if (!recentSession) {
+                // Session not in recent list, just update the session
+                return { ...s, claudeSessionId: sessionId, aiLogs: messages, state: 'idle', inputMode: 'ai' };
+              }
+              const filtered = existingRecent.filter(r => r.sessionId !== sessionId);
+              const updatedRecent = [{ ...recentSession, timestamp: new Date().toISOString() }, ...filtered];
+              return { ...s, claudeSessionId: sessionId, aiLogs: messages, state: 'idle', inputMode: 'ai', recentClaudeSessions: updatedRecent };
+            }));
             setActiveClaudeSessionId(sessionId);
-
-            // Move to front of recent list
-            setRecentClaudeSessions(prev => {
-              const session = prev.find(s => s.sessionId === sessionId);
-              if (!session) return prev;
-              const filtered = prev.filter(s => s.sessionId !== sessionId);
-              return [{ ...session, timestamp: new Date().toISOString() }, ...filtered];
-            });
           } catch (error) {
             console.error('Failed to resume session:', error);
           }
         }}
       />
 
-      {/* --- RIGHT PANEL --- */}
-      <ErrorBoundary>
-        <RightPanel
-          ref={rightPanelRef}
-          session={activeSession}
-          theme={theme}
-          shortcuts={shortcuts}
-          rightPanelOpen={rightPanelOpen}
-          setRightPanelOpen={setRightPanelOpen}
-          rightPanelWidth={rightPanelWidth}
-          setRightPanelWidthState={setRightPanelWidth}
-          activeRightTab={activeRightTab}
-          setActiveRightTab={setActiveRightTab}
-          activeFocus={activeFocus}
-          setActiveFocus={setActiveFocus}
-          fileTreeFilter={fileTreeFilter}
-          setFileTreeFilter={setFileTreeFilter}
-          fileTreeFilterOpen={fileTreeFilterOpen}
-          setFileTreeFilterOpen={setFileTreeFilterOpen}
-          filteredFileTree={filteredFileTree}
-          selectedFileIndex={selectedFileIndex}
-          setSelectedFileIndex={setSelectedFileIndex}
-          previewFile={previewFile}
-          fileTreeContainerRef={fileTreeContainerRef}
-          fileTreeFilterInputRef={fileTreeFilterInputRef}
-          toggleFolder={toggleFolder}
-          handleFileClick={handleFileClick}
-          expandAllFolders={expandAllFolders}
-          collapseAllFolders={collapseAllFolders}
-          updateSessionWorkingDirectory={updateSessionWorkingDirectory}
-          refreshFileTree={refreshFileTree}
-          setSessions={setSessions}
-          updateScratchPad={updateScratchPad}
-          updateScratchPadState={updateScratchPadState}
-          batchRunState={activeBatchRunState}
-          onOpenBatchRunner={handleOpenBatchRunner}
-          onStopBatchRun={handleStopBatchRun}
-          onJumpToClaudeSession={handleJumpToClaudeSession}
-        />
-      </ErrorBoundary>
+      {/* --- RIGHT PANEL (hidden in mobile landscape) --- */}
+      {!isMobileLandscape && (
+        <ErrorBoundary>
+          <RightPanel
+            ref={rightPanelRef}
+            session={activeSession}
+            theme={theme}
+            shortcuts={shortcuts}
+            rightPanelOpen={rightPanelOpen}
+            setRightPanelOpen={setRightPanelOpen}
+            rightPanelWidth={rightPanelWidth}
+            setRightPanelWidthState={setRightPanelWidth}
+            activeRightTab={activeRightTab}
+            setActiveRightTab={setActiveRightTab}
+            activeFocus={activeFocus}
+            setActiveFocus={setActiveFocus}
+            fileTreeFilter={fileTreeFilter}
+            setFileTreeFilter={setFileTreeFilter}
+            fileTreeFilterOpen={fileTreeFilterOpen}
+            setFileTreeFilterOpen={setFileTreeFilterOpen}
+            filteredFileTree={filteredFileTree}
+            selectedFileIndex={selectedFileIndex}
+            setSelectedFileIndex={setSelectedFileIndex}
+            previewFile={previewFile}
+            fileTreeContainerRef={fileTreeContainerRef}
+            fileTreeFilterInputRef={fileTreeFilterInputRef}
+            toggleFolder={toggleFolder}
+            handleFileClick={handleFileClick}
+            expandAllFolders={expandAllFolders}
+            collapseAllFolders={collapseAllFolders}
+            updateSessionWorkingDirectory={updateSessionWorkingDirectory}
+            refreshFileTree={refreshFileTree}
+            setSessions={setSessions}
+            updateScratchPad={updateScratchPad}
+            updateScratchPadState={updateScratchPadState}
+            batchRunState={activeBatchRunState}
+            onOpenBatchRunner={handleOpenBatchRunner}
+            onStopBatchRun={handleStopBatchRun}
+            onJumpToClaudeSession={handleJumpToClaudeSession}
+            onResumeSession={handleResumeSession}
+          />
+        </ErrorBoundary>
+      )}
 
       {/* --- BATCH RUNNER MODAL --- */}
       {batchRunnerModalOpen && activeSession && (
@@ -3910,12 +4308,16 @@ export default function MaestroConsole() {
           theme={theme}
           onClose={() => setBatchRunnerModalOpen(false)}
           onGo={(prompt) => {
-            // Save the custom prompt for this session
-            setCustomPrompt(activeSession.id, prompt);
             // Start the batch run
             handleStartBatchRun(prompt);
           }}
-          initialPrompt={customPrompts[activeSession.id] || ''}
+          onSave={(prompt) => {
+            // Save the custom prompt to the session (persisted across restarts)
+            setSessions(prev => prev.map(s =>
+              s.id === activeSession.id ? { ...s, batchRunnerPrompt: prompt } : s
+            ));
+          }}
+          initialPrompt={activeSession.batchRunnerPrompt || ''}
           showConfirmation={showConfirmation}
         />
       )}

@@ -103,6 +103,7 @@ export type GetSessionsCallback = () => Array<{
   usageStats?: SessionUsageStats | null;
   lastResponse?: LastResponsePreview | null;
   claudeSessionId?: string | null;
+  thinkingStartTime?: number | null; // Timestamp when AI started thinking (for elapsed time display)
 }>;
 
 // Session detail type for single session endpoint
@@ -150,6 +151,10 @@ export type SwitchModeCallback = (
   mode: 'ai' | 'terminal'
 ) => Promise<boolean>;
 
+// Callback type for selecting/switching to a session in the desktop app
+// This forwards to the renderer which handles state updates and broadcasts
+export type SelectSessionCallback = (sessionId: string) => Promise<boolean>;
+
 // Re-export Theme type from shared for backwards compatibility
 export type { Theme } from '../shared/theme-types';
 
@@ -166,6 +171,32 @@ export interface CustomAICommand {
 
 // Callback type for fetching custom AI commands
 export type GetCustomCommandsCallback = () => CustomAICommand[];
+
+// History entry type for the history API
+export interface HistoryEntryData {
+  id: string;
+  type: 'AUTO' | 'USER';
+  timestamp: number;
+  summary: string;
+  fullResponse?: string;
+  claudeSessionId?: string;
+  projectPath: string;
+  sessionId?: string;
+  contextUsage?: number;
+  usageStats?: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadInputTokens: number;
+    cacheCreationInputTokens: number;
+    totalCostUsd: number;
+    contextWindow: number;
+  };
+  success?: boolean;
+  elapsedTimeMs?: number;
+}
+
+// Callback type for fetching history entries
+export type GetHistoryCallback = (projectPath?: string, sessionId?: string) => HistoryEntryData[];
 
 // Default rate limit configuration
 const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
@@ -190,6 +221,8 @@ export class WebServer {
   private executeCommandCallback: ExecuteCommandCallback | null = null;
   private interruptSessionCallback: InterruptSessionCallback | null = null;
   private switchModeCallback: SwitchModeCallback | null = null;
+  private selectSessionCallback: SelectSessionCallback | null = null;
+  private getHistoryCallback: GetHistoryCallback | null = null;
   private webAssetsPath: string | null = null;
 
   // Security token - regenerated on each app startup
@@ -445,6 +478,22 @@ export class WebServer {
    */
   setSwitchModeCallback(callback: SwitchModeCallback) {
     this.switchModeCallback = callback;
+  }
+
+  /**
+   * Set the callback function for selecting/switching to a session in the desktop
+   * This forwards to the renderer which handles state updates and broadcasts
+   */
+  setSelectSessionCallback(callback: SelectSessionCallback) {
+    this.selectSessionCallback = callback;
+  }
+
+  /**
+   * Set the callback function for fetching history entries
+   * This is called by the /api/history endpoint
+   */
+  setGetHistoryCallback(callback: GetHistoryCallback) {
+    this.getHistoryCallback = callback;
   }
 
   /**
@@ -791,6 +840,45 @@ export class WebServer {
         });
       }
     });
+
+    // History endpoint - returns history entries filtered by project/session
+    this.server.get(`/${token}/api/history`, {
+      config: {
+        rateLimit: {
+          max: this.rateLimitConfig.max,
+          timeWindow: this.rateLimitConfig.timeWindow,
+        },
+      },
+    }, async (request, reply) => {
+      if (!this.getHistoryCallback) {
+        return reply.code(503).send({
+          error: 'Service Unavailable',
+          message: 'History service not configured',
+          timestamp: Date.now(),
+        });
+      }
+
+      // Extract optional projectPath and sessionId from query params
+      const { projectPath, sessionId } = request.query as {
+        projectPath?: string;
+        sessionId?: string;
+      };
+
+      try {
+        const entries = this.getHistoryCallback(projectPath, sessionId);
+        return {
+          entries,
+          count: entries.length,
+          timestamp: Date.now(),
+        };
+      } catch (error: any) {
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: `Failed to fetch history: ${error.message}`,
+          timestamp: Date.now(),
+        });
+      }
+    });
   }
 
   /**
@@ -1045,6 +1133,54 @@ export class WebServer {
         break;
       }
 
+      case 'select_session': {
+        // Select/switch to a session in the desktop app
+        const sessionId = message.sessionId as string;
+
+        if (!sessionId) {
+          client.socket.send(JSON.stringify({
+            type: 'error',
+            message: 'Missing sessionId',
+            timestamp: Date.now(),
+          }));
+          return;
+        }
+
+        if (!this.selectSessionCallback) {
+          client.socket.send(JSON.stringify({
+            type: 'error',
+            message: 'Session selection not configured',
+            timestamp: Date.now(),
+          }));
+          return;
+        }
+
+        // Forward to desktop's session selection logic
+        logger.info(`[Web] Selecting session ${sessionId} in desktop app`, LOG_CONTEXT);
+        this.selectSessionCallback(sessionId)
+          .then((success) => {
+            client.socket.send(JSON.stringify({
+              type: 'select_session_result',
+              success,
+              sessionId,
+              timestamp: Date.now(),
+            }));
+            if (success) {
+              logger.debug(`Session ${sessionId} selected in desktop`, LOG_CONTEXT);
+            } else {
+              logger.warn(`Failed to select session ${sessionId} in desktop`, LOG_CONTEXT);
+            }
+          })
+          .catch((error) => {
+            client.socket.send(JSON.stringify({
+              type: 'error',
+              message: `Failed to select session: ${error.message}`,
+              timestamp: Date.now(),
+            }));
+          });
+        break;
+      }
+
       case 'get_sessions': {
         // Request updated sessions list - returns all sessions (not just "live" ones)
         // The security token already protects access to this endpoint
@@ -1226,6 +1362,25 @@ export class WebServer {
     this.broadcastToWebClients({
       type: 'custom_commands',
       commands,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * Broadcast AutoRun state to all connected web clients
+   * Called when batch processing starts, progresses, or stops
+   */
+  broadcastAutoRunState(sessionId: string, state: {
+    isRunning: boolean;
+    totalTasks: number;
+    completedTasks: number;
+    currentTaskIndex: number;
+    isStopping?: boolean;
+  } | null) {
+    this.broadcastToWebClients({
+      type: 'autorun_state',
+      sessionId,
+      state,
       timestamp: Date.now(),
     });
   }

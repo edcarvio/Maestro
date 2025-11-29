@@ -448,7 +448,7 @@ export function AllSessionsView({
         right: 0,
         bottom: 0,
         backgroundColor: colors.bgMain,
-        zIndex: 100,
+        zIndex: 200, // Higher than CommandInputBar (100) to fully cover the screen including input box
         display: 'flex',
         flexDirection: 'column',
         animation: 'slideUp 0.25s ease-out',

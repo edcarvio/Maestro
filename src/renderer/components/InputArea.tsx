@@ -1,6 +1,7 @@
 import React from 'react';
-import { Terminal, Cpu, Keyboard, ImageIcon, X, ArrowUp, StopCircle, Eye } from 'lucide-react';
+import { Terminal, Cpu, Keyboard, ImageIcon, X, ArrowUp, StopCircle, Eye, History, File, Folder } from 'lucide-react';
 import type { Session, Theme } from '../types';
+import type { TabCompletionSuggestion } from '../hooks/useTabCompletion';
 
 interface SlashCommand {
   command: string;
@@ -40,6 +41,12 @@ interface InputAreaProps {
   onInputFocus: () => void;
   // Auto mode props
   isAutoModeActive?: boolean;
+  // Tab completion props
+  tabCompletionOpen?: boolean;
+  setTabCompletionOpen?: (open: boolean) => void;
+  tabCompletionSuggestions?: TabCompletionSuggestion[];
+  selectedTabCompletionIndex?: number;
+  setSelectedTabCompletionIndex?: (index: number) => void;
 }
 
 export function InputArea(props: InputAreaProps) {
@@ -52,7 +59,10 @@ export function InputArea(props: InputAreaProps) {
     selectedSlashCommandIndex, setSelectedSlashCommandIndex,
     inputRef, handleInputKeyDown, handlePaste, handleDrop,
     toggleInputMode, processInput, handleInterrupt, onInputFocus,
-    isAutoModeActive = false
+    isAutoModeActive = false,
+    tabCompletionOpen = false, setTabCompletionOpen,
+    tabCompletionSuggestions = [], selectedTabCompletionIndex = 0,
+    setSelectedTabCompletionIndex
   } = props;
 
   // Check if we're in read-only mode (auto mode in AI mode - user can still send but Claude will be in plan mode)
@@ -239,6 +249,50 @@ export function InputArea(props: InputAreaProps) {
         </div>
       )}
 
+      {/* Tab Completion Dropdown - Terminal mode only */}
+      {tabCompletionOpen && isTerminalMode && tabCompletionSuggestions.length > 0 && (
+        <div
+          className="absolute bottom-full left-0 right-0 mb-2 border rounded-lg shadow-2xl max-h-64 overflow-hidden"
+          style={{ backgroundColor: theme.colors.bgSidebar, borderColor: theme.colors.border }}
+        >
+          <div className="px-3 py-2 border-b text-xs opacity-60" style={{ borderColor: theme.colors.border, color: theme.colors.textDim }}>
+            Tab Completion
+          </div>
+          <div className="overflow-y-auto max-h-56 scrollbar-thin">
+            {tabCompletionSuggestions.map((suggestion, idx) => {
+              const isSelected = idx === selectedTabCompletionIndex;
+              const IconComponent = suggestion.type === 'history' ? History : suggestion.type === 'folder' ? Folder : File;
+              const typeLabel = suggestion.type === 'history' ? 'history' : suggestion.type === 'folder' ? 'folder' : 'file';
+
+              return (
+                <div
+                  key={`${suggestion.type}-${suggestion.value}`}
+                  className={`px-3 py-2 cursor-pointer text-sm font-mono flex items-center gap-2 ${isSelected ? 'ring-1 ring-inset' : ''}`}
+                  style={{
+                    backgroundColor: isSelected ? theme.colors.bgActivity : 'transparent',
+                    ringColor: theme.colors.accent,
+                    color: theme.colors.textMain
+                  }}
+                  onClick={() => {
+                    setInputValue(suggestion.value);
+                    setTabCompletionOpen?.(false);
+                    inputRef.current?.focus();
+                  }}
+                  onMouseEnter={() => setSelectedTabCompletionIndex?.(idx)}
+                >
+                  <IconComponent className="w-3.5 h-3.5 flex-shrink-0" style={{
+                    color: suggestion.type === 'history' ? theme.colors.accent :
+                           suggestion.type === 'folder' ? theme.colors.warning : theme.colors.textDim
+                  }} />
+                  <span className="flex-1 truncate">{suggestion.displayText}</span>
+                  <span className="text-[10px] opacity-40 flex-shrink-0">{typeLabel}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-3">
         <div
           className="flex-1 relative border rounded-lg bg-opacity-50 flex flex-col"
@@ -381,8 +435,8 @@ export function InputArea(props: InputAreaProps) {
           ) : (
             <button
               onClick={processInput}
-              className="p-2 rounded-md text-white shadow-sm transition-all hover:opacity-90"
-              style={{ backgroundColor: theme.colors.accent }}
+              className="p-2 rounded-md shadow-sm transition-all hover:opacity-90"
+              style={{ backgroundColor: theme.colors.accent, color: theme.colors.accentForeground }}
             >
               <ArrowUp className="w-4 h-4" />
             </button>

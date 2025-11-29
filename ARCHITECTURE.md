@@ -417,20 +417,21 @@ Themes defined in `src/renderer/constants/themes.ts`.
 interface Theme {
   id: ThemeId;
   name: string;
-  mode: 'light' | 'dark';
+  mode: 'light' | 'dark' | 'vibe';
   colors: {
-    bgMain: string;      // Main content background
-    bgSidebar: string;   // Sidebar background
-    bgActivity: string;  // Accent background
-    border: string;      // Border colors
-    textMain: string;    // Primary text
-    textDim: string;     // Secondary text
-    accent: string;      // Accent color
-    accentDim: string;   // Dimmed accent
-    accentText: string;  // Accent text color
-    success: string;     // Success state (green)
-    warning: string;     // Warning state (yellow)
-    error: string;       // Error state (red)
+    bgMain: string;           // Main content background
+    bgSidebar: string;        // Sidebar background
+    bgActivity: string;       // Accent background
+    border: string;           // Border colors
+    textMain: string;         // Primary text
+    textDim: string;          // Secondary text
+    accent: string;           // Accent color
+    accentDim: string;        // Dimmed accent
+    accentText: string;       // Accent text color
+    accentForeground: string; // Text ON accent backgrounds (contrast)
+    success: string;          // Success state (green)
+    warning: string;          // Warning state (yellow)
+    error: string;            // Error state (red)
   };
 }
 ```
@@ -524,6 +525,18 @@ const results = await window.maestro.claude.searchSessions(
   'query',
   'all'  // 'title' | 'user' | 'assistant' | 'all'
 );
+
+// Get global stats across all Claude projects (with streaming updates)
+const stats = await window.maestro.claude.getGlobalStats();
+// Returns: { totalSessions, totalMessages, totalInputTokens, totalOutputTokens,
+//            totalCacheReadTokens, totalCacheCreationTokens, totalCostUsd, totalSizeBytes }
+
+// Subscribe to streaming updates during stats calculation
+const unsubscribe = window.maestro.claude.onGlobalStatsUpdate((stats) => {
+  console.log(`Progress: ${stats.totalSessions} sessions, $${stats.totalCostUsd.toFixed(2)}`);
+  if (stats.isComplete) console.log('Stats calculation complete');
+});
+// Call unsubscribe() to stop listening
 ```
 
 ### UI Access

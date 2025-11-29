@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Bot, User, ExternalLink, Copy, Check, CheckCircle, XCircle, Trash2, Clock, Cpu, Zap } from 'lucide-react';
+import { X, Bot, User, ExternalLink, Copy, Check, CheckCircle, XCircle, Trash2, Clock, Cpu, Zap, Play } from 'lucide-react';
 import type { Theme, HistoryEntry } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
@@ -22,6 +22,7 @@ interface HistoryDetailModalProps {
   entry: HistoryEntry;
   onClose: () => void;
   onJumpToClaudeSession?: (claudeSessionId: string) => void;
+  onResumeSession?: (claudeSessionId: string) => void;
   onDelete?: (entryId: string) => void;
 }
 
@@ -37,6 +38,7 @@ export function HistoryDetailModal({
   entry,
   onClose,
   onJumpToClaudeSession,
+  onResumeSession,
   onDelete
 }: HistoryDetailModalProps) {
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
@@ -177,6 +179,25 @@ export function HistoryDetailModal({
                     <Copy className="w-2.5 h-2.5" />
                   )}
                 </button>
+                {/* Resume button */}
+                {onResumeSession && (
+                  <button
+                    onClick={() => {
+                      onResumeSession(entry.claudeSessionId!);
+                      onClose();
+                    }}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase transition-colors hover:opacity-80"
+                    style={{
+                      backgroundColor: theme.colors.success + '20',
+                      color: theme.colors.success,
+                      border: `1px solid ${theme.colors.success}40`
+                    }}
+                    title={`Resume session ${entry.claudeSessionId}`}
+                  >
+                    <Play className="w-2.5 h-2.5" />
+                    Resume
+                  </button>
+                )}
                 {/* Jump button */}
                 {onJumpToClaudeSession && (
                   <button
@@ -289,7 +310,7 @@ export function HistoryDetailModal({
               {/* Cost */}
               {entry.usageStats && entry.usageStats.totalCostUsd > 0 && (
                 <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full border border-green-500/30 text-green-500 bg-green-500/10">
-                  ${entry.usageStats.totalCostUsd.toFixed(4)}
+                  ${entry.usageStats.totalCostUsd.toFixed(2)}
                 </span>
               )}
             </div>
@@ -334,7 +355,7 @@ export function HistoryDetailModal({
             className="px-4 py-2 rounded text-sm font-medium transition-colors hover:opacity-90"
             style={{
               backgroundColor: theme.colors.accent,
-              color: 'white'
+              color: theme.colors.accentForeground
             }}
           >
             Close

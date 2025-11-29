@@ -2,25 +2,31 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Wand2, Plus, Settings, ChevronRight, ChevronDown, Activity, X, Keyboard,
   Radio, Copy, ExternalLink, PanelLeftClose, PanelLeftOpen, Folder, Info, FileText, GitBranch, Bot, Clock,
-  ScrollText, Cpu, Menu, Bookmark, Tag
+  ScrollText, Cpu, Menu, Bookmark
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { Session, Group, Theme, Shortcut } from '../types';
 import { getStatusColor, getContextColor, formatActiveTime } from '../utils/theme';
 import { gitService } from '../services/git';
 
-// Default agent names - sessions with these names are considered "unnamed"
-const DEFAULT_AGENT_NAMES = [
-  'Claude Code',
-  'Aider (Gemini)',
-  'Qwen Coder',
-  'CLI Terminal',
-  'Terminal',
-];
+// Strip leading emojis from a string for alphabetical sorting
+// Matches common emoji patterns at the start of the string
+const stripLeadingEmojis = (str: string): string => {
+  // Match emojis at the start: emoji characters, variation selectors, ZWJ sequences, etc.
+  // This regex matches most common emoji patterns including:
+  // - Basic emojis (😀, 🎉, etc.)
+  // - Emojis with skin tone modifiers
+  // - Flag emojis
+  // - ZWJ sequences (👨‍👩‍👧, etc.)
+  const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F?|\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?)+\s*/gu;
+  return str.replace(emojiRegex, '').trim();
+};
 
-// Check if a session has a custom (user-defined) name
-const hasCustomName = (session: Session): boolean => {
-  return !DEFAULT_AGENT_NAMES.includes(session.name);
+// Compare two session names, ignoring leading emojis for alphabetization
+const compareSessionNames = (a: string, b: string): number => {
+  const aStripped = stripLeadingEmojis(a);
+  const bStripped = stripLeadingEmojis(b);
+  return aStripped.localeCompare(bStripped);
 };
 
 interface SessionListProps {
@@ -43,6 +49,10 @@ interface SessionListProps {
   isLiveMode: boolean;
   webInterfaceUrl: string | null;
   toggleGlobalLive: () => void;
+
+  // Bookmarks folder state (lifted from component to App.tsx for keyboard shortcut access)
+  bookmarksCollapsed: boolean;
+  setBookmarksCollapsed: (collapsed: boolean) => void;
 
   // Handlers
   setActiveFocus: (focus: string) => void;
@@ -80,6 +90,7 @@ export function SessionList(props: SessionListProps) {
     leftSidebarWidthState, activeFocus, selectedSidebarIndex, editingGroupId,
     editingSessionId, draggingSessionId, shortcuts,
     isLiveMode, webInterfaceUrl, toggleGlobalLive,
+    bookmarksCollapsed, setBookmarksCollapsed,
     setActiveFocus, setActiveSessionId, setLeftSidebarOpen, setLeftSidebarWidthState,
     setShortcutsHelpOpen, setSettingsModalOpen, setSettingsTab, setAboutModalOpen, setLogViewerOpen, setProcessMonitorOpen, toggleGroup,
     handleDragStart, handleDragOver, handleDropOnGroup, handleDropOnUngrouped,
@@ -91,11 +102,11 @@ export function SessionList(props: SessionListProps) {
   const [sessionFilter, setSessionFilter] = useState('');
   const [sessionFilterOpen, setSessionFilterOpen] = useState(false);
   const [ungroupedCollapsed, setUngroupedCollapsed] = useState(false);
-  const [bookmarksCollapsed, setBookmarksCollapsed] = useState(false);
   const [preFilterGroupStates, setPreFilterGroupStates] = useState<Map<string, boolean>>(new Map());
   const [menuOpen, setMenuOpen] = useState(false);
   const [liveOverlayOpen, setLiveOverlayOpen] = useState(false);
   const [urlCopied, setUrlCopied] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const liveOverlayRef = useRef<HTMLDivElement>(null);
 
@@ -254,15 +265,16 @@ export function SessionList(props: SessionListProps) {
             e.preventDefault();
             const startX = e.clientX;
             const startWidth = leftSidebarWidthState;
+            let currentWidth = startWidth;
 
             const handleMouseMove = (e: MouseEvent) => {
               const delta = e.clientX - startX;
-              const newWidth = Math.max(256, Math.min(600, startWidth + delta));
-              setLeftSidebarWidthState(newWidth);
+              currentWidth = Math.max(256, Math.min(600, startWidth + delta));
+              setLeftSidebarWidthState(currentWidth);
             };
 
             const handleMouseUp = () => {
-              window.maestro.settings.set('leftSidebarWidth', leftSidebarWidthState);
+              window.maestro.settings.set('leftSidebarWidth', currentWidth);
               document.removeEventListener('mousemove', handleMouseMove);
               document.removeEventListener('mouseup', handleMouseUp);
             };
@@ -343,7 +355,7 @@ export function SessionList(props: SessionListProps) {
                           className="w-full py-2 rounded text-xs font-medium transition-colors hover:opacity-90 flex items-center justify-center gap-2"
                           style={{
                             backgroundColor: theme.colors.accent,
-                            color: 'white'
+                            color: theme.colors.accentForeground
                           }}
                         >
                           <ExternalLink className="w-3 h-3" />
@@ -467,8 +479,84 @@ export function SessionList(props: SessionListProps) {
             </div>
           </>
         ) : (
-          <div className="w-full flex flex-col items-center gap-2">
-            <Wand2 className="w-6 h-6" style={{ color: theme.colors.accent }} />
+          <div className="w-full flex flex-col items-center gap-2 relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="p-2 rounded hover:bg-white/10 transition-colors"
+              title="Menu"
+            >
+              <Wand2 className="w-6 h-6" style={{ color: theme.colors.accent }} />
+            </button>
+            {/* Menu Overlay for Collapsed Sidebar */}
+            {menuOpen && (
+              <div
+                className="absolute top-full left-0 mt-2 w-72 rounded-lg shadow-2xl z-50 overflow-hidden"
+                style={{
+                  backgroundColor: theme.colors.bgSidebar,
+                  border: `1px solid ${theme.colors.border}`
+                }}
+              >
+                <div className="p-1">
+                  <button
+                    onClick={() => { setShortcutsHelpOpen(true); setMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/10 transition-colors text-left"
+                  >
+                    <Keyboard className="w-5 h-5" style={{ color: theme.colors.accent }} />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium" style={{ color: theme.colors.textMain }}>Keyboard Shortcuts</div>
+                      <div className="text-xs" style={{ color: theme.colors.textDim }}>View all available shortcuts</div>
+                    </div>
+                    <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: theme.colors.bgActivity, color: theme.colors.textDim }}>
+                      {shortcuts.help.keys.join('+').replace('Meta', '⌘')}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => { setSettingsModalOpen(true); setSettingsTab('general'); setMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/10 transition-colors text-left"
+                  >
+                    <Settings className="w-5 h-5" style={{ color: theme.colors.accent }} />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium" style={{ color: theme.colors.textMain }}>Settings</div>
+                      <div className="text-xs" style={{ color: theme.colors.textDim }}>Configure preferences</div>
+                    </div>
+                    <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: theme.colors.bgActivity, color: theme.colors.textDim }}>
+                      {shortcuts.settings.keys.join('+').replace('Meta', '⌘')}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => { setLogViewerOpen(true); setMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/10 transition-colors text-left"
+                  >
+                    <ScrollText className="w-5 h-5" style={{ color: theme.colors.accent }} />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium" style={{ color: theme.colors.textMain }}>System Logs</div>
+                      <div className="text-xs" style={{ color: theme.colors.textDim }}>View application logs</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => { setProcessMonitorOpen(true); setMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/10 transition-colors text-left"
+                  >
+                    <Cpu className="w-5 h-5" style={{ color: theme.colors.accent }} />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium" style={{ color: theme.colors.textMain }}>Process Monitor</div>
+                      <div className="text-xs" style={{ color: theme.colors.textDim }}>View running processes</div>
+                    </div>
+                  </button>
+                  <div className="my-1 border-t" style={{ borderColor: theme.colors.border }} />
+                  <button
+                    onClick={() => { setAboutModalOpen(true); setMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/10 transition-colors text-left"
+                  >
+                    <Info className="w-5 h-5" style={{ color: theme.colors.accent }} />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium" style={{ color: theme.colors.textMain }}>About Maestro</div>
+                      <div className="text-xs" style={{ color: theme.colors.textDim }}>Version, Credits, Stats</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -511,9 +599,9 @@ export function SessionList(props: SessionListProps) {
                 </div>
               </div>
 
-              {!bookmarksCollapsed && (
+              {!bookmarksCollapsed ? (
                 <div className="flex flex-col border-l ml-4" style={{ borderColor: theme.colors.accent }}>
-                  {[...filteredSessions.filter(s => s.bookmarked)].sort((a, b) => a.name.localeCompare(b.name)).map(session => {
+                  {[...filteredSessions.filter(s => s.bookmarked)].sort((a, b) => compareSessionNames(a.name, b.name)).map(session => {
                     const globalIdx = sortedSessions.findIndex(s => s.id === session.id);
                     const isKeyboardSelected = activeFocus === 'sidebar' && globalIdx === selectedSidebarIndex;
                     const group = groups.find(g => g.id === session.groupId);
@@ -547,8 +635,8 @@ export function SessionList(props: SessionListProps) {
                               className="flex items-center gap-1.5"
                               onDoubleClick={() => startRenamingSession(session.id)}
                             >
-                              {hasCustomName(session) && (
-                                <Tag className="w-3 h-3 shrink-0" style={{ color: theme.colors.accent }} />
+                              {session.bookmarked && (
+                                <Bookmark className="w-3 h-3 shrink-0" style={{ color: theme.colors.accent }} fill={theme.colors.accent} />
                               )}
                               <span
                                 className="text-sm font-medium truncate"
@@ -619,13 +707,120 @@ export function SessionList(props: SessionListProps) {
                     );
                   })}
                 </div>
+              ) : (
+                /* Collapsed Bookmarks Palette */
+                <div
+                  className="ml-8 mr-3 mt-1 mb-2 flex gap-1 h-1.5 cursor-pointer"
+                  onClick={() => setBookmarksCollapsed(false)}
+                >
+                  {[...filteredSessions.filter(s => s.bookmarked)].sort((a, b) => compareSessionNames(a.name, b.name)).map(s => (
+                    <div
+                      key={s.id}
+                      className="group/indicator relative flex-1 rounded-full opacity-50 hover:opacity-100 transition-opacity"
+                      style={
+                        s.toolType === 'claude' && !s.claudeSessionId
+                          ? { border: `1px solid ${theme.colors.textDim}`, backgroundColor: 'transparent' }
+                          : { backgroundColor: getStatusColor(s.state, theme) }
+                      }
+                      onMouseEnter={(e) => setTooltipPosition({ x: e.clientX, y: e.clientY })}
+                      onMouseLeave={() => setTooltipPosition(null)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveSessionId(s.id);
+                      }}
+                    >
+                      {/* Hover Tooltip for Collapsed Bookmark Indicator */}
+                      <div
+                        className="fixed rounded px-3 py-2 z-[100] opacity-0 group-hover/indicator:opacity-100 pointer-events-none transition-opacity shadow-xl"
+                        style={{
+                          minWidth: '240px',
+                          left: `${leftSidebarWidthState + 8}px`,
+                          top: tooltipPosition ? `${tooltipPosition.y}px` : undefined,
+                          backgroundColor: theme.colors.bgSidebar,
+                          border: `1px solid ${theme.colors.border}`
+                        }}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xs font-bold" style={{ color: theme.colors.textMain }}>{s.name}</span>
+                          {s.toolType !== 'terminal' && (
+                            <span
+                              className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
+                              style={{
+                                backgroundColor: s.isGitRepo ? theme.colors.accent + '30' : theme.colors.textDim + '20',
+                                color: s.isGitRepo ? theme.colors.accent : theme.colors.textDim
+                              }}
+                            >
+                              {s.isGitRepo ? 'GIT' : 'LOCAL'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] capitalize mb-2" style={{ color: theme.colors.textDim }}>{s.state} • {s.toolType}</div>
+
+                        <div className="pt-2 mt-2 space-y-1.5" style={{ borderTop: `1px solid ${theme.colors.border}` }}>
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span style={{ color: theme.colors.textDim }}>Context Window</span>
+                            <span style={{ color: theme.colors.textMain }}>{s.contextUsage}%</span>
+                          </div>
+                          <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: theme.colors.border }}>
+                            <div
+                              className="h-full transition-all"
+                              style={{
+                                width: `${s.contextUsage}%`,
+                                backgroundColor: getContextColor(s.contextUsage, theme)
+                              }}
+                            />
+                          </div>
+
+                          {/* Git Status */}
+                          {s.isGitRepo && gitFileCounts.has(s.id) && gitFileCounts.get(s.id)! > 0 && (
+                            <div className="flex items-center justify-between text-[10px] pt-1">
+                              <span className="flex items-center gap-1" style={{ color: theme.colors.textDim }}>
+                                <GitBranch className="w-3 h-3" />
+                                Git Changes
+                              </span>
+                              <span style={{ color: theme.colors.warning }}>{gitFileCounts.get(s.id)} files</span>
+                            </div>
+                          )}
+
+                          {/* Session Cost */}
+                          {s.usageStats && s.usageStats.totalCostUsd > 0 && (
+                            <div className="flex items-center justify-between text-[10px] pt-1">
+                              <span style={{ color: theme.colors.textDim }}>Session Cost</span>
+                              <span className="font-mono font-bold" style={{ color: theme.colors.success }}>
+                                ${s.usageStats.totalCostUsd.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Active Time */}
+                          {s.activeTimeMs > 0 && (
+                            <div className="flex items-center justify-between text-[10px] pt-1">
+                              <span className="flex items-center gap-1" style={{ color: theme.colors.textDim }}>
+                                <Clock className="w-3 h-3" />
+                                Active Time
+                              </span>
+                              <span className="font-mono font-bold" style={{ color: theme.colors.accent }}>
+                                {formatActiveTime(s.activeTimeMs)}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-1.5 text-[10px] font-mono pt-1" style={{ color: theme.colors.textDim }}>
+                            <Folder className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{s.cwd}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}
 
           {/* GROUPS */}
-          {[...groups].sort((a, b) => a.name.localeCompare(b.name)).map(group => {
-            const groupSessions = [...filteredSessions.filter(s => s.groupId === group.id)].sort((a, b) => a.name.localeCompare(b.name));
+          {[...groups].sort((a, b) => compareSessionNames(a.name, b.name)).map(group => {
+            const groupSessions = [...filteredSessions.filter(s => s.groupId === group.id)].sort((a, b) => compareSessionNames(a.name, b.name));
             return (
               <div key={group.id} className="mb-1">
                 <div
@@ -704,38 +899,31 @@ export function SessionList(props: SessionListProps) {
                                 }}
                               />
                             ) : (
-                              <div
-                                className="flex items-center gap-1.5"
+                              <span
+                                className="text-sm font-medium truncate"
+                                style={{ color: activeSessionId === session.id ? theme.colors.textMain : theme.colors.textDim }}
                                 onDoubleClick={() => startRenamingSession(session.id)}
                               >
-                                {hasCustomName(session) && (
-                                  <Tag className="w-3 h-3 shrink-0" style={{ color: theme.colors.accent }} />
-                                )}
-                                <span
-                                  className="text-sm font-medium truncate"
-                                  style={{ color: activeSessionId === session.id ? theme.colors.textMain : theme.colors.textDim }}
-                                >
-                                  {session.name}
-                                </span>
-                              </div>
+                                {session.name}
+                              </span>
                             )}
                             <div className="flex items-center gap-2 text-[10px] mt-0.5 opacity-70">
                               <Activity className="w-3 h-3" /> {session.toolType}
                             </div>
                           </div>
                           <div className="flex items-center gap-2 ml-2">
-                            {/* Bookmark toggle */}
+                            {/* Bookmark toggle - show outline on hover for non-bookmarked */}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 toggleBookmark(session.id);
                               }}
-                              className="p-0.5 rounded hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className={`p-0.5 rounded hover:bg-white/10 transition-all ${session.bookmarked ? '' : 'opacity-0 group-hover:opacity-100'}`}
                               title={session.bookmarked ? "Remove bookmark" : "Add bookmark"}
                             >
                               <Bookmark
                                 className="w-3 h-3"
-                                style={{ color: session.bookmarked ? theme.colors.accent : theme.colors.textDim }}
+                                style={{ color: theme.colors.accent }}
                                 fill={session.bookmarked ? theme.colors.accent : 'none'}
                               />
                             </button>
@@ -795,20 +983,108 @@ export function SessionList(props: SessionListProps) {
                 ) : (
                   /* Collapsed Group Palette */
                   <div
-                    className="ml-8 mr-3 mt-1 mb-2 flex gap-1 h-1.5 opacity-50 hover:opacity-100 cursor-pointer transition-opacity"
+                    className="ml-8 mr-3 mt-1 mb-2 flex gap-1 h-1.5 cursor-pointer"
                     onClick={() => toggleGroup(group.id)}
                   >
                     {groupSessions.map(s => (
                       <div
                         key={s.id}
-                        className="flex-1 rounded-full"
+                        className="group/indicator relative flex-1 rounded-full opacity-50 hover:opacity-100 transition-opacity"
                         style={
                           s.toolType === 'claude' && !s.claudeSessionId
                             ? { border: `1px solid ${theme.colors.textDim}`, backgroundColor: 'transparent' }
                             : { backgroundColor: getStatusColor(s.state, theme) }
                         }
-                        title={`${s.name}: ${s.toolType === 'claude' && !s.claudeSessionId ? 'No active Claude session' : s.state}`}
-                      />
+                        onMouseEnter={(e) => setTooltipPosition({ x: e.clientX, y: e.clientY })}
+                        onMouseLeave={() => setTooltipPosition(null)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveSessionId(s.id);
+                        }}
+                      >
+                        {/* Hover Tooltip for Collapsed Group Indicator */}
+                        <div
+                          className="fixed rounded px-3 py-2 z-[100] opacity-0 group-hover/indicator:opacity-100 pointer-events-none transition-opacity shadow-xl"
+                          style={{
+                            minWidth: '240px',
+                            left: `${leftSidebarWidthState + 8}px`,
+                            top: tooltipPosition ? `${tooltipPosition.y}px` : undefined,
+                            backgroundColor: theme.colors.bgSidebar,
+                            border: `1px solid ${theme.colors.border}`
+                          }}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-bold" style={{ color: theme.colors.textMain }}>{s.name}</span>
+                            {s.toolType !== 'terminal' && (
+                              <span
+                                className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
+                                style={{
+                                  backgroundColor: s.isGitRepo ? theme.colors.accent + '30' : theme.colors.textDim + '20',
+                                  color: s.isGitRepo ? theme.colors.accent : theme.colors.textDim
+                                }}
+                              >
+                                {s.isGitRepo ? 'GIT' : 'LOCAL'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] capitalize mb-2" style={{ color: theme.colors.textDim }}>{s.state} • {s.toolType}</div>
+
+                          <div className="pt-2 mt-2 space-y-1.5" style={{ borderTop: `1px solid ${theme.colors.border}` }}>
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span style={{ color: theme.colors.textDim }}>Context Window</span>
+                              <span style={{ color: theme.colors.textMain }}>{s.contextUsage}%</span>
+                            </div>
+                            <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: theme.colors.border }}>
+                              <div
+                                className="h-full transition-all"
+                                style={{
+                                  width: `${s.contextUsage}%`,
+                                  backgroundColor: getContextColor(s.contextUsage, theme)
+                                }}
+                              />
+                            </div>
+
+                            {/* Git Status */}
+                            {s.isGitRepo && gitFileCounts.has(s.id) && gitFileCounts.get(s.id)! > 0 && (
+                              <div className="flex items-center justify-between text-[10px] pt-1">
+                                <span className="flex items-center gap-1" style={{ color: theme.colors.textDim }}>
+                                  <GitBranch className="w-3 h-3" />
+                                  Git Changes
+                                </span>
+                                <span style={{ color: theme.colors.warning }}>{gitFileCounts.get(s.id)} files</span>
+                              </div>
+                            )}
+
+                            {/* Session Cost */}
+                            {s.usageStats && s.usageStats.totalCostUsd > 0 && (
+                              <div className="flex items-center justify-between text-[10px] pt-1">
+                                <span style={{ color: theme.colors.textDim }}>Session Cost</span>
+                                <span className="font-mono font-bold" style={{ color: theme.colors.success }}>
+                                  ${s.usageStats.totalCostUsd.toFixed(2)}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Active Time */}
+                            {s.activeTimeMs > 0 && (
+                              <div className="flex items-center justify-between text-[10px] pt-1">
+                                <span className="flex items-center gap-1" style={{ color: theme.colors.textDim }}>
+                                  <Clock className="w-3 h-3" />
+                                  Active Time
+                                </span>
+                                <span className="font-mono font-bold" style={{ color: theme.colors.accent }}>
+                                  {formatActiveTime(s.activeTimeMs)}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-1.5 text-[10px] font-mono pt-1" style={{ color: theme.colors.textDim }}>
+                              <Folder className="w-3 h-3 shrink-0" />
+                              <span className="truncate">{s.cwd}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -844,7 +1120,7 @@ export function SessionList(props: SessionListProps) {
 
             {!ungroupedCollapsed && (
               <div className="flex flex-col border-l ml-4" style={{ borderColor: theme.colors.border }}>
-                {[...filteredSessions.filter(s => !s.groupId)].sort((a, b) => a.name.localeCompare(b.name)).map((session) => {
+                {[...filteredSessions.filter(s => !s.groupId)].sort((a, b) => compareSessionNames(a.name, b.name)).map((session) => {
                   const globalIdx = sortedSessions.findIndex(s => s.id === session.id);
                   const isKeyboardSelected = activeFocus === 'sidebar' && globalIdx === selectedSidebarIndex;
                   return (
@@ -874,38 +1150,31 @@ export function SessionList(props: SessionListProps) {
                         }}
                       />
                     ) : (
-                      <div
-                        className="flex items-center gap-1.5"
+                      <span
+                        className="text-sm font-medium truncate"
+                        style={{ color: activeSessionId === session.id ? theme.colors.textMain : theme.colors.textDim }}
                         onDoubleClick={() => startRenamingSession(session.id)}
                       >
-                        {hasCustomName(session) && (
-                          <Tag className="w-3 h-3 shrink-0" style={{ color: theme.colors.accent }} />
-                        )}
-                        <span
-                          className="text-sm font-medium truncate"
-                          style={{ color: activeSessionId === session.id ? theme.colors.textMain : theme.colors.textDim }}
-                        >
-                          {session.name}
-                        </span>
-                      </div>
+                        {session.name}
+                      </span>
                     )}
                     <div className="flex items-center gap-2 text-[10px] mt-0.5 opacity-70">
                       <Activity className="w-3 h-3" /> {session.toolType}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-2">
-                    {/* Bookmark toggle */}
+                    {/* Bookmark toggle - show outline on hover for non-bookmarked */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleBookmark(session.id);
                       }}
-                      className="p-0.5 rounded hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className={`p-0.5 rounded hover:bg-white/10 transition-all ${session.bookmarked ? '' : 'opacity-0 group-hover:opacity-100'}`}
                       title={session.bookmarked ? "Remove bookmark" : "Add bookmark"}
                     >
                       <Bookmark
                         className="w-3 h-3"
-                        style={{ color: session.bookmarked ? theme.colors.accent : theme.colors.textDim }}
+                        style={{ color: theme.colors.accent }}
                         fill={session.bookmarked ? theme.colors.accent : 'none'}
                       />
                     </button>
@@ -1080,7 +1349,7 @@ export function SessionList(props: SessionListProps) {
         </button>
 
         {leftSidebarOpen && (
-          <button onClick={addNewSession} className="flex-1 flex items-center justify-center gap-2 py-2 rounded text-xs font-bold transition-colors text-white" style={{ backgroundColor: theme.colors.accent }}>
+          <button onClick={addNewSession} className="flex-1 flex items-center justify-center gap-2 py-2 rounded text-xs font-bold transition-colors" style={{ backgroundColor: theme.colors.accent, color: theme.colors.accentForeground }}>
             <Plus className="w-3 h-3" /> New Agent
           </button>
         )}

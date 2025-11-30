@@ -4,6 +4,7 @@ import { useToast, Toast as ToastType } from '../contexts/ToastContext';
 
 interface ToastContainerProps {
   theme: Theme;
+  onSessionClick?: (sessionId: string, tabId?: string) => void;
 }
 
 function formatDuration(ms: number): string {
@@ -15,7 +16,7 @@ function formatDuration(ms: number): string {
   return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
 }
 
-function ToastItem({ toast, theme, onRemove }: { toast: ToastType; theme: Theme; onRemove: () => void }) {
+function ToastItem({ toast, theme, onRemove, onSessionClick }: { toast: ToastType; theme: Theme; onRemove: () => void; onSessionClick?: (sessionId: string, tabId?: string) => void }) {
   const [isExiting, setIsExiting] = useState(false);
   const [isEntering, setIsEntering] = useState(true);
 
@@ -35,10 +36,22 @@ function ToastItem({ toast, theme, onRemove }: { toast: ToastType; theme: Theme;
     }
   }, [toast.duration]);
 
-  const handleClose = () => {
+  const handleClose = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setIsExiting(true);
     setTimeout(onRemove, 300);
   };
+
+  // Handle click on toast to navigate to session
+  const handleToastClick = () => {
+    if (toast.sessionId && onSessionClick) {
+      onSessionClick(toast.sessionId, toast.tabId);
+      handleClose();
+    }
+  };
+
+  // Check if toast is clickable (has session navigation)
+  const isClickable = toast.sessionId && onSessionClick;
 
   // Icon based on type
   const getIcon = () => {
@@ -89,13 +102,14 @@ function ToastItem({ toast, theme, onRemove }: { toast: ToastType; theme: Theme;
       }}
     >
       <div
-        className="flex items-start gap-3 p-4 rounded-lg shadow-lg backdrop-blur-sm"
+        className={`flex items-start gap-3 p-4 rounded-lg shadow-lg backdrop-blur-sm ${isClickable ? 'cursor-pointer hover:brightness-110' : ''}`}
         style={{
           backgroundColor: theme.colors.bgSidebar,
           border: `1px solid ${theme.colors.border}`,
           minWidth: '320px',
           maxWidth: '400px',
         }}
+        onClick={isClickable ? handleToastClick : undefined}
       >
         {/* Icon */}
         <div
@@ -131,8 +145,12 @@ function ToastItem({ toast, theme, onRemove }: { toast: ToastType; theme: Theme;
                 <>
                   <span style={{ color: theme.colors.border }}>•</span>
                   <span
-                    className="font-mono"
-                    style={{ color: theme.colors.accent }}
+                    className="font-mono px-1.5 py-0.5 rounded-full"
+                    style={{
+                      backgroundColor: theme.colors.accent + '30',
+                      color: theme.colors.accent,
+                      border: `1px solid ${theme.colors.accent}50`,
+                    }}
                     title={toast.claudeSessionId ? `Claude Session: ${toast.claudeSessionId}` : undefined}
                   >
                     {toast.tabName}
@@ -206,7 +224,7 @@ function ToastItem({ toast, theme, onRemove }: { toast: ToastType; theme: Theme;
   );
 }
 
-export function ToastContainer({ theme }: ToastContainerProps) {
+export function ToastContainer({ theme, onSessionClick }: ToastContainerProps) {
   const { toasts, removeToast } = useToast();
 
   if (toasts.length === 0) return null;
@@ -223,6 +241,7 @@ export function ToastContainer({ theme }: ToastContainerProps) {
             toast={toast}
             theme={theme}
             onRemove={() => removeToast(toast.id)}
+            onSessionClick={onSessionClick}
           />
         ))}
       </div>

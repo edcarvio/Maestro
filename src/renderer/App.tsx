@@ -734,6 +734,8 @@ export default function MaestroConsole() {
         prompt?: string;
         response?: string;
         sessionSizeKB?: string;
+        sessionId?: string; // Maestro session ID for toast navigation
+        tabId?: string; // Tab ID for toast navigation
       } | null = null;
       let queuedItemToProcess: { sessionId: string; item: QueuedItem } | null = null;
       // Track if we need to run synopsis after completion (for /commit and other AI commands)
@@ -807,7 +809,9 @@ export default function MaestroConsole() {
               usageStats: currentSession.usageStats,
               prompt: lastUserLog?.text,
               response: lastAiLog?.text,
-              sessionSizeKB
+              sessionSizeKB,
+              sessionId: actualSessionId, // For toast navigation
+              tabId: completedTab?.id // For toast navigation to specific tab
             };
 
             // Check if this was a custom AI command that should trigger synopsis
@@ -992,6 +996,8 @@ export default function MaestroConsole() {
               taskDuration: toastData!.duration,
               claudeSessionId: toastData!.claudeSessionId,
               tabName: toastData!.tabName,
+              sessionId: toastData!.sessionId,
+              tabId: toastData!.tabId,
             });
           }
         }, 0);
@@ -1025,6 +1031,7 @@ export default function MaestroConsole() {
               group: synopsisData!.groupName,
               project: synopsisData!.projectName,
               taskDuration: duration,
+              sessionId: synopsisData!.sessionId,
             });
 
             // Refresh history panel if available
@@ -2126,6 +2133,7 @@ export default function MaestroConsole() {
         group: groupName,
         project: info.sessionName,
         taskDuration: info.elapsedTimeMs,
+        sessionId: info.sessionId,
       });
     }
   });
@@ -2166,6 +2174,23 @@ export default function MaestroConsole() {
       setAgentSessionsOpen(true);
     }
   }, [activeSession]);
+
+  // Handler for toast navigation - switches to session and optionally to a specific tab
+  const handleToastSessionClick = useCallback((sessionId: string, tabId?: string) => {
+    // Switch to the session
+    setActiveSessionId(sessionId);
+    // If a tab ID is provided, switch to that tab within the session
+    if (tabId) {
+      setSessions(prev => prev.map(s => {
+        if (s.id !== sessionId) return s;
+        // Check if tab exists
+        if (!s.aiTabs?.some(t => t.id === tabId)) {
+          return s;
+        }
+        return { ...s, activeTabId: tabId, inputMode: 'ai' };
+      }));
+    }
+  }, [setActiveSessionId]);
 
   // Handler to resume a Claude session - opens as a new tab (or switches to existing tab)
   const handleResumeSession = useCallback(async (
@@ -5915,7 +5940,7 @@ export default function MaestroConsole() {
       )}
 
       {/* --- TOAST NOTIFICATIONS --- */}
-      <ToastContainer theme={theme} />
+      <ToastContainer theme={theme} onSessionClick={handleToastSessionClick} />
       </div>
   );
 }

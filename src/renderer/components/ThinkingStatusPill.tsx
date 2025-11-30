@@ -51,15 +51,31 @@ const ElapsedTimeDisplay = memo(({ startTime, textColor }: { startTime: number; 
 
 ElapsedTimeDisplay.displayName = 'ElapsedTimeDisplay';
 
-// Helper to get display name for a session
+// Helper to get display name for a session (used in thinking dropdown)
+// Priority: 1. namedSessions lookup, 2. tab name, 3. UUID octet
 function getSessionDisplayName(session: Session, namedSessions?: Record<string, string>): string {
-  // If session has a Claude session ID, show that (with custom name if available)
-  if (session.claudeSessionId) {
-    const customName = namedSessions?.[session.claudeSessionId];
+  // Get the write-mode (busy) tab for this session
+  const writeModeTab = getWriteModeTab(session);
+
+  // Use tab's claudeSessionId if available, fallback to session's (legacy)
+  const claudeSessionId = writeModeTab?.claudeSessionId || session.claudeSessionId;
+
+  // Priority 1: Named session from namedSessions lookup
+  if (claudeSessionId) {
+    const customName = namedSessions?.[claudeSessionId];
     if (customName) return customName;
-    // Show first segment of GUID in uppercase
-    return session.claudeSessionId.split('-')[0].toUpperCase();
   }
+
+  // Priority 2: Tab name if available
+  if (writeModeTab?.name) {
+    return writeModeTab.name;
+  }
+
+  // Priority 3: UUID octet (first 8 chars uppercase)
+  if (claudeSessionId) {
+    return claudeSessionId.substring(0, 8).toUpperCase();
+  }
+
   // Fall back to Maestro session name
   return session.name;
 }

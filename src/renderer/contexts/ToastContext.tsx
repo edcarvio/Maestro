@@ -12,6 +12,9 @@ export interface Toast {
   claudeSessionId?: string; // Claude Code session UUID for traceability
   tabName?: string; // Tab name or short UUID for display
   timestamp: number;
+  // Session navigation - allows clicking toast to jump to session
+  sessionId?: string; // Maestro session ID for navigation
+  tabId?: string; // Tab ID within the session for navigation
 }
 
 interface ToastContextType {

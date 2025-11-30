@@ -25,7 +25,7 @@ export interface SlashCommandContext {
   // Background synopsis - resumes old session without blocking
   spawnBackgroundSynopsis?: (sessionId: string, cwd: string, resumeClaudeSessionId: string, prompt: string) => Promise<{ success: boolean; response?: string; claudeSessionId?: string }>;
   // Toast notifications
-  addToast?: (toast: { type: 'success' | 'info' | 'warning' | 'error'; title: string; message: string; group?: string; project?: string; taskDuration?: number; duration?: number }) => void;
+  addToast?: (toast: { type: 'success' | 'info' | 'warning' | 'error'; title: string; message: string; group?: string; project?: string; taskDuration?: number; duration?: number; claudeSessionId?: string; sessionId?: string; tabId?: string }) => void;
   // Refresh history panel after adding entries
   refreshHistoryPanel?: () => void;
   // Add log entry to active tab
@@ -158,6 +158,7 @@ export const slashCommands: SlashCommand[] = [
                   project: projectName,
                   taskDuration: duration,
                   claudeSessionId: oldClaudeSessionId,
+                  sessionId: actualActiveId,
                 });
               }
             }

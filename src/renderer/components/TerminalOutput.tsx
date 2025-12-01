@@ -342,6 +342,23 @@ const LogItemComponent = memo(({
                ? theme.colors.accent + '40'
                : log.source === 'stderr' ? theme.colors.error : theme.colors.border
            }}>
+        {/* Read-only badge - top right of message for user messages sent in read-only mode */}
+        {isUserMessage && log.readOnly && (
+          <div className="absolute top-2 right-2">
+            <span
+              className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full"
+              style={{
+                backgroundColor: `${theme.colors.warning}25`,
+                color: theme.colors.warning,
+                border: `1px solid ${theme.colors.warning}50`
+              }}
+              title="Sent in read-only mode (Claude won't modify files)"
+            >
+              <Eye className="w-3 h-3" />
+              <span>Read-only</span>
+            </span>
+          </div>
+        )}
         {/* Local filter icon for system output only */}
         {log.source !== 'user' && isTerminal && (
           <div className="absolute top-2 right-2 flex items-center gap-2">
@@ -594,21 +611,6 @@ const LogItemComponent = memo(({
           className="absolute bottom-2 right-2 flex items-center gap-1"
           style={{ transition: 'opacity 0.15s ease-in-out' }}
         >
-          {/* Read-only badge for user messages sent in read-only mode */}
-          {isUserMessage && log.readOnly && (
-            <span
-              className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full"
-              style={{
-                backgroundColor: `${theme.colors.warning}25`,
-                color: theme.colors.warning,
-                border: `1px solid ${theme.colors.warning}50`
-              }}
-              title="Sent in read-only mode (Claude won't modify files)"
-            >
-              <Eye className="w-3 h-3" />
-              <span>Read-only</span>
-            </span>
-          )}
           {/* Speak/Stop Button - only show for non-user messages when TTS is configured */}
           {audioFeedbackCommand && log.source !== 'user' && (
             speakingLogId === log.id ? (

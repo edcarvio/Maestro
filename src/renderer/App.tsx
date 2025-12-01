@@ -4300,6 +4300,11 @@ export default function MaestroConsole() {
           spawnArgs.push('--resume', tabClaudeSessionId);
         }
 
+        // Add read-only/plan mode if the active tab has readOnlyMode enabled
+        if (activeTab?.readOnlyMode) {
+          spawnArgs.push('--permission-mode', 'plan');
+        }
+
         const targetSessionId = `${sessionId}-ai`;
         const commandToUse = agent.path || agent.command;
 
@@ -4452,6 +4457,12 @@ export default function MaestroConsole() {
 
       if (tabClaudeSessionId) {
         spawnArgs.push('--resume', tabClaudeSessionId);
+      }
+
+      // Add read-only/plan mode if the queued item was from a read-only tab
+      // or if the target tab currently has readOnlyMode enabled
+      if (item.readOnlyMode || targetTab?.readOnlyMode) {
+        spawnArgs.push('--permission-mode', 'plan');
       }
 
       const commandToUse = agent.path || agent.command;

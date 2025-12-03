@@ -1985,17 +1985,18 @@ export default function MaestroConsole() {
 
         cleanupExit = window.maestro.process.onExit((sid: string) => {
           if (sid === targetSessionId) {
-            // Clean up listeners and resolve
+            // Clean up listeners
             cleanup();
 
             // Check for queued items BEFORE updating state (using sessionsRef for latest state)
             const currentSession = sessionsRef.current.find(s => s.id === sessionId);
             let queuedItemToProcess: { sessionId: string; item: QueuedItem } | null = null;
+            const hasQueuedItems = currentSession && currentSession.executionQueue.length > 0;
 
-            if (currentSession && currentSession.executionQueue.length > 0) {
+            if (hasQueuedItems) {
               queuedItemToProcess = {
                 sessionId: sessionId,
-                item: currentSession.executionQueue[0]
+                item: currentSession!.executionQueue[0]
               };
             }
 
@@ -2077,7 +2078,30 @@ export default function MaestroConsole() {
               }, 0);
             }
 
-            resolve({ success: true, response: responseText, claudeSessionId, usageStats: taskUsageStats });
+            // For batch processing (Auto Run): if there are queued items from manual writes,
+            // wait for the queue to drain before resolving. This ensures batch tasks don't
+            // race with queued manual writes. Worktree mode can skip this since it operates
+            // in a separate directory with no file conflicts.
+            // Note: cwdOverride is set when worktree is enabled
+            if (hasQueuedItems && !cwdOverride) {
+              // Wait for queue to drain by polling session state
+              // The queue is processed sequentially, so we wait until session becomes idle
+              const waitForQueueDrain = () => {
+                const checkSession = sessionsRef.current.find(s => s.id === sessionId);
+                if (!checkSession || checkSession.state === 'idle' || checkSession.executionQueue.length === 0) {
+                  // Queue drained or session idle - safe to continue batch
+                  resolve({ success: true, response: responseText, claudeSessionId, usageStats: taskUsageStats });
+                } else {
+                  // Queue still processing - check again
+                  setTimeout(waitForQueueDrain, 100);
+                }
+              };
+              // Start polling after a short delay to let state update propagate
+              setTimeout(waitForQueueDrain, 50);
+            } else {
+              // No queued items or worktree mode - resolve immediately
+              resolve({ success: true, response: responseText, claudeSessionId, usageStats: taskUsageStats });
+            }
           }
         });
 

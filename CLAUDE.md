@@ -8,7 +8,7 @@ Use these terms consistently in code, comments, and documentation:
 
 ### UI Components
 - **Left Bar** - Left sidebar with session list and groups (`SessionList.tsx`)
-- **Right Bar** - Right sidebar with Files, History, Scratchpad tabs (`RightPanel.tsx`)
+- **Right Bar** - Right sidebar with Files, History, Auto Run tabs (`RightPanel.tsx`)
 - **Main Window** - Center workspace (`MainPanel.tsx`)
   - **AI Terminal** - Main window in AI mode (interacting with AI agents)
   - **Command Terminal** - Main window in terminal/shell mode

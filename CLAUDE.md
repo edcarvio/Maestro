@@ -223,3 +223,59 @@ The `window.maestro` API exposes:
 ### Modal Escape Not Working
 1. Register with layer stack (don't handle Escape locally)
 2. Check priority is set correctly
+
+## Keyboard Shortcuts
+
+Key shortcuts for navigation and common actions. Full list available via `⌘+/` (Help).
+
+### Panel Navigation
+| Shortcut | Action |
+|----------|--------|
+| `⌥⌘←` | Toggle Left Panel |
+| `⌥⌘→` | Toggle Right Panel |
+| `⌘⇧F` | Go to Files Tab |
+| `⌘⇧H` | Go to History Tab |
+| `⌘⇧1` | Go to Auto Run Tab |
+
+### Session Management
+| Shortcut | Action |
+|----------|--------|
+| `⌘N` | New Agent |
+| `⌘[` / `⌘]` | Previous/Next Agent |
+| `⌥⌘1-0` | Jump to Session 1-10 |
+| `⌘⇧⌫` | Remove Agent |
+| `⌘⇧M` | Move Session to Group |
+
+### Tab Management (AI Mode)
+| Shortcut | Action |
+|----------|--------|
+| `⌘T` | New Tab |
+| `⌘W` | Close Tab |
+| `⌘⇧T` | Reopen Closed Tab |
+| `⌘1-9` | Go to Tab 1-9 |
+| `⌘0` | Go to Last Tab |
+| `⌥⌘T` | Tab Switcher |
+
+### Mode & Focus
+| Shortcut | Action |
+|----------|--------|
+| `⌘J` | Switch AI/Shell Mode |
+| `⌘.` | Focus Input Field |
+| `⌘⇧A` | Focus Left Panel |
+| `⌘R` | Toggle Read-Only Mode |
+| `⌘E` | Toggle Markdown Raw/Preview |
+
+### Git & System
+| Shortcut | Action |
+|----------|--------|
+| `⌘⇧D` | View Git Diff |
+| `⌘⇧G` | View Git Log |
+| `⌥⌘L` | System Log Viewer |
+| `⌥⌘P` | System Process Monitor |
+
+### Quick Access
+| Shortcut | Action |
+|----------|--------|
+| `⌘K` | Quick Actions |
+| `⌘,` | Open Settings |
+| `⌘/` | Show All Shortcuts |

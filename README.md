@@ -29,25 +29,26 @@ NOTE: On macOS you may need to clear the quarantine label to successfully launch
 
 ### Power Features
 
-- 🤖 **Auto Run & Playbooks** - File-system-based task runner that batch-processes markdown checklists through AI agents. Create playbooks for repeatable workflows, run in loops, and track progress with full history. Each task gets its own AI session for clean conversation context.
-- 🌐 **Mobile Remote Control** - Built-in web server with QR code access. Monitor and control all your agents from your phone. Supports local network access and remote tunneling via Cloudflare for access from anywhere.
-- 💻 **Command Line Interface** - Full CLI (`maestro-cli`) for headless operation. List agents/groups, run playbooks from cron jobs or CI/CD pipelines, with human-readable or JSONL output for scripting.
-- 🚀 **Multi-Instance Management** - Run unlimited Claude Code instances and terminal sessions in parallel. Each agent has its own workspace, conversation history, and isolated context.
+- 🤖 **[Auto Run & Playbooks](#auto-run)** - File-system-based task runner that batch-processes markdown checklists through AI agents. Create playbooks for repeatable workflows, run in loops, and track progress with full history. Each task gets its own AI session for clean conversation context.
+- 🌐 **[Mobile Remote Control](#remote-access)** - Built-in web server with QR code access. Monitor and control all your agents from your phone. Supports local network access and remote tunneling via Cloudflare for access from anywhere.
+- 💻 **[Command Line Interface](#command-line-interface)** - Full CLI (`maestro-cli`) for headless operation. List agents/groups, run playbooks from cron jobs or CI/CD pipelines, with human-readable or JSONL output for scripting.
+- 🚀 **[Multi-Instance Management](#key-concepts)** - Run unlimited Claude Code instances and terminal sessions in parallel. Each agent has its own workspace, conversation history, and isolated context.
 - 📬 **Message Queueing** - Queue messages while AI is busy; they're sent automatically when the agent becomes ready. Never lose a thought.
 
 ### Core Features
 
-- 🔄 **Dual-Mode Sessions** - Each agent has both an AI Terminal and Command Terminal. Switch seamlessly between AI conversation and shell commands with `Cmd+J`.
-- ⌨️ **Keyboard-First Design** - Full keyboard control with customizable shortcuts. `Cmd+K` quick actions, vim-style navigation, rapid agent switching, and focus management designed for flow state.
-- 📋 **Session Discovery** - Automatically discovers and imports all Claude Code sessions, including conversations from before Maestro was installed. Browse, search, star, rename, and resume any session.
-- 🔀 **Git Integration** - Automatic repo detection, branch display, diff viewer, commit logs, and git-aware file completion. Work with git without leaving the app.
-- 📁 **File Explorer** - Browse project files with syntax highlighting, markdown preview, and image viewing. Reference files in prompts with `@` mentions.
-- 🔍 **Powerful Output Filtering** - Search and filter AI output with include/exclude modes, regex support, and per-response local filters.
-- ⚡ **Slash Commands** - Extensible command system with autocomplete. Create custom commands with template variables for your workflows.
+- 🔄 **[Dual-Mode Sessions](#key-concepts)** - Each agent has both an AI Terminal and Command Terminal. Switch seamlessly between AI conversation and shell commands with `Cmd+J`.
+- ⌨️ **[Keyboard-First Design](#keyboard-shortcuts)** - Full keyboard control with customizable shortcuts. `Cmd+K` quick actions, vim-style navigation, rapid agent switching, and focus management designed for flow state.
+- 📋 **[Session Discovery](#key-concepts)** - Automatically discovers and imports all Claude Code sessions, including conversations from before Maestro was installed. Browse, search, star, rename, and resume any session.
+- 🔀 **[Git Integration](#key-concepts)** - Automatic repo detection, branch display, diff viewer, commit logs, and git-aware file completion. Work with git without leaving the app.
+- 📁 **[File Explorer](#ui-overview)** - Browse project files with syntax highlighting, markdown preview, and image viewing. Reference files in prompts with `@` mentions.
+- 🔍 **[Powerful Output Filtering](#inputoutput)** - Search and filter AI output with include/exclude modes, regex support, and per-response local filters.
+- ⚡ **[Slash Commands](#slash-commands)** - Extensible command system with autocomplete. Create custom commands with template variables for your workflows.
 - 💾 **Draft Auto-Save** - Never lose work. Drafts are automatically saved and restored per session.
 - 🔊 **Speakable Notifications** - Audio alerts with text-to-speech announcements when agents complete tasks.
-- 🎨 **Beautiful Themes** - 12 themes including Dracula, Monokai, Nord, Tokyo Night, and GitHub Light.
+- 🎨 **[Beautiful Themes](#screenshots)** - 12 themes including Dracula, Monokai, Nord, Tokyo Night, and GitHub Light.
 - 💰 **Cost Tracking** - Real-time token usage and cost tracking per session and globally.
+- 🏆 **[Achievements](#achievements)** - Level up from Apprentice to Titan of the Baton based on cumulative Auto Run time. 11 conductor-themed ranks to unlock.
 
 > **Note**: Maestro currently supports Claude Code only. Support for other agentic coding tools may be added in future releases based on community demand.
 
@@ -408,6 +409,34 @@ Click the **Stop** button at any time. The runner will:
 ### Parallel Batches
 
 You can run separate batch processes in different Maestro sessions simultaneously. Each session maintains its own independent batch state. With Git worktrees enabled, you can work on the main branch while Auto Run operates in an isolated worktree.
+
+## Achievements
+
+Maestro features a conductor-themed achievement system that tracks your cumulative Auto Run time. The focus is simple: **longest run wins**. As you accumulate Auto Run hours, you level up through 11 ranks inspired by the hierarchy of orchestral conductors.
+
+### Conductor Ranks
+
+| Level | Rank | Time Required | Example Conductor |
+|:-----:|------|---------------|-------------------|
+| 1 | **Apprentice Conductor** | 15 minutes | Gustavo Dudamel (early career) |
+| 2 | **Assistant Conductor** | 1 hour | Marin Alsop |
+| 3 | **Associate Conductor** | 8 hours | Yannick Nézet-Séguin |
+| 4 | **Resident Conductor** | 24 hours | Jaap van Zweden |
+| 5 | **Principal Guest Conductor** | 1 week | Esa-Pekka Salonen |
+| 6 | **Chief Conductor** | 30 days | Andris Nelsons |
+| 7 | **Music Director** | 3 months | Sir Simon Rattle |
+| 8 | **Maestro Emeritus** | 6 months | Bernard Haitink |
+| 9 | **World Maestro** | 1 year | Kirill Petrenko |
+| 10 | **Grand Maestro** | 5 years | Riccardo Muti |
+| 11 | **Titan of the Baton** | 10 years | Leonard Bernstein |
+
+### Reaching the Top
+
+Since Auto Runs can execute in parallel across multiple Maestro sessions, achieving **Titan of the Baton** (Level 11) is technically feasible in less than 10 calendar years. Run 10 agents simultaneously with worktrees and you could theoretically hit that milestone in about a year of real time.
+
+But let's be real—getting to Level 11 is going to take some serious hacking. You'll need a well-orchestrated fleet of agents running around the clock, carefully crafted playbooks that loop indefinitely, and the infrastructure to keep it all humming. It's the ultimate test of your Maestro skills.
+
+The achievement panel shows your current rank, progress to the next level, and total accumulated time. Each rank includes flavor text and information about a legendary conductor who exemplifies that level of mastery.
 
 ## Command Line Interface
 

@@ -10,11 +10,19 @@ Deep technical documentation for Maestro's architecture and design patterns. For
 - [Layer Stack System](#layer-stack-system)
 - [Custom Hooks](#custom-hooks)
 - [Services Layer](#services-layer)
-- [Slash Commands System](#slash-commands-system)
+- [Custom AI Commands](#custom-ai-commands)
 - [Theme System](#theme-system)
 - [Settings Persistence](#settings-persistence)
 - [Claude Sessions API](#claude-sessions-api)
 - [Auto Run System](#auto-run-system)
+- [Achievement System](#achievement-system)
+- [AI Tab System](#ai-tab-system)
+- [Execution Queue](#execution-queue)
+- [Navigation History](#navigation-history)
+- [Web/Mobile Interface](#webmobile-interface)
+- [CLI Tool](#cli-tool)
+- [Shared Module](#shared-module)
+- [Remote Access & Tunnels](#remote-access--tunnels)
 - [Error Handling Patterns](#error-handling-patterns)
 
 ---
@@ -81,10 +89,14 @@ Node.js backend with full system access:
 | `web-server.ts` | Fastify HTTP/WebSocket server for mobile remote control |
 | `agent-detector.ts` | Auto-detect CLI tools via PATH |
 | `preload.ts` | Secure IPC bridge via contextBridge |
+| `tunnel-manager.ts` | Cloudflare tunnel management for secure remote access |
+| `themes.ts` | Theme definitions for web interface (mirrors renderer themes) |
 | `utils/execFile.ts` | Safe command execution utility |
 | `utils/logger.ts` | System logging with levels |
 | `utils/shellDetector.ts` | Detect available shells |
 | `utils/terminalFilter.ts` | Strip terminal control sequences |
+| `utils/cliDetection.ts` | CLI tool detection (cloudflared, gh) |
+| `utils/networkUtils.ts` | Network utilities for local IP detection |
 
 ### Renderer Process (`src/renderer/`)
 
@@ -93,9 +105,9 @@ React frontend with no direct Node.js access:
 | Directory | Purpose |
 |-----------|---------|
 | `components/` | React UI components |
-| `hooks/` | Custom React hooks (useSettings, useSessionManager, useFileExplorer, useBatchProcessor) |
+| `hooks/` | Custom React hooks (15 hooks - see [Custom Hooks](#custom-hooks)) |
 | `services/` | IPC wrappers (git.ts, process.ts) |
-| `contexts/` | React contexts (LayerStackContext) |
+| `contexts/` | React contexts (LayerStackContext, ToastContext) |
 | `constants/` | Themes, shortcuts, modal priorities |
 | `types/` | TypeScript definitions |
 | `utils/` | Frontend utilities |
@@ -130,21 +142,61 @@ All renderer-to-main communication uses the preload script:
 
 ```typescript
 window.maestro = {
+  // Core persistence
   settings: { get, set, getAll },
   sessions: { getAll, setAll },
   groups: { getAll, setAll },
+  history: { getAll, setAll },  // Command history persistence
+
+  // Process management
   process: { spawn, write, interrupt, kill, resize, runCommand, onData, onExit, onSessionId, onStderr, onCommandExit, onUsage },
-  git: { status, diff, isRepo, numstat },
+
+  // Git operations (expanded)
+  git: {
+    status, diff, isRepo, numstat,
+    branches, tags, branch, log, show, showFile,
+    // Worktree operations
+    worktreeInfo, worktreeSetup, worktreeCheckout, getRepoRoot,
+    // PR creation
+    createPR, getDefaultBranch, checkGhCli
+  },
+
+  // File system
   fs: { readDir, readFile },
+
+  // Agent management
   agents: { detect, get, getConfig, setConfig, getConfigValue, setConfigValue },
-  claude: { listSessions, readSessionMessages, searchSessions },
+
+  // Claude Code integration
+  claude: { listSessions, readSessionMessages, searchSessions, getGlobalStats, onGlobalStatsUpdate },
+
+  // UI utilities
   dialog: { selectFolder },
   fonts: { detect },
   shells: { detect },
   shell: { openExternal },
   devtools: { open, close, toggle },
+
+  // Logging
   logger: { log, getLogs, clearLogs, setLogLevel, getLogLevel, setMaxLogBuffer, getMaxLogBuffer },
-  webserver: { getUrl },
+
+  // Web/remote interface
+  webserver: { getUrl, getClientCount },
+  web: { broadcastUserInput, broadcastAutoRunState, broadcastTabChange },
+  live: { setSessionLive, getSessionLive },
+  tunnel: { start, stop, getStatus, onStatusChange },
+
+  // Auto Run
+  autorun: { listDocs, readDoc, writeDoc, saveImage, deleteImage, listImages },
+  playbooks: { list, create, update, delete },
+
+  // Attachments & temp files
+  attachments: { save, list, delete, clear },
+  tempfile: { write, read, delete },
+
+  // Activity & notifications
+  cli: { trackActivity, getActivity },
+  notification: { show, speak },
 }
 ```
 
@@ -218,23 +270,37 @@ Centralized modal/overlay management with predictable Escape key handling.
 
 ```typescript
 const MODAL_PRIORITIES = {
-  CONFIRM: 1000,           // Highest - confirmation dialogs
+  STANDING_OVATION: 1100,      // Achievement celebration overlay
+  CONFIRM: 1000,               // Highest - confirmation dialogs
+  PLAYBOOK_DELETE_CONFIRM: 950,
+  PLAYBOOK_NAME: 940,
   RENAME_INSTANCE: 900,
+  RENAME_TAB: 880,
   RENAME_GROUP: 850,
   CREATE_GROUP: 800,
   NEW_INSTANCE: 750,
-  QUICK_ACTION: 700,       // Command palette (Cmd+K)
+  AGENT_PROMPT_COMPOSER: 730,
+  PROMPT_COMPOSER: 710,
+  QUICK_ACTION: 700,           // Command palette (Cmd+K)
+  TAB_SWITCHER: 690,
   AGENT_SESSIONS: 680,
+  EXECUTION_QUEUE_BROWSER: 670,
+  BATCH_RUNNER: 660,
   SHORTCUTS_HELP: 650,
+  HISTORY_HELP: 640,
+  AUTORUNNER_HELP: 630,
+  HISTORY_DETAIL: 620,
   ABOUT: 600,
   PROCESS_MONITOR: 550,
   LOG_VIEWER: 500,
   SETTINGS: 450,
   GIT_DIFF: 200,
+  GIT_LOG: 190,
   LIGHTBOX: 150,
   FILE_PREVIEW: 100,
   SLASH_AUTOCOMPLETE: 50,
-  FILE_TREE_FILTER: 30,    // Lowest
+  TEMPLATE_AUTOCOMPLETE: 40,
+  FILE_TREE_FILTER: 30,        // Lowest
 };
 ```
 
@@ -314,13 +380,17 @@ onEscape: () => {
 
 ## Custom Hooks
 
-### useSettings (`src/renderer/hooks/useSettings.ts`)
+Maestro uses 15 custom hooks for state management and functionality.
+
+### Core Hooks
+
+#### useSettings (`src/renderer/hooks/useSettings.ts`)
 
 Manages all application settings with automatic persistence.
 
 **What it manages:**
 - LLM settings (provider, model, API key)
-- Agent settings (default agent)
+- Agent settings (default agent, custom agent paths)
 - Shell settings (default shell)
 - Font settings (family, size, custom fonts)
 - UI settings (theme, enter-to-send modes, panel widths, markdown mode)
@@ -328,21 +398,9 @@ Manages all application settings with automatic persistence.
 - Logging settings (level, buffer size)
 - Output settings (max lines)
 - Keyboard shortcuts
+- Custom AI commands
 
-**Current Persistent Settings:**
-- `llmProvider`, `modelSlug`, `apiKey`
-- `defaultAgent`, `defaultShell`
-- `fontFamily`, `fontSize`, `customFonts`
-- `activeThemeId`
-- `enterToSendAI`, `enterToSendTerminal`
-- `leftSidebarWidth`, `rightPanelWidth`
-- `markdownRawMode`
-- `terminalWidth`
-- `logLevel`, `maxLogBuffer`
-- `maxOutputLines`
-- `shortcuts`
-
-### useSessionManager (`src/renderer/hooks/useSessionManager.ts`)
+#### useSessionManager (`src/renderer/hooks/useSessionManager.ts`)
 
 Manages sessions and groups with CRUD operations.
 
@@ -354,7 +412,7 @@ Manages sessions and groups with CRUD operations.
 - `createNewGroup(name, emoji, moveSession, activeSessionId)`
 - Drag and drop handlers
 
-### useFileExplorer (`src/renderer/hooks/useFileExplorer.ts`)
+#### useFileExplorer (`src/renderer/hooks/useFileExplorer.ts`)
 
 Manages file tree state and navigation.
 
@@ -364,6 +422,66 @@ Manages file tree state and navigation.
 - `toggleFolder(path, activeSessionId, setSessions)` - Toggle folder expansion
 - `expandAllFolders()` / `collapseAllFolders()`
 - `updateSessionWorkingDirectory()` - Change session CWD
+
+#### useBatchProcessor (`src/renderer/hooks/useBatchProcessor.ts`)
+
+Manages Auto Run batch execution logic.
+
+**Key methods:**
+- `startBatchRun(config)` - Start batch document processing
+- `stopBatchRun()` - Stop current batch run
+- `pauseBatchRun()` / `resumeBatchRun()` - Pause/resume execution
+
+### UI Management Hooks
+
+#### useLayerStack (`src/renderer/hooks/useLayerStack.ts`)
+
+Core layer management for modals and overlays.
+
+**Key methods:**
+- `registerLayer(config)` - Register a modal/overlay
+- `unregisterLayer(id)` - Remove a layer
+- `updateLayerHandler(id, handler)` - Update escape handler
+
+#### useModalManager (`src/renderer/hooks/useModalManager.ts`)
+
+Higher-level modal state management utilities.
+
+#### useFocusManager (`src/renderer/hooks/useFocusManager.ts`)
+
+Focus management across panels (sidebar, main, right panel).
+
+#### useNavigationHistory (`src/renderer/hooks/useNavigationHistory.ts`)
+
+Back/forward navigation through sessions and tabs. See [Navigation History](#navigation-history).
+
+### Input & Autocomplete Hooks
+
+#### useAtMentionCompletion (`src/renderer/hooks/useAtMentionCompletion.ts`)
+
+Handles @-mention autocomplete for file references in prompts.
+
+#### useTabCompletion (`src/renderer/hooks/useTabCompletion.ts`)
+
+Tab completion utilities for terminal-style input.
+
+#### useTemplateAutocomplete (`src/renderer/hooks/useTemplateAutocomplete.ts`)
+
+Template variable autocomplete (e.g., `{{date}}`, `{{time}}`).
+
+### Feature Hooks
+
+#### useAchievements (`src/renderer/hooks/useAchievements.ts`)
+
+Achievement/badge system for Auto Run usage. See [Achievement System](#achievement-system).
+
+#### useActivityTracker (`src/renderer/hooks/useActivityTracker.ts`)
+
+User activity tracking for session idle detection and status.
+
+#### useMobileLandscape (`src/renderer/hooks/useMobileLandscape.ts`)
+
+Mobile landscape orientation detection for responsive layouts.
 
 ---
 
@@ -403,55 +521,65 @@ const unsubscribe = processService.onData((sessionId, data) => { ... });
 
 ---
 
-## Slash Commands System
+## Custom AI Commands
 
-Extensible command system defined in `src/renderer/slashCommands.ts`.
+User-defined prompt macros that expand when typed. The built-in slash commands (`/clear`, `/jump`, `/synopsis`) have been deprecated in favor of fully customizable commands defined in Settings.
 
-### Interface
+### Overview
+
+Custom AI Commands are prompt templates that:
+- Start with `/` prefix
+- Expand to full prompts when selected
+- Support template variables (e.g., `{{date}}`, `{{time}}`, `{{cwd}}`)
+- Can be AI-only, terminal-only, or both modes
+
+### Configuration
+
+Commands are defined in Settings → Custom AI Commands:
 
 ```typescript
-interface SlashCommand {
-  command: string;           // e.g., "/clear"
-  description: string;
+interface CustomAICommand {
+  command: string;           // e.g., "/review"
+  description: string;       // Shown in autocomplete
+  prompt: string;            // The expanded prompt text
+  aiOnly?: boolean;          // Only show in AI mode
   terminalOnly?: boolean;    // Only show in terminal mode
-  execute: (context: SlashCommandContext) => void;
-}
-
-interface SlashCommandContext {
-  activeSessionId: string;
-  sessions: any[];
-  setSessions: (sessions) => void;
-  currentMode: 'ai' | 'terminal';
-  setRightPanelOpen?: (open: boolean) => void;
-  setActiveRightTab?: (tab: string) => void;
-  setActiveFocus?: (focus: 'sidebar' | 'main' | 'right') => void;
-  setSelectedFileIndex?: (index: number) => void;
-  fileTreeRef?: React.RefObject<HTMLDivElement>;
 }
 ```
 
-### Adding Commands
+### Template Variables
 
-Add to `slashCommands` array:
+Commands support these template variables:
+- `{{date}}` - Current date (YYYY-MM-DD)
+- `{{time}}` - Current time (HH:MM:SS)
+- `{{datetime}}` - Combined date and time
+- `{{cwd}}` - Current working directory
+- `{{session}}` - Session name
+- `{{agent}}` - Agent type (claude-code, etc.)
+
+### Example Commands
 
 ```typescript
+// Code review command
 {
-  command: '/mycommand',
-  description: 'Does something useful',
-  terminalOnly: false,  // Optional: restrict to terminal mode
-  execute: (context) => {
-    const { activeSessionId, setSessions, currentMode } = context;
-    // Your logic here
-  }
+  command: '/review',
+  description: 'Review staged changes',
+  prompt: 'Review the staged git changes and provide feedback on code quality, potential bugs, and improvements.',
+  aiOnly: true
+}
+
+// Status check
+{
+  command: '/status',
+  description: 'Project status summary',
+  prompt: 'Give me a brief status of this project as of {{datetime}}. What files have been modified recently?',
+  aiOnly: true
 }
 ```
 
-### Current Commands
+### Claude Code CLI Commands
 
-| Command | Description | Mode |
-|---------|-------------|------|
-| `/clear` | Clear output history for current mode | Both |
-| `/jump` | Jump to CWD in file tree | Terminal only |
+Maestro also fetches slash commands from Claude Code CLI when available, making Claude Code's built-in commands accessible through the same autocomplete interface.
 
 ---
 
@@ -773,6 +901,376 @@ With worktree mode:
 - Auto Run operates in a separate directory
 - No queue conflicts with main workspace
 - True parallelization enabled
+
+---
+
+## Achievement System
+
+Gamification system that rewards Auto Run usage with conductor-themed badges.
+
+### Components
+
+| Component | Purpose |
+|-----------|---------|
+| `conductorBadges.ts` | Badge definitions and progression levels |
+| `useAchievements.ts` | Achievement tracking and unlock logic |
+| `AchievementCard.tsx` | Individual badge display component |
+| `StandingOvationOverlay.tsx` | Celebration overlay with confetti animations |
+
+### Badge Progression
+
+15 conductor levels based on cumulative Auto Run time:
+
+| Level | Badge | Time Required |
+|-------|-------|---------------|
+| 1 | Apprentice Conductor | 1 minute |
+| 2 | Junior Conductor | 5 minutes |
+| 3 | Assistant Conductor | 15 minutes |
+| 4 | Associate Conductor | 30 minutes |
+| 5 | Conductor | 1 hour |
+| 6 | Senior Conductor | 2 hours |
+| 7 | Principal Conductor | 4 hours |
+| 8 | Master Conductor | 8 hours |
+| 9 | Chief Conductor | 16 hours |
+| 10 | Distinguished Conductor | 24 hours |
+| 11 | Elite Conductor | 48 hours |
+| 12 | Virtuoso Conductor | 72 hours |
+| 13 | Legendary Conductor | 100 hours |
+| 14 | Mythic Conductor | 150 hours |
+| 15 | Transcendent Maestro | 200 hours |
+
+### Standing Ovation
+
+When a new badge is unlocked:
+1. `StandingOvationOverlay` displays with confetti animation
+2. Badge details shown with celebration message
+3. Share functionality available
+4. Acknowledgment persisted to prevent re-showing
+
+---
+
+## AI Tab System
+
+Multi-tab support within each session, allowing parallel conversations with separate Claude sessions.
+
+### Features
+
+- **Multiple tabs per session**: Each tab maintains its own Claude session ID
+- **Tab management**: Create, close, rename, star tabs
+- **Read-only mode**: Per-tab toggle to prevent accidental input
+- **Save-to-history toggle**: Per-tab control over history persistence
+- **Tab switcher modal**: Quick navigation via `Alt+Cmd+T`
+- **Unread filtering**: Filter to show only tabs with unread messages
+
+### Tab Interface
+
+```typescript
+interface AITab {
+  id: string;
+  name: string;
+  claudeSessionId?: string;    // Separate Claude session per tab
+  aiLogs: LogEntry[];          // Tab-specific conversation history
+  isStarred: boolean;
+  readOnlyMode: boolean;
+  saveToHistory: boolean;
+  unreadCount: number;
+  createdAt: number;
+}
+```
+
+### Session Fields
+
+```typescript
+// In Session interface
+aiTabs: AITab[];              // Array of AI tabs
+activeAITabId: string;        // Currently active tab ID
+```
+
+### Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+T` | New tab |
+| `Cmd+W` | Close current tab |
+| `Alt+Cmd+T` | Open tab switcher |
+| `Cmd+Shift+]` | Next tab |
+| `Cmd+Shift+[` | Previous tab |
+
+---
+
+## Execution Queue
+
+Sequential message processing system that prevents race conditions when multiple operations target the same session.
+
+### Components
+
+| Component | Purpose |
+|-----------|---------|
+| `ExecutionQueueIndicator.tsx` | Shows queue status in tab bar |
+| `ExecutionQueueBrowser.tsx` | Modal for viewing/managing queue |
+
+### Queue Item Types
+
+```typescript
+interface QueuedItem {
+  id: string;
+  type: 'message' | 'command';
+  content: string;
+  tabId: string;
+  readOnlyMode: boolean;
+  timestamp: number;
+  source: 'user' | 'autorun';
+}
+```
+
+### Behavior
+
+- **Write operations** (readOnlyMode: false) queue sequentially
+- **Read-only operations** can run in parallel
+- Auto Run tasks queue with regular messages
+- Queue visible via indicator in tab bar
+- Users can cancel pending items via queue browser
+
+### Session Fields
+
+```typescript
+// In Session interface
+executionQueue: QueuedItem[];  // Pending operations
+isProcessingQueue: boolean;    // Currently processing
+```
+
+---
+
+## Navigation History
+
+Back/forward navigation through sessions and tabs, similar to browser history.
+
+### Implementation
+
+`useNavigationHistory` hook maintains a stack of navigation entries:
+
+```typescript
+interface NavigationEntry {
+  sessionId: string;
+  tabId?: string;
+  timestamp: number;
+}
+```
+
+### Behavior
+
+- Maximum 50 entries in history
+- Automatic cleanup of invalid entries (deleted sessions/tabs)
+- Skips duplicate consecutive entries
+
+### Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+Shift+,` | Navigate back |
+| `Cmd+Shift+.` | Navigate forward |
+
+---
+
+## Web/Mobile Interface
+
+Progressive Web App (PWA) for remote control of Maestro from mobile devices.
+
+### Architecture
+
+```
+src/web/
+├── index.ts              # Entry point
+├── main.tsx              # React entry
+├── index.html            # HTML template
+├── index.css             # Global styles
+├── components/           # Shared components (Button, Card, Input, Badge)
+├── hooks/                # Web-specific hooks
+├── mobile/               # Mobile-optimized components
+├── utils/                # Web utilities
+└── public/               # PWA assets (manifest, icons, service worker)
+```
+
+### Mobile Components (`src/web/mobile/`)
+
+| Component | Purpose |
+|-----------|---------|
+| `App.tsx` | Main mobile app shell |
+| `TabBar.tsx` | Bottom navigation bar |
+| `SessionPillBar.tsx` | Horizontal session selector |
+| `CommandInputBar.tsx` | Message input with voice support |
+| `MessageHistory.tsx` | Conversation display |
+| `ResponseViewer.tsx` | AI response viewer |
+| `AutoRunIndicator.tsx` | Auto Run status display |
+| `MobileHistoryPanel.tsx` | Command history browser |
+| `QuickActionsMenu.tsx` | Quick action shortcuts |
+| `SlashCommandAutocomplete.tsx` | Command autocomplete |
+| `ConnectionStatusIndicator.tsx` | WebSocket connection status |
+| `OfflineQueueBanner.tsx` | Offline message queue indicator |
+
+### Web Hooks (`src/web/hooks/`)
+
+| Hook | Purpose |
+|------|---------|
+| `useWebSocket.ts` | WebSocket connection management |
+| `useSessions.ts` | Session state synchronization |
+| `useCommandHistory.ts` | Command history management |
+| `useSwipeGestures.ts` | Touch gesture handling |
+| `usePullToRefresh.ts` | Pull-to-refresh functionality |
+| `useOfflineQueue.ts` | Offline message queuing |
+| `useNotifications.ts` | Push notification handling |
+| `useDeviceColorScheme.ts` | System theme detection |
+| `useUnreadBadge.ts` | Unread message badge |
+| `useSwipeUp.ts` | Swipe-up gesture detection |
+
+### Communication
+
+The web interface communicates with the desktop app via WebSocket:
+
+```typescript
+// Desktop broadcasts to web clients
+window.maestro.web.broadcastUserInput(sessionId, input);
+window.maestro.web.broadcastAutoRunState(sessionId, state);
+window.maestro.web.broadcastTabChange(sessionId, tabId);
+
+// Web client sends commands back
+websocket.send({ type: 'command', sessionId, content });
+```
+
+### PWA Features
+
+- Installable as standalone app
+- Service worker for offline support
+- Push notifications
+- Responsive design for phones and tablets
+
+---
+
+## CLI Tool
+
+Command-line interface for headless Maestro operations.
+
+### Architecture
+
+```
+src/cli/
+├── index.ts              # CLI entry point
+├── commands/             # Command implementations
+│   ├── list-agents.ts
+│   ├── list-groups.ts
+│   ├── list-playbooks.ts
+│   ├── run-playbook.ts
+│   ├── show-agent.ts
+│   └── show-playbook.ts
+├── output/               # Output formatters
+│   ├── formatter.ts      # Human-readable output
+│   └── jsonl.ts          # JSONL streaming output
+└── services/             # CLI-specific services
+    ├── agent-spawner.ts  # Agent process management
+    ├── batch-processor.ts # Batch execution logic
+    ├── playbooks.ts      # Playbook operations
+    └── storage.ts        # Data persistence
+```
+
+### Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `maestro list-agents` | List available AI agents |
+| `maestro list-groups` | List session groups |
+| `maestro list-playbooks` | List saved playbooks |
+| `maestro show-agent <id>` | Show agent details |
+| `maestro show-playbook <id>` | Show playbook configuration |
+| `maestro run-playbook <id>` | Execute a playbook |
+
+### Output Formats
+
+- **Human-readable**: Formatted tables and text (default)
+- **JSONL**: Streaming JSON lines for programmatic use (`--format jsonl`)
+
+---
+
+## Shared Module
+
+Cross-platform code shared between main process, renderer, web, and CLI.
+
+### Files
+
+```
+src/shared/
+├── index.ts              # Re-exports
+├── types.ts              # Shared type definitions
+├── theme-types.ts        # Theme interface shared across platforms
+├── cli-activity.ts       # CLI activity tracking types
+└── templateVariables.ts  # Template variable utilities
+```
+
+### Theme Types
+
+```typescript
+// Shared theme interface used by renderer, main (web server), and web client
+interface Theme {
+  id: ThemeId;
+  name: string;
+  mode: 'light' | 'dark' | 'vibe';
+  colors: ThemeColors;
+}
+```
+
+### Template Variables
+
+Utilities for processing template variables in Custom AI Commands:
+
+```typescript
+// Available variables
+{{date}}      // YYYY-MM-DD
+{{time}}      // HH:MM:SS
+{{datetime}}  // Combined
+{{cwd}}       // Working directory
+{{session}}   // Session name
+{{agent}}     // Agent type
+```
+
+---
+
+## Remote Access & Tunnels
+
+Secure remote access to Maestro via Cloudflare Tunnels.
+
+### Architecture
+
+| Component | Purpose |
+|-----------|---------|
+| `tunnel-manager.ts` | Manages cloudflared process lifecycle |
+| `utils/cliDetection.ts` | Detects cloudflared installation |
+| `utils/networkUtils.ts` | Local IP detection for LAN access |
+
+### Tunnel Manager
+
+```typescript
+interface TunnelStatus {
+  active: boolean;
+  url?: string;          // Public tunnel URL
+  error?: string;
+}
+
+// IPC API
+window.maestro.tunnel.start();
+window.maestro.tunnel.stop();
+window.maestro.tunnel.getStatus();
+window.maestro.tunnel.onStatusChange(callback);
+```
+
+### Access Methods
+
+1. **Local Network**: Direct IP access on same network
+2. **Cloudflare Tunnel**: Secure public URL for remote access
+
+### Security
+
+- Tunnels require cloudflared CLI installed
+- URLs are temporary and change on restart
+- No authentication by default (consider network security)
 
 ---
 

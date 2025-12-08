@@ -577,6 +577,16 @@ export interface MobileHistoryPanelProps {
   projectPath?: string;
   /** Current active session ID (for filtering) */
   sessionId?: string;
+  /** Initial filter state */
+  initialFilter?: 'all' | 'AUTO' | 'USER';
+  /** Initial search query */
+  initialSearchQuery?: string;
+  /** Initial search open state */
+  initialSearchOpen?: boolean;
+  /** Callback when filter changes */
+  onFilterChange?: (filter: 'all' | 'AUTO' | 'USER') => void;
+  /** Callback when search query changes */
+  onSearchChange?: (query: string, isOpen: boolean) => void;
 }
 
 /**
@@ -593,14 +603,22 @@ export function MobileHistoryPanel({
   onClose,
   projectPath,
   sessionId,
+  initialFilter = 'all',
+  initialSearchQuery = '',
+  initialSearchOpen = false,
+  onFilterChange,
+  onSearchChange,
 }: MobileHistoryPanelProps) {
   const colors = useThemeColors();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<HistoryFilter>('all');
+  const [filter, setFilter] = useState<HistoryFilter>(initialFilter);
   const [selectedEntry, setSelectedEntry] = useState<HistoryEntry | null>(null);
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+  const [isSearchOpen, setIsSearchOpen] = useState(initialSearchOpen);
   const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch history entries on mount
   useEffect(() => {
@@ -634,17 +652,67 @@ export function MobileHistoryPanel({
     fetchHistory();
   }, [projectPath, sessionId]);
 
-  // Filter entries based on selected filter
+  // Filter entries based on selected filter and search query
   const filteredEntries = useMemo(() => {
-    if (filter === 'all') return entries;
-    return entries.filter((entry) => entry.type === filter);
-  }, [entries, filter]);
+    let result = entries;
+
+    // Apply type filter
+    if (filter !== 'all') {
+      result = result.filter((entry) => entry.type === filter);
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      result = result.filter((entry) => {
+        const summary = (entry.summary || '').toLowerCase();
+        const fullResponse = (entry.fullResponse || '').toLowerCase();
+        return summary.includes(query) || fullResponse.includes(query);
+      });
+    }
+
+    return result;
+  }, [entries, filter, searchQuery]);
 
   // Handle filter change
   const handleFilterChange = useCallback((newFilter: HistoryFilter) => {
     triggerHaptic(HAPTIC_PATTERNS.tap);
     setFilter(newFilter);
-  }, []);
+    onFilterChange?.(newFilter);
+  }, [onFilterChange]);
+
+  // Handle search toggle
+  const handleToggleSearch = useCallback(() => {
+    triggerHaptic(HAPTIC_PATTERNS.tap);
+    setIsSearchOpen((prev) => {
+      const newState = !prev;
+      if (newState) {
+        // Focus input after opening
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      } else {
+        // Clear search when closing
+        setSearchQuery('');
+        onSearchChange?.('', false);
+      }
+      onSearchChange?.(searchQuery, newState);
+      return newState;
+    });
+  }, [searchQuery, onSearchChange]);
+
+  // Handle search input change
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setSearchQuery(newValue);
+    onSearchChange?.(newValue, isSearchOpen);
+  }, [isSearchOpen, onSearchChange]);
+
+  // Handle clearing search
+  const handleClearSearch = useCallback(() => {
+    triggerHaptic(HAPTIC_PATTERNS.tap);
+    setSearchQuery('');
+    onSearchChange?.('', isSearchOpen);
+    searchInputRef.current?.focus();
+  }, [isSearchOpen, onSearchChange]);
 
   // Handle entry selection
   const handleSelectEntry = useCallback((entry: HistoryEntry) => {
@@ -738,86 +806,212 @@ export function MobileHistoryPanel({
           </button>
         </header>
 
-        {/* Filter pills */}
+        {/* Filter pills and search */}
         <div
           style={{
             padding: '12px 16px',
             borderBottom: `1px solid ${colors.border}`,
             backgroundColor: colors.bgSidebar,
             display: 'flex',
-            gap: '8px',
+            flexDirection: 'column',
+            gap: '10px',
             flexShrink: 0,
           }}
         >
-          {(['all', 'AUTO', 'USER'] as HistoryFilter[]).map((filterType) => {
-            const isActive = filter === filterType;
-            const count = filterType === 'all'
-              ? entries.length
-              : filterType === 'AUTO'
-                ? autoCount
-                : userCount;
-            const displayLabel = filterType === 'all' ? 'All' : filterType;
+          {/* Filter row with search button */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            {/* Search button */}
+            <button
+              onClick={handleToggleSearch}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '36px',
+                height: '36px',
+                borderRadius: '18px',
+                backgroundColor: isSearchOpen ? colors.accent + '20' : colors.bgMain,
+                border: `1px solid ${isSearchOpen ? colors.accent + '40' : colors.border}`,
+                color: isSearchOpen ? colors.accent : colors.textDim,
+                cursor: 'pointer',
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
+                flexShrink: 0,
+                transition: 'all 0.15s ease',
+              }}
+              aria-label="Search history"
+              aria-pressed={isSearchOpen}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </button>
 
-            let bgColor = colors.bgMain;
-            let textColor = colors.textDim;
-            let borderColor = colors.border;
+            {/* Filter pills */}
+            {(['all', 'AUTO', 'USER'] as HistoryFilter[]).map((filterType) => {
+              const isActive = filter === filterType;
+              const count = filterType === 'all'
+                ? entries.length
+                : filterType === 'AUTO'
+                  ? autoCount
+                  : userCount;
+              const displayLabel = filterType === 'all' ? 'All' : filterType;
 
-            if (isActive) {
-              if (filterType === 'AUTO') {
-                bgColor = colors.warning + '20';
-                textColor = colors.warning;
-                borderColor = colors.warning + '40';
-              } else if (filterType === 'USER') {
-                bgColor = colors.accent + '20';
-                textColor = colors.accent;
-                borderColor = colors.accent + '40';
-              } else {
-                bgColor = colors.accent + '20';
-                textColor = colors.accent;
-                borderColor = colors.accent + '40';
+              let bgColor = colors.bgMain;
+              let textColor = colors.textDim;
+              let borderColor = colors.border;
+
+              if (isActive) {
+                if (filterType === 'AUTO') {
+                  bgColor = colors.warning + '20';
+                  textColor = colors.warning;
+                  borderColor = colors.warning + '40';
+                } else if (filterType === 'USER') {
+                  bgColor = colors.accent + '20';
+                  textColor = colors.accent;
+                  borderColor = colors.accent + '40';
+                } else {
+                  bgColor = colors.accent + '20';
+                  textColor = colors.accent;
+                  borderColor = colors.accent + '40';
+                }
               }
-            }
 
-            return (
-              <button
-                key={filterType}
-                onClick={() => handleFilterChange(filterType)}
+              return (
+                <button
+                  key={filterType}
+                  onClick={() => handleFilterChange(filterType)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    borderRadius: '20px',
+                    backgroundColor: bgColor,
+                    border: `1px solid ${borderColor}`,
+                    color: textColor,
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    touchAction: 'manipulation',
+                    WebkitTapHighlightColor: 'transparent',
+                    opacity: isActive ? 1 : 0.6,
+                    transition: 'all 0.15s ease',
+                  }}
+                  aria-pressed={isActive}
+                >
+                  {displayLabel}
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      backgroundColor: isActive ? `${textColor}20` : `${colors.textDim}20`,
+                      padding: '2px 6px',
+                      borderRadius: '8px',
+                      minWidth: '20px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Search input (shown when search is open) */}
+          {isSearchOpen && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+              }}
+            >
+              <div
                 style={{
+                  flex: 1,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  padding: '8px 14px',
-                  borderRadius: '20px',
-                  backgroundColor: bgColor,
-                  border: `1px solid ${borderColor}`,
-                  color: textColor,
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  touchAction: 'manipulation',
-                  WebkitTapHighlightColor: 'transparent',
-                  opacity: isActive ? 1 : 0.6,
-                  transition: 'all 0.15s ease',
+                  position: 'relative',
                 }}
-                aria-pressed={isActive}
               >
-                {displayLabel}
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  placeholder="Search history..."
+                  style={{
+                    width: '100%',
+                    padding: '10px 36px 10px 14px',
+                    borderRadius: '10px',
+                    backgroundColor: colors.bgMain,
+                    border: `1px solid ${colors.border}`,
+                    color: colors.textMain,
+                    fontSize: '14px',
+                    outline: 'none',
+                  }}
+                />
+                {searchQuery && (
+                  <button
+                    onClick={handleClearSearch}
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '12px',
+                      backgroundColor: colors.textDim + '30',
+                      border: 'none',
+                      color: colors.textDim,
+                      cursor: 'pointer',
+                      touchAction: 'manipulation',
+                      WebkitTapHighlightColor: 'transparent',
+                    }}
+                    aria-label="Clear search"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              {/* Results count when searching */}
+              {searchQuery && (
                 <span
                   style={{
-                    fontSize: '10px',
-                    backgroundColor: isActive ? `${textColor}20` : `${colors.textDim}20`,
-                    padding: '2px 6px',
-                    borderRadius: '8px',
-                    minWidth: '20px',
-                    textAlign: 'center',
+                    fontSize: '12px',
+                    color: filteredEntries.length > 0 ? colors.textDim : colors.error,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
-                  {count}
+                  {filteredEntries.length} found
                 </span>
-              </button>
-            );
-          })}
+              )}
+            </div>
+          )}
         </div>
 
         {/* Entry list */}
@@ -873,12 +1067,14 @@ export function MobileHistoryPanel({
               }}
             >
               <p style={{ fontSize: '15px', color: colors.textMain, marginBottom: '8px' }}>
-                No history entries
+                {searchQuery ? 'No matching entries' : 'No history entries'}
               </p>
               <p style={{ fontSize: '13px', color: colors.textDim }}>
-                {filter !== 'all'
-                  ? `No ${filter} entries found. Try changing the filter.`
-                  : 'Run batch tasks or use /synopsis to add entries.'}
+                {searchQuery
+                  ? `No entries found matching "${searchQuery}".`
+                  : filter !== 'all'
+                    ? `No ${filter} entries found. Try changing the filter.`
+                    : 'Run batch tasks or use /synopsis to add entries.'}
               </p>
             </div>
           ) : (

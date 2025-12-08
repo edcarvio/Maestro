@@ -156,16 +156,18 @@ export function TabBar({
         borderBottom: `1px solid ${colors.border}`,
       }}
     >
-      {/* Pinned search tabs button - always visible */}
-      {onOpenTabSearch && (
-        <div
-          style={{
-            flexShrink: 0,
-            padding: '8px 0 0 8px',
-            display: 'flex',
-            alignItems: 'center',
-          }}
-        >
+      {/* Pinned buttons - search and new tab */}
+      <div
+        style={{
+          flexShrink: 0,
+          padding: '8px 0 0 8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+        }}
+      >
+        {/* Search tabs button */}
+        {onOpenTabSearch && (
           <button
             onClick={onOpenTabSearch}
             style={{
@@ -197,8 +199,41 @@ export function TabBar({
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
           </button>
-        </div>
-      )}
+        )}
+
+        {/* New tab button */}
+        <button
+          onClick={onNewTab}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '28px',
+            height: '28px',
+            borderRadius: '14px',
+            border: `1px solid ${colors.border}`,
+            backgroundColor: colors.bgMain,
+            color: colors.textDim,
+            cursor: 'pointer',
+            marginBottom: '4px',
+          }}
+          title="New Tab"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </button>
+      </div>
 
       {/* Scrollable tabs area */}
       <div
@@ -226,33 +261,6 @@ export function TabBar({
             onClose={() => onCloseTab(tab.id)}
           />
         ))}
-
-        {/* New tab button - simple plus icon, not in a tab shape */}
-        <button
-          onClick={onNewTab}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '24px',
-            height: '24px',
-            borderRadius: '4px',
-            border: 'none',
-            backgroundColor: 'transparent',
-            color: colors.textDim,
-            fontSize: '16px',
-            cursor: 'pointer',
-            opacity: 0.7,
-            transition: 'all 0.15s ease',
-            flexShrink: 0,
-            marginLeft: '4px',
-            marginBottom: '4px',
-            alignSelf: 'center',
-          }}
-          title="New Tab"
-        >
-          +
-        </button>
       </div>
 
       {/* CSS for pulse animation */}

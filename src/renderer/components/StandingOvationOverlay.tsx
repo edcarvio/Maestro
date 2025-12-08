@@ -336,7 +336,7 @@ export function StandingOvationOverlay({
       {/* Modal container - highest layer (z-index 99999) */}
       <div
         ref={containerRef}
-        className="fixed inset-0 flex items-center justify-center z-[99999] pointer-events-none"
+        className="fixed inset-0 flex items-center justify-center z-[99999] pointer-events-none p-4"
         role="dialog"
         aria-modal="true"
         aria-label="Standing Ovation Achievement"
@@ -344,7 +344,7 @@ export function StandingOvationOverlay({
       >
         {/* Main content card */}
         <div
-          className={`relative max-w-lg w-full mx-4 rounded-2xl shadow-2xl overflow-hidden transition-all duration-500 pointer-events-auto ${
+          className={`relative max-w-lg w-full rounded-2xl shadow-2xl overflow-y-auto transition-all duration-500 pointer-events-auto ${
             isClosing ? 'opacity-0 scale-95' : 'animate-in zoom-in-95'
           }`}
           onClick={(e) => e.stopPropagation()}
@@ -352,6 +352,7 @@ export function StandingOvationOverlay({
             backgroundColor: theme.colors.bgSidebar,
             border: `2px solid ${goldColor}`,
             boxShadow: `0 0 40px rgba(0, 0, 0, 0.5)`,
+            maxHeight: 'calc(100vh - 2rem)',
           }}
         >
         {/* Header with glow */}

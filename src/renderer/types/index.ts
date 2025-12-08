@@ -417,6 +417,5 @@ export interface CustomAICommand {
   description: string; // Short description shown in autocomplete
   prompt: string; // The actual prompt sent to the AI agent
   isBuiltIn?: boolean; // If true, cannot be deleted (only edited)
-  isSystemCommand?: boolean; // If true, handled by slashCommands.ts instead of sending prompt
 }
 

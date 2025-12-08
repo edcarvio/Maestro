@@ -28,9 +28,12 @@ Maestro is an Electron desktop app for managing multiple AI coding assistants (C
 
 ```bash
 npm run dev        # Development with hot reload
+npm run dev:web    # Web interface development
 npm run build      # Full production build
 npm run clean      # Clean build artifacts
 npm run package    # Package for all platforms
+npm run test       # Run test suite
+npm run test:watch # Run tests in watch mode
 ```
 
 ## Architecture at a Glance
@@ -41,15 +44,32 @@ src/
 │   ├── index.ts            # Entry point, IPC handlers
 │   ├── process-manager.ts  # Process spawning (PTY + child_process)
 │   ├── preload.ts          # Secure IPC bridge
+│   ├── agent-detector.ts   # Agent detection and configuration
+│   ├── tunnel-manager.ts   # Cloudflare tunnel support
+│   ├── web-server.ts       # Fastify server for web/mobile interface
 │   └── utils/execFile.ts   # Safe command execution
 │
-└── renderer/               # React frontend
-    ├── App.tsx            # Main coordinator
-    ├── components/        # UI components
-    ├── hooks/             # Custom React hooks
-    ├── services/          # IPC wrappers (git.ts, process.ts)
-    ├── constants/         # Themes, shortcuts, priorities
-    └── contexts/          # Layer stack context
+├── renderer/               # React frontend (desktop)
+│   ├── App.tsx            # Main coordinator
+│   ├── components/        # UI components
+│   ├── hooks/             # Custom React hooks
+│   ├── services/          # IPC wrappers (git.ts, process.ts)
+│   ├── constants/         # Themes, shortcuts, priorities
+│   └── contexts/          # Layer stack context
+│
+├── web/                    # Web/mobile interface
+│   ├── mobile/            # Mobile-optimized React app
+│   ├── components/        # Shared web components
+│   └── hooks/             # Web-specific hooks
+│
+├── cli/                    # CLI tooling for batch automation
+│   ├── commands/          # CLI command implementations
+│   ├── services/          # Playbook and batch processing
+│   └── index.ts           # CLI entry point
+│
+└── shared/                 # Shared types and utilities
+    ├── types.ts           # Common type definitions
+    └── templateVariables.ts # Template variable processing
 ```
 
 ### Key Files for Common Tasks
@@ -58,12 +78,15 @@ src/
 |------|---------------|
 | Add IPC handler | `src/main/index.ts`, `src/main/preload.ts` |
 | Add UI component | `src/renderer/components/` |
+| Add web/mobile component | `src/web/components/`, `src/web/mobile/` |
 | Add keyboard shortcut | `src/renderer/constants/shortcuts.ts`, `App.tsx` |
 | Add theme | `src/renderer/constants/themes.ts` |
-| Add slash command | `src/renderer/slashCommands.ts` |
 | Add modal | Component + `src/renderer/constants/modalPriorities.ts` |
 | Add setting | `src/renderer/hooks/useSettings.ts`, `src/main/index.ts` |
-| Add template variable | `src/renderer/utils/templateVariables.ts` |
+| Add template variable | `src/shared/templateVariables.ts`, `src/renderer/utils/templateVariables.ts` |
+| Add CLI command | `src/cli/commands/`, `src/cli/index.ts` |
+| Configure agent | `src/main/agent-detector.ts` |
+| Add playbook feature | `src/cli/services/playbooks.ts` |
 
 ## Core Patterns
 
@@ -142,6 +165,56 @@ style={{ color: theme.colors.textMain }}  // Correct
 className="text-gray-500"                  // Wrong for themed text
 ```
 
+### 6. Multi-Tab Sessions
+
+Sessions support multiple AI conversation tabs:
+```typescript
+// Each session has an array of tabs
+session.aiTabs: AITab[]
+session.activeTabId: string
+
+// Each tab maintains its own conversation
+interface AITab {
+  id: string;
+  name: string;
+  logs: LogEntry[];           // Tab-specific history
+  claudeSessionId?: string;   // Claude session continuity
+}
+
+// Tab operations
+const activeTab = session.aiTabs.find(t => t.id === session.activeTabId);
+```
+
+### 7. Execution Queue
+
+Messages are queued when the AI is busy:
+```typescript
+// Queue items for sequential execution
+interface QueuedItem {
+  type: 'message' | 'slashCommand';
+  content: string;
+  timestamp: number;
+}
+
+// Add to queue instead of sending directly when busy
+session.executionQueue.push({ type: 'message', content, timestamp: Date.now() });
+```
+
+### 8. Auto Run
+
+File-based document automation system:
+```typescript
+// Auto Run state on session
+session.autoRunFolderPath?: string;    // Document folder path
+session.autoRunSelectedFile?: string;  // Currently selected document
+session.autoRunMode?: 'edit' | 'preview';
+
+// API for Auto Run operations
+window.maestro.autorun.listDocuments(folderPath);
+window.maestro.autorun.readDocument(folderPath, filename);
+window.maestro.autorun.saveDocument(folderPath, filename, content);
+```
+
 ## Code Conventions
 
 ### TypeScript
@@ -164,51 +237,131 @@ refactor: code refactoring
 
 ## Session Interface
 
-Key fields on the Session object:
+Key fields on the Session object (abbreviated - see `src/renderer/types/index.ts` for full definition):
+
 ```typescript
 interface Session {
+  // Identity
   id: string;
   name: string;
+  groupId?: string;             // Session grouping
   toolType: ToolType;           // 'claude-code' | 'aider' | 'terminal' | etc.
   state: SessionState;          // 'idle' | 'busy' | 'error' | 'connecting'
   inputMode: 'ai' | 'terminal'; // Which process receives input
+  bookmarked?: boolean;         // Pinned to top
+
+  // Paths
   cwd: string;                  // Current working directory (can change via cd)
-  projectRoot: string;          // Initial working directory (never changes, used for Claude session storage)
+  projectRoot: string;          // Initial directory (never changes, used for Claude session storage)
+  fullPath: string;             // Full resolved path
+
+  // Processes
   aiPid: number;                // AI process ID
-  terminalPid: number;          // Terminal process ID
-  aiLogs: LogEntry[];           // AI output history
+  port: number;                 // Web server communication port
+
+  // Multi-Tab Support (NEW)
+  aiTabs: AITab[];              // Multiple Claude Code conversation tabs
+  activeTabId: string;          // Currently active tab
+  closedTabHistory: ClosedTab[]; // Undo stack for closed tabs
+
+  // Logs (per-tab)
   shellLogs: LogEntry[];        // Terminal output history
+
+  // Execution Queue (replaces messageQueue)
+  executionQueue: QueuedItem[]; // Sequential execution queue
+
+  // Usage & Stats
   usageStats?: UsageStats;      // Token usage and cost
-  claudeSessionId?: string;     // For conversation continuity
+  contextUsage: number;         // Context window usage percentage
+  workLog: WorkLogItem[];       // Work tracking
+
+  // Git Integration
   isGitRepo: boolean;           // Git features enabled
-  fileTree: any[];              // File explorer tree
+  changedFiles: FileArtifact[]; // Git change tracking
+  gitBranches?: string[];       // Branch cache for completion
+  gitTags?: string[];           // Tag cache for completion
+
+  // File Explorer
+  fileTree: any[];              // File tree structure
   fileExplorerExpanded: string[]; // Expanded folder paths
-  messageQueue: LogEntry[];     // Messages queued while AI is busy
+  fileExplorerScrollPos: number; // Scroll position
+
+  // Web/Live Sessions (NEW)
+  isLive: boolean;              // Accessible via web interface
+  liveUrl?: string;             // Live session URL
+
+  // Auto Run (NEW)
+  autoRunFolderPath?: string;   // Auto Run document folder
+  autoRunSelectedFile?: string; // Selected document
+  autoRunMode?: 'edit' | 'preview'; // Current mode
+
+  // Command History
+  aiCommandHistory?: string[];  // AI input history
+  shellCommandHistory?: string[]; // Terminal input history
+}
+
+interface AITab {
+  id: string;
+  name: string;
+  logs: LogEntry[];             // Tab-specific conversation history
+  claudeSessionId?: string;     // Claude session for this tab
+  scrollTop?: number;
+  draftInput?: string;
 }
 ```
 
 ## IPC API Surface
 
 The `window.maestro` API exposes:
+
+### Core APIs
 - `settings` - Get/set app settings
 - `sessions` / `groups` - Persistence
 - `process` - Spawn, write, kill, resize
-- `git` - Status, diff, isRepo, numstat
 - `fs` - readDir, readFile
-- `agents` - Detect, get, config
-- `claude` - List/read/search Claude Code sessions, global stats
-- `logger` - System logging
 - `dialog` - Folder selection
 - `shells` - Detect available shells
+- `logger` - System logging
+
+### Agent & Claude
+- `agents` - Detect, get, config, refresh, custom paths
+- `claude` - List/read/search Claude Code sessions, global stats
+
+### Git Integration
+- `git` - Status, diff, isRepo, numstat, branches, tags, info
+- `git` - Worktree support: worktreeInfo, getRepoRoot, worktreeSetup, worktreeCheckout
+- `git` - PR creation: createPR, checkGhCli, getDefaultBranch
+
+### Web & Live Sessions
+- `web` - Broadcast user input, Auto Run state, tab changes to web clients
+- `live` - Toggle live sessions, get status, dashboard URL, connected clients
+- `webserver` - Get URL, connected client count
+- `tunnel` - Cloudflare tunnel: isCloudflaredInstalled, start, stop, getStatus
+
+### Automation
+- `autorun` - Document and image management for Auto Run
+- `playbooks` - Batch run configuration management
+- `history` - Per-project execution history with external change detection
+- `cli` - CLI activity detection for playbook runs
+- `tempfile` - Temporary file management for batch processing
+
+### Utilities
+- `fonts` - Font detection
+- `notification` - Desktop notifications, text-to-speech
+- `devtools` - Developer tools: open, close, toggle
+- `attachments` - Image attachment management
 
 ## Available Agents
 
-| ID | Name | Notes |
-|----|------|-------|
-| `claude-code` | Claude Code | Batch mode with `--print` |
-| `openai-codex` | OpenAI Codex | Coming soon |
-| `gemini-cli` | Gemini CLI | Coming soon |
-| `qwen3-coder` | Qwen3 Coder | Coming soon |
+| ID | Name | Status | Notes |
+|----|------|--------|-------|
+| `claude-code` | Claude Code | Active | Primary agent, uses `--print --verbose --output-format stream-json` |
+| `terminal` | Terminal | Internal | Hidden from UI, used for shell sessions |
+| `openai-codex` | OpenAI Codex | Planned | Coming soon |
+| `gemini-cli` | Gemini CLI | Planned | Coming soon |
+| `qwen3-coder` | Qwen3 Coder | Planned | Coming soon |
+
+Additional `ToolType` values (`aider`, `opencode`, `claude`) are defined in types but not yet implemented in `agent-detector.ts`.
 
 ## Debugging
 

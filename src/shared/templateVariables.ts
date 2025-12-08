@@ -20,7 +20,7 @@
  * Auto Run Variables:
  *   {{DOCUMENT_NAME}}     - Current Auto Run document name (without .md)
  *   {{DOCUMENT_PATH}}     - Full path to current Auto Run document
- *   {{LOOP_NUMBER}}       - Current loop iteration (starts at 1)
+ *   {{LOOP_NUMBER}}       - Current loop iteration (5-digit padded, e.g., 00001)
  *
  * Date/Time Variables:
  *   {{DATE}}              - Current date (YYYY-MM-DD)
@@ -70,22 +70,23 @@ export interface TemplateContext {
 }
 
 // List of all available template variables for documentation (alphabetically sorted)
+// Variables marked as autoRunOnly are only shown in Auto Run contexts, not in AI Commands settings
 export const TEMPLATE_VARIABLES = [
   { variable: '{{AGENT_GROUP}}', description: 'Agent group name' },
   { variable: '{{AGENT_NAME}}', description: 'Agent name' },
   { variable: '{{AGENT_SESSION_ID}}', description: 'Agent session ID' },
-  { variable: '{{AUTORUN_FOLDER}}', description: 'Auto Run folder path' },
+  { variable: '{{AUTORUN_FOLDER}}', description: 'Auto Run folder path', autoRunOnly: true },
   { variable: '{{CONTEXT_USAGE}}', description: 'Context usage %' },
   { variable: '{{CWD}}', description: 'Working directory' },
   { variable: '{{DATE}}', description: 'Date (YYYY-MM-DD)' },
   { variable: '{{DATETIME}}', description: 'Full datetime' },
   { variable: '{{DATE_SHORT}}', description: 'Date (MM/DD/YY)' },
   { variable: '{{DAY}}', description: 'Day of month (01-31)' },
-  { variable: '{{DOCUMENT_NAME}}', description: 'Current document name' },
-  { variable: '{{DOCUMENT_PATH}}', description: 'Current document path' },
+  { variable: '{{DOCUMENT_NAME}}', description: 'Current document name', autoRunOnly: true },
+  { variable: '{{DOCUMENT_PATH}}', description: 'Current document path', autoRunOnly: true },
   { variable: '{{GIT_BRANCH}}', description: 'Git branch name' },
   { variable: '{{IS_GIT_REPO}}', description: 'Is git repo (true/false)' },
-  { variable: '{{LOOP_NUMBER}}', description: 'Current loop iteration (1+)' },
+  { variable: '{{LOOP_NUMBER}}', description: 'Loop iteration (00001, 00002...)', autoRunOnly: true },
   { variable: '{{MONTH}}', description: 'Month (01-12)' },
   { variable: '{{PROJECT_NAME}}', description: 'Project folder name' },
   { variable: '{{PROJECT_PATH}}', description: 'Project directory path' },
@@ -98,6 +99,9 @@ export const TEMPLATE_VARIABLES = [
   { variable: '{{WEEKDAY}}', description: 'Day of week (Monday, etc.)' },
   { variable: '{{YEAR}}', description: 'Current year' },
 ];
+
+// Filtered list excluding Auto Run-only variables (for AI Commands panel)
+export const TEMPLATE_VARIABLES_GENERAL = TEMPLATE_VARIABLES.filter(v => !v.autoRunOnly);
 
 /**
  * Substitute template variables in a string with actual values
@@ -129,8 +133,8 @@ export function substituteTemplateVariables(
     'DOCUMENT_NAME': documentName || '',
     'DOCUMENT_PATH': documentPath || '',
 
-    // Loop tracking (1-indexed, defaults to 1 if not in loop mode)
-    'LOOP_NUMBER': String(loopNumber ?? 1),
+    // Loop tracking (1-indexed, defaults to 1 if not in loop mode, 5-digit padded)
+    'LOOP_NUMBER': String(loopNumber ?? 1).padStart(5, '0'),
 
     // Date/Time variables
     'DATE': now.toISOString().split('T')[0],

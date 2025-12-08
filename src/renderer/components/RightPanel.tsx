@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
+import React, { useRef, useEffect, useImperativeHandle, forwardRef, useState } from 'react';
 import { PanelRightClose, PanelRightOpen, Loader2 } from 'lucide-react';
 import type { Session, Theme, RightPanelTab, Shortcut, BatchRunState } from '../types';
 import type { FileTreeChanges } from '../utils/fileExplorer';
@@ -74,7 +74,8 @@ interface RightPanelProps {
   onAutoRunOpenSetup: () => void;
 
   // Batch processing props
-  batchRunState?: BatchRunState;
+  batchRunState?: BatchRunState;  // For progress display (may be from any session)
+  currentSessionBatchState?: BatchRunState | null;  // For locking editor (current session only)
   onOpenBatchRunner?: () => void;
   onStopBatchRun?: () => void;
   onJumpToClaudeSession?: (claudeSessionId: string) => void;
@@ -93,12 +94,41 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
     autoRunDocumentList, autoRunDocumentTree, autoRunContent, autoRunIsLoadingDocuments,
     onAutoRunContentChange, onAutoRunModeChange, onAutoRunStateChange,
     onAutoRunSelectDocument, onAutoRunCreateDocument, onAutoRunRefresh, onAutoRunOpenSetup,
-    batchRunState, onOpenBatchRunner, onStopBatchRun, onJumpToClaudeSession, onResumeSession,
+    batchRunState, currentSessionBatchState, onOpenBatchRunner, onStopBatchRun, onJumpToClaudeSession, onResumeSession,
     onOpenSessionAsTab
   } = props;
 
   const historyPanelRef = useRef<HistoryPanelHandle>(null);
   const autoRunRef = useRef<AutoRunHandle>(null);
+
+  // Elapsed time for Auto Run display (updates every second when running)
+  const [elapsedTime, setElapsedTime] = useState<string>('');
+
+  useEffect(() => {
+    if (!batchRunState?.isRunning || !batchRunState?.startTime) {
+      setElapsedTime('');
+      return;
+    }
+
+    const updateElapsed = () => {
+      const elapsed = Date.now() - batchRunState.startTime!;
+      const seconds = Math.floor(elapsed / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+
+      if (hours > 0) {
+        setElapsedTime(`${hours}h ${minutes % 60}m`);
+      } else if (minutes > 0) {
+        setElapsedTime(`${minutes}m ${seconds % 60}s`);
+      } else {
+        setElapsedTime(`${seconds}s`);
+      }
+    };
+
+    updateElapsed(); // Initial update
+    const interval = setInterval(updateElapsed, 1000);
+    return () => clearInterval(interval);
+  }, [batchRunState?.isRunning, batchRunState?.startTime]);
 
   // Expose methods to parent
   useImperativeHandle(ref, () => ({
@@ -282,7 +312,7 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
             onSelectDocument={onAutoRunSelectDocument}
             onCreateDocument={onAutoRunCreateDocument}
             isLoadingDocuments={autoRunIsLoadingDocuments}
-            batchRunState={batchRunState}
+            batchRunState={currentSessionBatchState || undefined}
             onOpenBatchRunner={onOpenBatchRunner}
             onStopBatchRun={onStopBatchRun}
             sessionState={session.state}
@@ -290,7 +320,7 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
         )}
       </div>
 
-      {/* Batch Run Progress - shown at bottom of all tabs */}
+      {/* Batch Run Progress - shown at bottom of all tabs (shows any active batch run) */}
       {batchRunState && batchRunState.isRunning && (
         <div
           className="mx-4 mb-4 px-4 py-3 rounded border flex-shrink-0"
@@ -299,23 +329,20 @@ export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(function
             borderColor: theme.colors.warning
           }}
         >
-          {/* Header with status and overall progress */}
+          {/* Header with status and elapsed time */}
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin" style={{ color: theme.colors.warning }} />
               <span className="text-xs font-bold uppercase" style={{ color: theme.colors.textMain }}>
-                {batchRunState.isStopping ? 'Stopping...' : 'Auto Mode Running'}
+                {batchRunState.isStopping ? 'Stopping...' : 'Auto Run Active'}
               </span>
-              {/* Loop iteration indicator */}
-              {batchRunState.loopEnabled && batchRunState.loopIteration > 0 && (
-                <span
-                  className="text-[10px] px-1.5 py-0.5 rounded"
-                  style={{ backgroundColor: theme.colors.accent + '30', color: theme.colors.accent }}
-                >
-                  Loop {batchRunState.loopIteration + 1}
-                </span>
-              )}
             </div>
+            {/* Elapsed time */}
+            {elapsedTime && !batchRunState.isStopping && (
+              <span className="text-xs font-mono" style={{ color: theme.colors.textDim }}>
+                {elapsedTime}
+              </span>
+            )}
           </div>
 
           {/* Document progress with inline progress bar - only for multi-document runs */}

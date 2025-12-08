@@ -30,6 +30,14 @@ import { AutoRunIndicator } from './AutoRunIndicator';
 import { TabBar } from './TabBar';
 import { TabSearchModal } from './TabSearchModal';
 import type { Session, LastResponsePreview } from '../hooks/useSessions';
+import {
+  loadViewState,
+  saveViewState,
+  debouncedSaveViewState,
+  loadScrollState,
+  debouncedSaveScrollPosition,
+  type ScrollState,
+} from '../utils/viewState';
 
 
 /**
@@ -277,16 +285,24 @@ export default function MobileApp() {
   const colors = useThemeColors();
   const isOffline = useOfflineStatus();
   const { setDesktopTheme } = useDesktopTheme();
+
+  // Load saved view state on initial render
+  const savedState = useMemo(() => loadViewState(), []);
+  const savedScrollState = useMemo(() => loadScrollState(), []);
+
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  const [showAllSessions, setShowAllSessions] = useState(false);
-  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
-  const [showTabSearch, setShowTabSearch] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(savedState.activeSessionId);
+  const [activeTabId, setActiveTabId] = useState<string | null>(savedState.activeTabId);
+  const [showAllSessions, setShowAllSessions] = useState(savedState.showAllSessions);
+  const [showHistoryPanel, setShowHistoryPanel] = useState(savedState.showHistoryPanel);
+  const [showTabSearch, setShowTabSearch] = useState(savedState.showTabSearch);
   const [commandInput, setCommandInput] = useState('');
   const [showResponseViewer, setShowResponseViewer] = useState(false);
   const [selectedResponse, setSelectedResponse] = useState<LastResponsePreview | null>(null);
   const [responseIndex, setResponseIndex] = useState(0);
+
+  // Ref for message history scroll container
+  const messageHistoryRef = useRef<HTMLDivElement>(null);
 
   // Message history state (logs from active session)
   const [sessionLogs, setSessionLogs] = useState<{ aiLogs: LogEntry[]; shellLogs: LogEntry[] }>({
@@ -300,6 +316,14 @@ export default function MobileApp() {
 
   // AutoRun state per session (batch processing on desktop)
   const [autoRunStates, setAutoRunStates] = useState<Record<string, AutoRunState | null>>({});
+
+  // Countdown timer for auto-reconnect (in seconds)
+  const [reconnectCountdown, setReconnectCountdown] = useState(30);
+
+  // History panel state (persisted)
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'AUTO' | 'USER'>(savedState.historyFilter);
+  const [historySearchQuery, setHistorySearchQuery] = useState(savedState.historySearchQuery);
+  const [historySearchOpen, setHistorySearchOpen] = useState(savedState.historySearchOpen);
 
   // Detect if on a small screen (phone vs tablet/iPad)
   // Use 768px as breakpoint - below this is considered "small"
@@ -357,6 +381,33 @@ export default function MobileApp() {
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
   }, [activeSessionId]);
+
+  // Save view state when overlays change
+  useEffect(() => {
+    debouncedSaveViewState({
+      showAllSessions,
+      showHistoryPanel,
+      showTabSearch,
+    });
+  }, [showAllSessions, showHistoryPanel, showTabSearch]);
+
+  // Save session selection when it changes
+  useEffect(() => {
+    debouncedSaveViewState({
+      activeSessionId,
+      activeTabId,
+    });
+  }, [activeSessionId, activeTabId]);
+
+  // Save history panel state when it changes
+  useEffect(() => {
+    debouncedSaveViewState({
+      historyFilter,
+      historySearchQuery,
+      historySearchOpen,
+    });
+  }, [historyFilter, historySearchQuery, historySearchOpen]);
+
 
   /**
    * Get the first line of a response for notification display
@@ -732,17 +783,32 @@ export default function MobileApp() {
     connect();
   }, [connect]);
 
-  // Auto-reconnect every 30 seconds when disconnected
+  // Auto-reconnect every 30 seconds when disconnected with countdown
   useEffect(() => {
     // Only auto-reconnect if disconnected and not offline
-    if (connectionState !== 'disconnected' || isOffline) return;
+    if (connectionState !== 'disconnected' || isOffline) {
+      // Reset countdown when not disconnected
+      setReconnectCountdown(30);
+      return;
+    }
 
-    const intervalId = setInterval(() => {
-      webLogger.info('Auto-reconnecting after 30 seconds...', 'MobileApp');
-      connect();
-    }, 30000); // 30 seconds
+    // Reset countdown to 30 when entering disconnected state
+    setReconnectCountdown(30);
 
-    return () => clearInterval(intervalId);
+    // Countdown timer - decrements every second
+    const countdownId = setInterval(() => {
+      setReconnectCountdown((prev) => {
+        if (prev <= 1) {
+          // Time to reconnect
+          webLogger.info('Auto-reconnecting...', 'MobileApp');
+          connect();
+          return 30; // Reset for next cycle
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(countdownId);
   }, [connectionState, isOffline, connect]);
 
   // Handle session selection - also notifies desktop to switch
@@ -1082,7 +1148,7 @@ export default function MobileApp() {
             {error || 'Unable to connect to Maestro desktop app.'}
           </p>
           <p style={{ fontSize: '12px', color: colors.textDim, marginBottom: '12px' }}>
-            Auto-reconnecting every 30 seconds...
+            Reconnecting in {reconnectCountdown}s...
             {reconnectAttempts > 0 && ` (attempt ${reconnectAttempts})`}
           </p>
           <button
@@ -1281,6 +1347,14 @@ export default function MobileApp() {
           onClose={handleCloseHistoryPanel}
           projectPath={activeSession?.cwd}
           sessionId={activeSessionId || undefined}
+          initialFilter={historyFilter}
+          initialSearchQuery={historySearchQuery}
+          initialSearchOpen={historySearchOpen}
+          onFilterChange={setHistoryFilter}
+          onSearchChange={(query, isOpen) => {
+            setHistorySearchQuery(query);
+            setHistorySearchOpen(isOpen);
+          }}
         />
       )}
 

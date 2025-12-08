@@ -9,6 +9,7 @@
 export {
   substituteTemplateVariables,
   TEMPLATE_VARIABLES,
+  TEMPLATE_VARIABLES_GENERAL,
   type TemplateContext,
   type TemplateSessionInfo,
 } from '../../shared/templateVariables';

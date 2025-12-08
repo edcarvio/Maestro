@@ -198,10 +198,10 @@ export function HistoryDetailModal({
                 className="flex items-center justify-center w-6 h-6 rounded-full"
                 style={{
                   backgroundColor: entry.success
-                    ? theme.colors.success + (entry.validated ? '40' : '20')
+                    ? (entry.validated ? theme.colors.success : theme.colors.success + '20')
                     : theme.colors.error + '20',
                   border: `1px solid ${entry.success
-                    ? theme.colors.success + (entry.validated ? '60' : '40')
+                    ? (entry.validated ? theme.colors.success : theme.colors.success + '40')
                     : theme.colors.error + '40'}`
                 }}
                 title={entry.success
@@ -210,7 +210,7 @@ export function HistoryDetailModal({
               >
                 {entry.success ? (
                   entry.validated ? (
-                    <DoubleCheck className="w-4 h-4" style={{ color: theme.colors.success }} />
+                    <DoubleCheck className="w-4 h-4" style={{ color: '#ffffff' }} />
                   ) : (
                     <CheckCircle className="w-4 h-4" style={{ color: theme.colors.success }} />
                   )

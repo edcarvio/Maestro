@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Edit2, Save, X, Terminal, Lock, ChevronDown, ChevronRight, Variable } from 'lucide-react';
 import type { Theme, CustomAICommand } from '../types';
-import { TEMPLATE_VARIABLES } from '../utils/templateVariables';
+import { TEMPLATE_VARIABLES_GENERAL } from '../utils/templateVariables';
 
 interface AICommandsPanelProps {
   theme: Theme;
@@ -127,7 +127,7 @@ export function AICommandsPanel({ theme, customAICommands, setCustomAICommands }
               Use these variables in your command prompts. They will be replaced with actual values at runtime.
             </p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1 max-h-48 overflow-y-auto scrollbar-thin">
-              {TEMPLATE_VARIABLES.map(({ variable, description }) => (
+              {TEMPLATE_VARIABLES_GENERAL.map(({ variable, description }) => (
                 <div key={variable} className="flex items-center gap-2 py-0.5">
                   <code
                     className="text-[10px] font-mono px-1 py-0.5 rounded shrink-0"
@@ -323,22 +323,19 @@ export function AICommandsPanel({ theme, customAICommands, setCustomAICommands }
                     )}
                   </div>
                   <div className="flex items-center gap-1">
-                    {/* Hide edit button for system commands (they have special handling) */}
-                    {!cmd.isSystemCommand && (
-                      <button
-                        onClick={() => setEditingCommand({
-                          id: cmd.id,
-                          command: cmd.command,
-                          description: cmd.description,
-                          prompt: cmd.prompt,
-                        })}
-                        className="p-1.5 rounded hover:bg-white/10 transition-colors"
-                        style={{ color: theme.colors.textDim }}
-                        title="Edit command"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setEditingCommand({
+                        id: cmd.id,
+                        command: cmd.command,
+                        description: cmd.description,
+                        prompt: cmd.prompt,
+                      })}
+                      className="p-1.5 rounded hover:bg-white/10 transition-colors"
+                      style={{ color: theme.colors.textDim }}
+                      title="Edit command"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
                     {!cmd.isBuiltIn && (
                       <button
                         onClick={() => handleDelete(cmd.id)}
@@ -354,15 +351,12 @@ export function AICommandsPanel({ theme, customAICommands, setCustomAICommands }
                 <div className="text-xs mb-2" style={{ color: theme.colors.textDim }}>
                   {cmd.description}
                 </div>
-                {/* Hide prompt for system commands (they have special handling) */}
-                {!cmd.isSystemCommand && (
-                  <div
-                    className="text-xs p-2 rounded font-mono overflow-y-auto max-h-24 scrollbar-thin whitespace-pre-wrap"
-                    style={{ backgroundColor: theme.colors.bgActivity, color: theme.colors.textMain }}
-                  >
-                    {cmd.prompt}
-                  </div>
-                )}
+                <div
+                  className="text-xs p-2 rounded font-mono overflow-y-auto max-h-24 scrollbar-thin whitespace-pre-wrap"
+                  style={{ backgroundColor: theme.colors.bgActivity, color: theme.colors.textMain }}
+                >
+                  {cmd.prompt}
+                </div>
               </div>
             )}
           </div>

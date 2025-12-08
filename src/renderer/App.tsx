@@ -152,7 +152,7 @@ export default function MaestroConsole() {
     shortcuts, setShortcuts,
     customAICommands, setCustomAICommands,
     globalStats, updateGlobalStats,
-    autoRunStats, recordAutoRunComplete, acknowledgeBadge, getUnacknowledgedBadgeLevel,
+    autoRunStats, recordAutoRunComplete, updateAutoRunProgress, acknowledgeBadge, getUnacknowledgedBadgeLevel,
   } = settings;
 
   // --- STATE ---
@@ -1843,10 +1843,8 @@ export default function MaestroConsole() {
   }, []);
 
   // Combine built-in slash commands with custom AI commands AND Claude Code commands for autocomplete
-  // Filter out isSystemCommand entries since those are already in slashCommands with execute functions
   const allSlashCommands = useMemo(() => {
     const customCommandsAsSlash = customAICommands
-      .filter(cmd => !cmd.isSystemCommand) // System commands are in slashCommands.ts
       .map(cmd => ({
         command: cmd.command,
         description: cmd.description,
@@ -2105,27 +2103,9 @@ export default function MaestroConsole() {
       // This prevents batch output from appearing in the interactive AI terminal
       const targetSessionId = `${sessionId}-batch-${Date.now()}`;
 
-      // Set session to busy with thinking start time
-      // Also update active tab's state to 'busy' for write-mode tracking
-      setSessions(prev => prev.map(s => {
-        if (s.id !== sessionId) return s;
-
-        const updatedAiTabs = s.aiTabs?.length > 0
-          ? s.aiTabs.map(tab =>
-              tab.id === s.activeTabId ? { ...tab, state: 'busy' as const } : tab
-            )
-          : s.aiTabs;
-
-        return {
-          ...s,
-          state: 'busy' as SessionState,
-          busySource: 'ai',
-          thinkingStartTime: Date.now(),
-          currentCycleTokens: 0,
-          currentCycleBytes: 0,
-          aiTabs: updatedAiTabs
-        };
-      }));
+      // Note: We intentionally do NOT set the session or tab state to 'busy' here.
+      // Batch operations run in isolation and should not affect the main UI state.
+      // The batch progress is tracked separately via BatchRunState in useBatchProcessor.
 
       // Create a promise that resolves when the agent completes
       return new Promise((resolve) => {
@@ -2580,11 +2560,62 @@ export default function MaestroConsole() {
     }
   });
 
-  // Get batch state for the active session
-  const activeBatchRunState = activeSession ? getBatchState(activeSession.id) : getBatchState('');
+  // Get batch state for the current session - used for locking the AutoRun editor
+  // This is session-specific so users can edit docs in other sessions while one runs
+  const currentSessionBatchState = activeSession ? getBatchState(activeSession.id) : null;
+
+  // Get batch state for display - prioritize the session with an active batch run,
+  // falling back to the active session's state. This ensures AutoRun progress is
+  // displayed correctly regardless of which tab/session the user is viewing.
+  const activeBatchRunState = activeBatchSessionIds.length > 0
+    ? getBatchState(activeBatchSessionIds[0])
+    : (activeSession ? getBatchState(activeSession.id) : getBatchState(''));
 
   // Initialize activity tracker for time tracking
   useActivityTracker(activeSessionId, setSessions);
+
+  // Track elapsed time for active auto-runs and update achievement stats every minute
+  // This allows badges to be unlocked during an auto-run, not just when it completes
+  const autoRunProgressRef = useRef<{ lastUpdateTime: number }>({ lastUpdateTime: 0 });
+
+  useEffect(() => {
+    // Only set up timer if there are active batch runs
+    if (activeBatchSessionIds.length === 0) {
+      autoRunProgressRef.current.lastUpdateTime = 0;
+      return;
+    }
+
+    // Initialize last update time on first active run
+    if (autoRunProgressRef.current.lastUpdateTime === 0) {
+      autoRunProgressRef.current.lastUpdateTime = Date.now();
+    }
+
+    // Set up interval to update progress every minute
+    const intervalId = setInterval(() => {
+      const now = Date.now();
+      const deltaMs = now - autoRunProgressRef.current.lastUpdateTime;
+      autoRunProgressRef.current.lastUpdateTime = now;
+
+      // Update achievement stats with the delta
+      const { newBadgeLevel } = updateAutoRunProgress(deltaMs);
+
+      // If a new badge was unlocked during the run, show standing ovation
+      if (newBadgeLevel !== null) {
+        const badge = CONDUCTOR_BADGES.find(b => b.level === newBadgeLevel);
+        if (badge) {
+          setStandingOvationData({
+            badge,
+            isNewRecord: false, // Record is determined at completion
+            recordTimeMs: autoRunStats.longestRunMs,
+          });
+        }
+      }
+    }, 60000); // Every 60 seconds
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [activeBatchSessionIds.length, updateAutoRunProgress, autoRunStats.longestRunMs]);
 
   // Handler to open batch runner modal
   const handleOpenBatchRunner = useCallback(() => {
@@ -2666,14 +2697,18 @@ export default function MaestroConsole() {
     return matches ? matches.length : 0;
   }, [activeSession?.autoRunFolderPath]);
 
-  // Handler to stop batch run for active session (with confirmation)
+  // Handler to stop batch run (with confirmation)
+  // Stops the first active batch run, or falls back to active session
   const handleStopBatchRun = useCallback(() => {
-    if (!activeSession) return;
-    const sessionId = activeSession.id;
+    // Use the first session with an active batch run, or fall back to active session
+    const sessionId = activeBatchSessionIds.length > 0
+      ? activeBatchSessionIds[0]
+      : activeSession?.id;
+    if (!sessionId) return;
     setConfirmModalMessage('Stop the batch run after the current task completes?');
     setConfirmModalOnConfirm(() => () => stopBatchRun(sessionId));
     setConfirmModalOpen(true);
-  }, [activeSession, stopBatchRun]);
+  }, [activeBatchSessionIds, activeSession, stopBatchRun]);
 
   // Handler to jump to a Claude session from history
   const handleJumpToClaudeSession = useCallback((claudeSessionId: string) => {
@@ -3011,6 +3046,13 @@ export default function MaestroConsole() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Block browser refresh (Cmd+R / Ctrl+R / Cmd+Shift+R / Ctrl+Shift+R) globally
+      // We override these shortcuts for other purposes, but even in views where that
+      // doesn't apply (e.g., file preview), we never want the app to refresh
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+      }
+
       // Read all values from ref - this allows the handler to stay attached while still
       // accessing current state values
       const ctx = keyboardHandlerRef.current;
@@ -5830,7 +5872,28 @@ export default function MaestroConsole() {
 
       const expandedFolders = new Set(activeSession.fileExplorerExpanded || []);
 
-      if (e.key === 'ArrowUp') {
+      // Cmd+Arrow: jump to top/bottom
+      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') {
+        e.preventDefault();
+        fileTreeKeyboardNavRef.current = true;
+        setSelectedFileIndex(0);
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowDown') {
+        e.preventDefault();
+        fileTreeKeyboardNavRef.current = true;
+        setSelectedFileIndex(flatFileList.length - 1);
+      }
+      // Option+Arrow: page up/down (move by 10 items)
+      else if (e.altKey && e.key === 'ArrowUp') {
+        e.preventDefault();
+        fileTreeKeyboardNavRef.current = true;
+        setSelectedFileIndex(prev => Math.max(0, prev - 10));
+      } else if (e.altKey && e.key === 'ArrowDown') {
+        e.preventDefault();
+        fileTreeKeyboardNavRef.current = true;
+        setSelectedFileIndex(prev => Math.min(flatFileList.length - 1, prev + 10));
+      }
+      // Regular Arrow: move one item
+      else if (e.key === 'ArrowUp') {
         e.preventDefault();
         fileTreeKeyboardNavRef.current = true;
         setSelectedFileIndex(prev => Math.max(0, prev - 1));
@@ -5965,30 +6028,6 @@ export default function MaestroConsole() {
           setActiveClaudeSessionId={setActiveClaudeSessionId}
           setGitDiffPreview={setGitDiffPreview}
           setGitLogOpen={setGitLogOpen}
-          startFreshSession={() => {
-            // Create a fresh AI terminal session by clearing the Claude session ID and AI logs
-            if (activeSession) {
-              // Block clearing when there are queued items
-              if (activeSession.executionQueue.length > 0) {
-                addLogToActiveTab(activeSession.id, {
-                  source: 'system',
-                  text: 'Cannot clear session while items are queued. Remove queued items first.'
-                });
-                return;
-              }
-              setSessions(prev => prev.map(s => {
-                if (s.id !== activeSession.id) return s;
-                // Reset active tab's state to 'idle' for write-mode tracking
-                const updatedAiTabs = s.aiTabs?.length > 0
-                  ? s.aiTabs.map(tab =>
-                      tab.id === s.activeTabId ? { ...tab, state: 'idle' as const, thinkingStartTime: undefined } : tab
-                    )
-                  : s.aiTabs;
-                return { ...s, claudeSessionId: undefined, aiLogs: [], state: 'idle', busySource: undefined, thinkingStartTime: undefined, aiTabs: updatedAiTabs };
-              }));
-              setActiveClaudeSessionId(null);
-            }
-          }}
           isAiMode={activeSession?.inputMode === 'ai'}
           tabShortcuts={TAB_SHORTCUTS}
           onRenameTab={() => {
@@ -6750,6 +6789,7 @@ export default function MaestroConsole() {
             onAutoRunRefresh={handleAutoRunRefresh}
             onAutoRunOpenSetup={handleAutoRunOpenSetup}
             batchRunState={activeBatchRunState}
+            currentSessionBatchState={currentSessionBatchState}
             onOpenBatchRunner={handleOpenBatchRunner}
             onStopBatchRun={handleStopBatchRun}
             onJumpToClaudeSession={handleJumpToClaudeSession}

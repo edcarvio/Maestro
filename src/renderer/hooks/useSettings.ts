@@ -142,6 +142,7 @@ export interface UseSettingsReturn {
   autoRunStats: AutoRunStats;
   setAutoRunStats: (value: AutoRunStats) => void;
   recordAutoRunComplete: (elapsedTimeMs: number) => { newBadgeLevel: number | null; isNewRecord: boolean };
+  updateAutoRunProgress: (currentRunElapsedMs: number) => { newBadgeLevel: number | null; isNewRecord: boolean };
   acknowledgeBadge: (level: number) => void;
   getUnacknowledgedBadgeLevel: () => number | null;
 }
@@ -408,20 +409,23 @@ export function useSettings(): UseSettingsReturn {
   };
 
   // Record an auto-run completion and check for new badges/records
+  // NOTE: Cumulative time is tracked incrementally during the run via updateAutoRunProgress(),
+  // so we don't add elapsedTimeMs to cumulative here - only check for longest run record and increment totalRuns
   const recordAutoRunComplete = (elapsedTimeMs: number): { newBadgeLevel: number | null; isNewRecord: boolean } => {
     let newBadgeLevel: number | null = null;
     let isNewRecord = false;
 
     setAutoRunStatsState(prev => {
-      const newCumulativeTime = prev.cumulativeTimeMs + elapsedTimeMs;
-      const newBadgeLevelCalc = getBadgeLevelForTime(newCumulativeTime);
+      // Don't add to cumulative time - it was already added incrementally during the run
+      // Just check current badge level in case a badge wasn't triggered during incremental updates
+      const newBadgeLevelCalc = getBadgeLevelForTime(prev.cumulativeTimeMs);
 
-      // Check if this is a new badge level
+      // Check if this would be a new badge (edge case: badge threshold crossed between updates)
       if (newBadgeLevelCalc > prev.lastBadgeUnlockLevel) {
         newBadgeLevel = newBadgeLevelCalc;
       }
 
-      // Check if this is a new record
+      // Check if this is a new longest run record
       isNewRecord = elapsedTimeMs > prev.longestRunMs;
 
       // Build updated badge history if new badge unlocked
@@ -434,10 +438,58 @@ export function useSettings(): UseSettingsReturn {
       }
 
       const updated: AutoRunStats = {
-        cumulativeTimeMs: newCumulativeTime,
+        cumulativeTimeMs: prev.cumulativeTimeMs, // Already updated incrementally
         longestRunMs: isNewRecord ? elapsedTimeMs : prev.longestRunMs,
         longestRunTimestamp: isNewRecord ? Date.now() : prev.longestRunTimestamp,
         totalRuns: prev.totalRuns + 1,
+        currentBadgeLevel: newBadgeLevelCalc,
+        lastBadgeUnlockLevel: newBadgeLevel !== null ? newBadgeLevelCalc : prev.lastBadgeUnlockLevel,
+        lastAcknowledgedBadgeLevel: prev.lastAcknowledgedBadgeLevel ?? 0,
+        badgeHistory: updatedBadgeHistory,
+      };
+
+      window.maestro.settings.set('autoRunStats', updated);
+      return updated;
+    });
+
+    return { newBadgeLevel, isNewRecord };
+  };
+
+  // Track progress during an active auto-run (called periodically, e.g., every minute)
+  // deltaMs is the time elapsed since the last call (NOT total elapsed time)
+  // This updates cumulative time and longest run WITHOUT incrementing totalRuns
+  // Returns badge/record info so caller can show standing ovation during run
+  const updateAutoRunProgress = (deltaMs: number): { newBadgeLevel: number | null; isNewRecord: boolean } => {
+    let newBadgeLevel: number | null = null;
+    let isNewRecord = false;
+
+    setAutoRunStatsState(prev => {
+      // Add the delta to cumulative time
+      const newCumulativeTime = prev.cumulativeTimeMs + deltaMs;
+      const newBadgeLevelCalc = getBadgeLevelForTime(newCumulativeTime);
+
+      // Check if this unlocks a new badge
+      if (newBadgeLevelCalc > prev.lastBadgeUnlockLevel) {
+        newBadgeLevel = newBadgeLevelCalc;
+      }
+
+      // Note: We don't update longestRunMs here because we don't know the total
+      // run time yet. That's handled when the run completes.
+
+      // Build updated badge history if new badge unlocked
+      let updatedBadgeHistory = prev.badgeHistory || [];
+      if (newBadgeLevel !== null) {
+        updatedBadgeHistory = [
+          ...updatedBadgeHistory,
+          { level: newBadgeLevel, unlockedAt: Date.now() }
+        ];
+      }
+
+      const updated: AutoRunStats = {
+        cumulativeTimeMs: newCumulativeTime,
+        longestRunMs: prev.longestRunMs, // Don't update until run completes
+        longestRunTimestamp: prev.longestRunTimestamp,
+        totalRuns: prev.totalRuns, // Don't increment - run not complete yet
         currentBadgeLevel: newBadgeLevelCalc,
         lastBadgeUnlockLevel: newBadgeLevel !== null ? newBadgeLevelCalc : prev.lastBadgeUnlockLevel,
         lastAcknowledgedBadgeLevel: prev.lastAcknowledgedBadgeLevel ?? 0,
@@ -639,6 +691,7 @@ export function useSettings(): UseSettingsReturn {
     autoRunStats,
     setAutoRunStats,
     recordAutoRunComplete,
+    updateAutoRunProgress,
     acknowledgeBadge,
     getUnacknowledgedBadgeLevel,
   };

@@ -25,34 +25,83 @@ const formatElapsedTime = (ms: number): string => {
   return `${hours}h ${remainingMinutes}m`;
 };
 
-// 24-hour activity bar graph component with sliding time window
+// Lookback period options for the activity graph
+type LookbackPeriod = {
+  label: string;
+  hours: number | null; // null = all time
+  bucketCount: number;
+};
+
+const LOOKBACK_OPTIONS: LookbackPeriod[] = [
+  { label: '24 hours', hours: 24, bucketCount: 24 },
+  { label: '72 hours', hours: 72, bucketCount: 24 },
+  { label: '1 week', hours: 168, bucketCount: 28 },
+  { label: '2 weeks', hours: 336, bucketCount: 28 },
+  { label: '1 month', hours: 720, bucketCount: 30 },
+  { label: '6 months', hours: 4320, bucketCount: 24 },
+  { label: '1 year', hours: 8760, bucketCount: 24 },
+  { label: 'All time', hours: null, bucketCount: 24 },
+];
+
+// Activity bar graph component with configurable lookback window
 interface ActivityGraphProps {
   entries: HistoryEntry[];
   theme: Theme;
-  referenceTime?: number; // The "end" of the 24-hour window (defaults to now)
+  referenceTime?: number; // The "end" of the window (defaults to now)
   onBarClick?: (bucketStartTime: number, bucketEndTime: number) => void;
+  lookbackHours: number | null; // null = all time
+  onLookbackChange: (hours: number | null) => void;
 }
 
-const ActivityGraph: React.FC<ActivityGraphProps> = ({ entries, theme, referenceTime, onBarClick }) => {
+const ActivityGraph: React.FC<ActivityGraphProps> = ({ entries, theme, referenceTime, onBarClick, lookbackHours, onLookbackChange }) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const graphRef = useRef<HTMLDivElement>(null);
+
+  // Get the current lookback config
+  const lookbackConfig = useMemo(() =>
+    LOOKBACK_OPTIONS.find(o => o.hours === lookbackHours) || LOOKBACK_OPTIONS[0],
+    [lookbackHours]
+  );
 
   // Use referenceTime as the end of our window, or current time if not provided
   const endTime = referenceTime || Date.now();
 
-  // Group entries by hour for the 24-hour window ending at referenceTime
-  const hourlyData = useMemo(() => {
-    const msPerHour = 60 * 60 * 1000;
-    const hours24Ago = endTime - (24 * msPerHour);
+  // Calculate time range based on lookback setting
+  const { startTime, msPerBucket, bucketCount } = useMemo(() => {
+    if (lookbackHours === null) {
+      // All time: find earliest entry
+      const earliest = entries.length > 0
+        ? Math.min(...entries.map(e => e.timestamp))
+        : endTime - (24 * 60 * 60 * 1000);
+      const totalMs = endTime - earliest;
+      const count = lookbackConfig.bucketCount;
+      return {
+        startTime: earliest,
+        msPerBucket: totalMs / count,
+        bucketCount: count
+      };
+    } else {
+      const totalMs = lookbackHours * 60 * 60 * 1000;
+      return {
+        startTime: endTime - totalMs,
+        msPerBucket: totalMs / lookbackConfig.bucketCount,
+        bucketCount: lookbackConfig.bucketCount
+      };
+    }
+  }, [entries, endTime, lookbackHours, lookbackConfig.bucketCount]);
 
-    // Initialize 24 buckets (index 0 = 24 hours before endTime, index 23 = endTime hour)
-    const buckets: { auto: number; user: number }[] = Array.from({ length: 24 }, () => ({ auto: 0, user: 0 }));
+  // Group entries into buckets
+  const bucketData = useMemo(() => {
+    const buckets: { auto: number; user: number }[] = Array.from({ length: bucketCount }, () => ({ auto: 0, user: 0 }));
 
-    // Filter to the 24-hour window and bucket by hour
     entries.forEach(entry => {
-      if (entry.timestamp >= hours24Ago && entry.timestamp <= endTime) {
-        const hoursAgo = Math.floor((endTime - entry.timestamp) / msPerHour);
-        const bucketIndex = 23 - hoursAgo; // Convert to 0-indexed from oldest to newest
-        if (bucketIndex >= 0 && bucketIndex < 24) {
+      if (entry.timestamp >= startTime && entry.timestamp <= endTime) {
+        const bucketIndex = Math.min(
+          bucketCount - 1,
+          Math.floor((entry.timestamp - startTime) / msPerBucket)
+        );
+        if (bucketIndex >= 0 && bucketIndex < bucketCount) {
           if (entry.type === 'AUTO') {
             buckets[bucketIndex].auto++;
           } else if (entry.type === 'USER') {
@@ -63,60 +112,75 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ entries, theme, reference
     });
 
     return buckets;
-  }, [entries, endTime]);
+  }, [entries, startTime, endTime, msPerBucket, bucketCount]);
 
   // Find max value for scaling
   const maxValue = useMemo(() => {
-    return Math.max(1, ...hourlyData.map(h => h.auto + h.user));
-  }, [hourlyData]);
+    return Math.max(1, ...bucketData.map(h => h.auto + h.user));
+  }, [bucketData]);
 
   // Total counts for summary tooltip
-  const totalAuto = useMemo(() => hourlyData.reduce((sum, h) => sum + h.auto, 0), [hourlyData]);
-  const totalUser = useMemo(() => hourlyData.reduce((sum, h) => sum + h.user, 0), [hourlyData]);
+  const totalAuto = useMemo(() => bucketData.reduce((sum, h) => sum + h.auto, 0), [bucketData]);
+  const totalUser = useMemo(() => bucketData.reduce((sum, h) => sum + h.user, 0), [bucketData]);
 
-  // Hour labels positioned at: 24 (start), 16, 8, 0 (end/reference time)
-  const hourLabels = [
-    { hour: 24, index: 0 },
-    { hour: 16, index: 8 },
-    { hour: 8, index: 16 },
-    { hour: 0, index: 23 }
-  ];
-
-  // Get time range label for tooltip (e.g., "2PM - 3PM")
+  // Get time range label for tooltip
   const getTimeRangeLabel = (index: number) => {
-    const refDate = new Date(endTime);
-    const hoursAgo = 23 - index;
+    const bucketStart = new Date(startTime + (index * msPerBucket));
+    const bucketEnd = new Date(startTime + ((index + 1) * msPerBucket));
 
-    // Calculate the start hour of this bucket relative to endTime
-    const bucketEnd = new Date(refDate.getTime() - (hoursAgo * 60 * 60 * 1000));
-    const bucketStart = new Date(bucketEnd.getTime() - (60 * 60 * 1000));
-
-    const formatHour = (date: Date) => {
-      const hour = date.getHours();
-      const ampm = hour >= 12 ? 'PM' : 'AM';
-      const hour12 = hour % 12 || 12;
-      return `${hour12}${ampm}`;
-    };
-
-    return `${formatHour(bucketStart)} - ${formatHour(bucketEnd)}`;
+    // Format based on lookback period
+    if (lookbackHours !== null && lookbackHours <= 72) {
+      // For short periods, show time of day
+      const formatHour = (date: Date) => {
+        const hour = date.getHours();
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const hour12 = hour % 12 || 12;
+        return `${hour12}${ampm}`;
+      };
+      return `${formatHour(bucketStart)} - ${formatHour(bucketEnd)}`;
+    } else {
+      // For longer periods, show dates
+      const formatDate = (date: Date) => {
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      };
+      if (formatDate(bucketStart) === formatDate(bucketEnd)) {
+        return formatDate(bucketStart);
+      }
+      return `${formatDate(bucketStart)} - ${formatDate(bucketEnd)}`;
+    }
   };
 
   // Get bucket time range as timestamps for click handling
   const getBucketTimeRange = (index: number): { start: number; end: number } => {
-    const hoursAgo = 23 - index;
-    const bucketEnd = endTime - (hoursAgo * 60 * 60 * 1000);
-    const bucketStart = bucketEnd - (60 * 60 * 1000);
-    return { start: bucketStart, end: bucketEnd };
+    return {
+      start: startTime + (index * msPerBucket),
+      end: startTime + ((index + 1) * msPerBucket)
+    };
   };
 
   // Handle bar click
   const handleBarClick = (index: number) => {
-    const total = hourlyData[index].auto + hourlyData[index].user;
+    const total = bucketData[index].auto + bucketData[index].user;
     if (total > 0 && onBarClick) {
       const { start, end } = getBucketTimeRange(index);
       onBarClick(start, end);
     }
   };
+
+  // Handle right-click context menu
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  // Close context menu when clicking elsewhere
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    if (contextMenu) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [contextMenu]);
 
   // Format the reference time for display (shows what time point we're viewing)
   const formatReferenceTime = () => {
@@ -132,13 +196,89 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ entries, theme, reference
   };
 
   // Check if we're viewing historical data (not "now")
-  const isHistorical = referenceTime && (Date.now() - referenceTime) > 60000; // More than 1 minute ago
+  const isHistorical = referenceTime && (Date.now() - referenceTime) > 60000;
+
+  // Generate labels for the x-axis
+  const getAxisLabels = () => {
+    if (lookbackHours === null) {
+      // All time - show start and end dates
+      return [
+        { label: new Date(startTime).toLocaleDateString([], { month: 'short', day: 'numeric' }), index: 0 },
+        { label: 'Now', index: bucketCount - 1 }
+      ];
+    } else if (lookbackHours <= 24) {
+      return [
+        { label: `${lookbackHours}h`, index: 0 },
+        { label: `${Math.floor(lookbackHours * 2/3)}h`, index: Math.floor(bucketCount / 3) },
+        { label: `${Math.floor(lookbackHours / 3)}h`, index: Math.floor(bucketCount * 2/3) },
+        { label: '0h', index: bucketCount - 1 }
+      ];
+    } else if (lookbackHours <= 168) {
+      // Up to 1 week - show days
+      const days = Math.floor(lookbackHours / 24);
+      return [
+        { label: `${days}d`, index: 0 },
+        { label: `${Math.floor(days / 2)}d`, index: Math.floor(bucketCount / 2) },
+        { label: 'Now', index: bucketCount - 1 }
+      ];
+    } else {
+      // Longer periods - show start/end
+      const startLabel = new Date(startTime).toLocaleDateString([], { month: 'short', day: 'numeric' });
+      return [
+        { label: startLabel, index: 0 },
+        { label: 'Now', index: bucketCount - 1 }
+      ];
+    }
+  };
+
+  const axisLabels = getAxisLabels();
 
   return (
     <div
+      ref={graphRef}
       className="flex-1 min-w-0 flex flex-col relative mt-0.5"
-      title={hoveredIndex === null ? `${isHistorical ? `Viewing: ${formatReferenceTime()} • ` : ''}24h window: ${totalAuto} auto, ${totalUser} user` : undefined}
+      title={hoveredIndex === null ? `${isHistorical ? `Viewing: ${formatReferenceTime()} • ` : ''}${lookbackConfig.label}: ${totalAuto} auto, ${totalUser} user (right-click to change)` : undefined}
+      onContextMenu={handleContextMenu}
     >
+      {/* Context menu for lookback options */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 py-1 rounded border shadow-lg"
+          style={{
+            left: contextMenu.x,
+            top: contextMenu.y,
+            backgroundColor: theme.colors.bgSidebar,
+            borderColor: theme.colors.border,
+            minWidth: '120px'
+          }}
+        >
+          <div
+            className="px-3 py-1 text-[10px] font-bold uppercase"
+            style={{ color: theme.colors.textDim }}
+          >
+            Lookback Period
+          </div>
+          {LOOKBACK_OPTIONS.map((option) => (
+            <button
+              key={option.label}
+              className="w-full px-3 py-1.5 text-left text-xs hover:bg-white/10 transition-colors flex items-center justify-between"
+              style={{
+                color: option.hours === lookbackHours ? theme.colors.accent : theme.colors.textMain
+              }}
+              onClick={() => {
+                onLookbackChange(option.hours);
+                setContextMenu(null);
+              }}
+            >
+              {option.label}
+              {option.hours === lookbackHours && (
+                <Check className="w-3 h-3" style={{ color: theme.colors.accent }} />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Hover tooltip - positioned below the graph */}
       {hoveredIndex !== null && (
         <div
@@ -147,8 +287,8 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ entries, theme, reference
             backgroundColor: theme.colors.bgSidebar,
             border: `1px solid ${theme.colors.border}`,
             color: theme.colors.textMain,
-            left: `${(hoveredIndex / 23) * 100}%`,
-            transform: hoveredIndex < 4 ? 'translateX(0)' : hoveredIndex > 19 ? 'translateX(-100%)' : 'translateX(-50%)'
+            left: `${(hoveredIndex / (bucketCount - 1)) * 100}%`,
+            transform: hoveredIndex < bucketCount * 0.17 ? 'translateX(0)' : hoveredIndex > bucketCount * 0.83 ? 'translateX(-100%)' : 'translateX(-50%)'
           }}
         >
           <div className="font-bold mb-1" style={{ color: theme.colors.textMain }}>
@@ -162,11 +302,11 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ entries, theme, reference
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center justify-between gap-3">
               <span style={{ color: theme.colors.warning }}>Auto</span>
-              <span className="font-bold" style={{ color: theme.colors.warning }}>{hourlyData[hoveredIndex].auto}</span>
+              <span className="font-bold" style={{ color: theme.colors.warning }}>{bucketData[hoveredIndex].auto}</span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span style={{ color: theme.colors.accent }}>User</span>
-              <span className="font-bold" style={{ color: theme.colors.accent }}>{hourlyData[hoveredIndex].user}</span>
+              <span className="font-bold" style={{ color: theme.colors.accent }}>{bucketData[hoveredIndex].user}</span>
             </div>
           </div>
         </div>
@@ -177,11 +317,11 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ entries, theme, reference
         className="flex items-end gap-px h-6 rounded border px-1 pt-1"
         style={{ borderColor: theme.colors.border }}
       >
-        {hourlyData.map((hour, index) => {
-          const total = hour.auto + hour.user;
+        {bucketData.map((bucket, index) => {
+          const total = bucket.auto + bucket.user;
           const heightPercent = total > 0 ? (total / maxValue) * 100 : 0;
-          const autoPercent = total > 0 ? (hour.auto / total) * 100 : 0;
-          const userPercent = total > 0 ? (hour.user / total) * 100 : 0;
+          const autoPercent = total > 0 ? (bucket.auto / total) * 100 : 0;
+          const userPercent = total > 0 ? (bucket.user / total) * 100 : 0;
           const isHovered = hoveredIndex === index;
 
           return (
@@ -208,7 +348,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ entries, theme, reference
                 }}
               >
                 {/* Auto portion (bottom) - warning color */}
-                {hour.auto > 0 && (
+                {bucket.auto > 0 && (
                   <div
                     style={{
                       height: `${autoPercent}%`,
@@ -218,7 +358,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ entries, theme, reference
                   />
                 )}
                 {/* User portion (top) - accent color */}
-                {hour.user > 0 && (
+                {bucket.user > 0 && (
                   <div
                     style={{
                       height: `${userPercent}%`,
@@ -241,20 +381,20 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ entries, theme, reference
           );
         })}
       </div>
-      {/* Hour labels below */}
+      {/* Axis labels below */}
       <div className="relative h-3 mt-0.5">
-        {hourLabels.map(({ hour, index }) => (
+        {axisLabels.map(({ label, index }) => (
           <span
-            key={hour}
+            key={`${label}-${index}`}
             className="absolute text-[8px] font-mono"
             style={{
               color: theme.colors.textDim,
-              left: index === 0 ? '0' : index === 23 ? 'auto' : `${(index / 23) * 100}%`,
-              right: index === 23 ? '0' : 'auto',
-              transform: index > 0 && index < 23 ? 'translateX(-50%)' : 'none'
+              left: index === 0 ? '0' : index === bucketCount - 1 ? 'auto' : `${(index / (bucketCount - 1)) * 100}%`,
+              right: index === bucketCount - 1 ? '0' : 'auto',
+              transform: index > 0 && index < bucketCount - 1 ? 'translateX(-50%)' : 'none'
             }}
           >
-            {hour}h
+            {label}
           </span>
         ))}
       </div>
@@ -291,10 +431,12 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
   const [displayCount, setDisplayCount] = useState(INITIAL_DISPLAY_COUNT);
   const [graphReferenceTime, setGraphReferenceTime] = useState<number | undefined>(undefined);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
+  const [graphLookbackHours, setGraphLookbackHours] = useState<number | null>(24); // default 24 hours
 
   const listRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const savedScrollPosition = useRef<number>(0);
 
   // Load history entries function - reusable for initial load and refresh
   const loadHistory = useCallback(async () => {
@@ -435,6 +577,9 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
     const target = e.currentTarget;
     const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
 
+    // Save scroll position for persistence when switching views
+    savedScrollPosition.current = target.scrollTop;
+
     // Load more when within 100px of bottom
     if (scrollBottom < 100 && hasMore) {
       setDisplayCount(prev => Math.min(prev + LOAD_MORE_COUNT, allFilteredEntries.length));
@@ -465,6 +610,13 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
       setGraphReferenceTime(topmostVisibleEntry.timestamp);
     }
   }, [hasMore, allFilteredEntries.length, filteredEntries]);
+
+  // Restore scroll position when component re-renders (e.g., switching back to History tab)
+  useEffect(() => {
+    if (listRef.current && savedScrollPosition.current > 0 && !isLoading) {
+      listRef.current.scrollTop = savedScrollPosition.current;
+    }
+  }, [isLoading]);
 
   // Reset selected index, display count, and graph reference time when filters change
   useEffect(() => {
@@ -624,7 +776,14 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
         </div>
 
         {/* 24-hour activity bar graph */}
-        <ActivityGraph entries={historyEntries} theme={theme} referenceTime={graphReferenceTime} onBarClick={handleGraphBarClick} />
+        <ActivityGraph
+          entries={historyEntries}
+          theme={theme}
+          referenceTime={graphReferenceTime}
+          onBarClick={handleGraphBarClick}
+          lookbackHours={graphLookbackHours}
+          onLookbackChange={setGraphLookbackHours}
+        />
 
         {/* Help button */}
         <button
@@ -722,10 +881,10 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
                         className="flex items-center justify-center w-5 h-5 rounded-full"
                         style={{
                           backgroundColor: entry.success
-                            ? theme.colors.success + (entry.validated ? '40' : '20')
+                            ? (entry.validated ? theme.colors.success : theme.colors.success + '20')
                             : theme.colors.error + '20',
                           border: `1px solid ${entry.success
-                            ? theme.colors.success + (entry.validated ? '60' : '40')
+                            ? (entry.validated ? theme.colors.success : theme.colors.success + '40')
                             : theme.colors.error + '40'}`
                         }}
                         title={entry.success
@@ -734,7 +893,7 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
                       >
                         {entry.success ? (
                           entry.validated ? (
-                            <DoubleCheck className="w-3 h-3" style={{ color: theme.colors.success }} />
+                            <DoubleCheck className="w-3 h-3" style={{ color: '#ffffff' }} />
                           ) : (
                             <Check className="w-3 h-3" style={{ color: theme.colors.success }} />
                           )

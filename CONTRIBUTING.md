@@ -9,7 +9,9 @@ For architecture details, see [ARCHITECTURE.md](ARCHITECTURE.md). For quick refe
 - [Development Setup](#development-setup)
 - [Project Structure](#project-structure)
 - [Development Scripts](#development-scripts)
+- [Testing](#testing)
 - [Common Development Tasks](#common-development-tasks)
+- [Adding a New AI Agent](#adding-a-new-ai-agent)
 - [Code Style](#code-style)
 - [Debugging Guide](#debugging-guide)
 - [Commit Messages](#commit-messages)
@@ -109,6 +111,45 @@ You can also specify a custom demo directory via environment variable:
 
 ```bash
 MAESTRO_DEMO_DIR=~/Desktop/my-demo npm run dev
+```
+
+## Testing
+
+Run the test suite with Jest:
+
+```bash
+npm test                              # Run all tests
+npm test -- --watch                   # Watch mode (re-runs on file changes)
+npm test -- --testPathPattern="name"  # Run tests matching a pattern
+npm test -- --coverage                # Run with coverage report
+```
+
+### Watch Mode
+
+Watch mode keeps Jest running and automatically re-runs tests when you save changes:
+
+- Watches source and test files for changes
+- Re-runs only tests affected by changed files
+- Provides instant feedback during development
+
+**Interactive options in watch mode:**
+- `a` - Run all tests
+- `f` - Run only failing tests
+- `p` - Filter by filename pattern
+- `t` - Filter by test name pattern
+- `q` - Quit watch mode
+
+### Test Organization
+
+Tests are located in `src/__tests__/` and organized by area:
+
+```
+src/__tests__/
+├── cli/           # CLI tool tests
+├── main/          # Electron main process tests
+├── renderer/      # React component and hook tests
+├── shared/        # Shared utility tests
+└── web/           # Web interface tests
 ```
 
 ## Common Development Tasks
@@ -241,6 +282,153 @@ Then add the ID to `ThemeId` type in `src/shared/theme-types.ts` and to the `isV
    ```
 
 3. Add types to `MaestroAPI` interface in preload.ts.
+
+## Adding a New AI Agent
+
+Maestro supports multiple AI coding agents. Each agent has different capabilities that determine which UI features are available. For detailed architecture, see [AGENT_SUPPORT.md](AGENT_SUPPORT.md).
+
+### Agent Capability Checklist
+
+Before implementing, investigate the agent's CLI to determine which capabilities it supports:
+
+| Capability | Question to Answer | Example |
+|------------|-------------------|---------|
+| **Session Resume** | Can you continue a previous conversation? | `--resume <id>`, `--session <id>` |
+| **Read-Only Mode** | Is there a plan/analysis-only mode? | `--permission-mode plan`, `--agent plan` |
+| **JSON Output** | Does it emit structured JSON? | `--output-format json`, `--format json` |
+| **Session ID** | Does output include a session identifier? | `session_id`, `sessionID` in JSON |
+| **Image Input** | Can you send images to the agent? | `--input-format stream-json`, `-f image.png` |
+| **Slash Commands** | Are there discoverable commands? | Emitted in init message |
+| **Session Storage** | Does it persist sessions to disk? | `~/.agent/sessions/` |
+| **Cost Tracking** | Is it API-based with costs? | Cloud API vs local model |
+| **Usage Stats** | Does it report token counts? | `tokens`, `usage` in output |
+| **Batch Mode** | Does it run per-message or persistently? | `--print` vs interactive |
+
+### Implementation Steps
+
+#### 1. Add Agent Definition
+
+In `src/main/agent-detector.ts`, add to `AGENT_DEFINITIONS`:
+
+```typescript
+{
+  id: 'my-agent',
+  name: 'My Agent',
+  binaryName: 'myagent',
+  command: 'myagent',
+  args: ['--json'],  // Base args for batch mode
+},
+```
+
+#### 2. Define Capabilities
+
+In `src/main/agent-capabilities.ts` (create if needed):
+
+```typescript
+'my-agent': {
+  supportsResume: true,              // Set based on investigation
+  supportsReadOnlyMode: false,       // Set based on investigation
+  supportsJsonOutput: true,
+  supportsSessionId: true,
+  supportsImageInput: false,
+  supportsSlashCommands: false,
+  supportsSessionStorage: false,
+  supportsCostTracking: false,       // true for API-based agents
+  supportsUsageStats: true,
+  supportsBatchMode: true,
+  supportsStreaming: true,
+},
+```
+
+#### 3. Implement Output Parser
+
+In `src/main/agent-output-parser.ts`, add a parser for the agent's JSON format:
+
+```typescript
+class MyAgentOutputParser implements AgentOutputParser {
+  parseJsonLine(line: string): ParsedEvent {
+    const msg = JSON.parse(line);
+    return {
+      type: msg.type,
+      sessionId: msg.session_id,  // Agent-specific field name
+      text: msg.content,          // Agent-specific field name
+      tokens: msg.usage,          // Agent-specific field name
+    };
+  }
+}
+```
+
+#### 4. Configure CLI Arguments
+
+Add argument builders for capability-driven flags:
+
+```typescript
+// In agent definition
+resumeArgs: (sessionId) => ['--resume', sessionId],
+readOnlyArgs: ['--read-only'],  // If supported
+jsonOutputArgs: ['--format', 'json'],
+batchModePrefix: ['run'],  // If needed (e.g., 'myagent run "prompt"')
+```
+
+#### 5. Implement Session Storage (Optional)
+
+If the agent persists sessions to disk:
+
+```typescript
+class MyAgentSessionStorage implements AgentSessionStorage {
+  async listSessions(projectPath: string): Promise<AgentSession[]> {
+    // Read from agent's session directory
+  }
+
+  async readSession(projectPath: string, sessionId: string): Promise<Message[]> {
+    // Parse session file format
+  }
+}
+```
+
+#### 6. Test the Integration
+
+```bash
+# 1. Verify agent detection
+npm run dev
+# Check Settings → AI Agents shows your agent
+
+# 2. Test new session
+# Create session with your agent, send a message
+
+# 3. Test JSON parsing
+# Verify response appears correctly in UI
+
+# 4. Test resume (if supported)
+# Close and reopen tab, send follow-up message
+
+# 5. Test read-only mode (if supported)
+# Toggle read-only, verify agent refuses writes
+```
+
+### UI Feature Availability
+
+Based on capabilities, these UI features are automatically enabled/disabled:
+
+| Feature | Required Capability | Component |
+|---------|-------------------|-----------|
+| Read-only toggle | `supportsReadOnlyMode` | InputArea |
+| Image attachment | `supportsImageInput` | InputArea |
+| Session browser | `supportsSessionStorage` | RightPanel |
+| Resume button | `supportsResume` | AgentSessionsBrowser |
+| Cost widget | `supportsCostTracking` | MainPanel |
+| Token display | `supportsUsageStats` | MainPanel, TabBar |
+| Session ID pill | `supportsSessionId` | MainPanel |
+| Slash autocomplete | `supportsSlashCommands` | InputArea |
+
+### Supported Agents Reference
+
+| Agent | Resume | Read-Only | JSON | Images | Sessions | Cost |
+|-------|--------|-----------|------|--------|----------|------|
+| Claude Code | ✅ `--resume` | ✅ `--permission-mode plan` | ✅ | ✅ | ✅ `~/.claude/` | ✅ |
+| OpenCode | ✅ `--session` | ✅ `--agent plan` | ✅ | ✅ | TBD | ❌ (local) |
+| Gemini CLI | TBD | TBD | TBD | TBD | TBD | ✅ |
+| Codex | TBD | TBD | TBD | TBD | TBD | ✅ |
 
 ## Code Style
 

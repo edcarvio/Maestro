@@ -165,22 +165,21 @@ export function AboutModal({ theme, sessions, autoRunStats, onClose }: AboutModa
             <div className="flex-1">
               <div className="text-sm font-bold" style={{ color: theme.colors.textMain }}>Pedram Amini</div>
               <div className="text-xs opacity-70 mb-2" style={{ color: theme.colors.textDim }}>Founder, Hacker, Investor, Advisor</div>
-              <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 text-xs">
                 <button
                   onClick={() => window.maestro.shell.openExternal('https://github.com/pedramamini')}
-                  className="inline-flex items-center gap-1 text-xs hover:underline cursor-pointer text-left"
+                  className="inline-flex items-center gap-1 hover:underline cursor-pointer"
                   style={{ color: theme.colors.accent, background: 'none', border: 'none', padding: 0 }}
                 >
-                  <ExternalLink className="w-3 h-3" />
-                  GitHub Profile
+                  GitHub
                 </button>
+                <span style={{ color: theme.colors.textDim }}>·</span>
                 <button
                   onClick={() => window.maestro.shell.openExternal('https://www.linkedin.com/in/pedramamini/')}
-                  className="inline-flex items-center gap-1 text-xs hover:underline cursor-pointer text-left"
+                  className="inline-flex items-center gap-1 hover:underline cursor-pointer"
                   style={{ color: theme.colors.accent, background: 'none', border: 'none', padding: 0 }}
                 >
-                  <ExternalLink className="w-3 h-3" />
-                  LinkedIn Profile
+                  LinkedIn
                 </button>
               </div>
             </div>

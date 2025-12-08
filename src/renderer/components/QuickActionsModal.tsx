@@ -50,7 +50,6 @@ interface QuickActionsModalProps {
   setActiveClaudeSessionId: (id: string | null) => void;
   setGitDiffPreview: (diff: string | null) => void;
   setGitLogOpen: (open: boolean) => void;
-  startFreshSession: () => void;
   onRenameTab?: () => void;
   onToggleReadOnlyMode?: () => void;
   onOpenTabSwitcher?: () => void;
@@ -73,7 +72,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     setLeftSidebarOpen, setRightPanelOpen, setActiveRightTab, toggleInputMode,
     deleteSession, addNewSession, setSettingsModalOpen, setSettingsTab,
     setShortcutsHelpOpen, setAboutModalOpen, setLogViewerOpen, setProcessMonitorOpen,
-    setAgentSessionsOpen, setActiveClaudeSessionId, setGitDiffPreview, setGitLogOpen, startFreshSession,
+    setAgentSessionsOpen, setActiveClaudeSessionId, setGitDiffPreview, setGitLogOpen,
     onRenameTab, onToggleReadOnlyMode, onOpenTabSwitcher, tabShortcuts, isAiMode, setPlaygroundOpen, onRefreshGitFileState,
     onDebugReleaseQueuedItem, markdownRawMode, onToggleMarkdownRawMode
   } = props;
@@ -192,7 +191,6 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
   const mainActions: QuickAction[] = [
     ...sessionActions,
     { id: 'new', label: 'Create New Agent', shortcut: shortcuts.newInstance, action: addNewSession },
-    ...(activeSession ? [{ id: 'freshSession', label: 'Fresh Agent Session', action: () => { startFreshSession(); setQuickActionOpen(false); }, subtext: 'Clear AI history and start fresh' }] : []),
     ...(activeSession ? [{ id: 'rename', label: `Rename Agent: ${activeSession.name}`, action: () => {
       setRenameInstanceValue(activeSession.name);
       setRenameInstanceModalOpen(true);

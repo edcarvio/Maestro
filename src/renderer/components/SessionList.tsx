@@ -1328,7 +1328,7 @@ export function SessionList(props: SessionListProps) {
                             <div
                               className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase animate-pulse"
                               style={{ backgroundColor: theme.colors.warning + '30', color: theme.colors.warning }}
-                              title="Auto mode running"
+                              title="Auto Run active"
                             >
                               <Bot className="w-2.5 h-2.5" />
                               AUTO
@@ -1616,7 +1616,7 @@ export function SessionList(props: SessionListProps) {
                               <div
                                 className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase animate-pulse"
                                 style={{ backgroundColor: theme.colors.warning + '30', color: theme.colors.warning }}
-                                title="Auto mode running"
+                                title="Auto Run active"
                               >
                                 <Bot className="w-2.5 h-2.5" />
                                 AUTO
@@ -1888,7 +1888,7 @@ export function SessionList(props: SessionListProps) {
                       <div
                         className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase animate-pulse"
                         style={{ backgroundColor: theme.colors.warning + '30', color: theme.colors.warning }}
-                        title="Auto mode running"
+                        title="Auto Run active"
                       >
                         <Bot className="w-2.5 h-2.5" />
                         AUTO

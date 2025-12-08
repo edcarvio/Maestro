@@ -292,7 +292,7 @@ export async function* runPlaybook(
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,
             totalCostUsd: loopTotalCost,
-            contextWindow: 200000,
+            contextWindow: 0, // Set to 0 for summaries - these are cumulative totals, not per-task context
           }
         : undefined;
 
@@ -341,7 +341,7 @@ export async function* runPlaybook(
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,
             totalCostUsd: totalCost,
-            contextWindow: 200000,
+            contextWindow: 0, // Set to 0 for summaries - these are cumulative totals, not per-task context
           }
         : undefined;
 
@@ -691,7 +691,7 @@ export async function* runPlaybook(
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,
             totalCostUsd: loopTotalCost,
-            contextWindow: 200000,
+            contextWindow: 0, // Set to 0 for summaries - these are cumulative totals, not per-task context
           }
         : undefined;
 

@@ -1,4 +1,5 @@
 # Tests
+coverage/
 do-wishlist.sh
 do-housekeeping.sh
 coverage/

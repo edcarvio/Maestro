@@ -5,5 +5,12 @@
  */
 
 export { wizardPrompts, parseStructuredOutput } from './wizardPrompts';
-export { conversationManager } from './conversationManager';
-export { phaseGenerator } from './phaseGenerator';
+export {
+  conversationManager,
+  createUserMessage,
+  createAssistantMessage,
+  shouldAutoProceed,
+} from './conversationManager';
+
+// phaseGenerator will be exported when implemented
+// export { phaseGenerator } from './phaseGenerator';

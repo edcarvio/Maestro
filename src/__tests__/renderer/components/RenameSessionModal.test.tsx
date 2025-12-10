@@ -242,7 +242,7 @@ describe('RenameSessionModal', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText('Cancel'));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
       expect(mockOnClose).toHaveBeenCalledTimes(1);
       expect(mockSetSessions).not.toHaveBeenCalled();
@@ -263,7 +263,7 @@ describe('RenameSessionModal', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText('Rename'));
+      fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
 
       expect(mockSetSessions).toHaveBeenCalled();
       expect(mockOnClose).toHaveBeenCalledTimes(1);
@@ -284,7 +284,7 @@ describe('RenameSessionModal', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText('Rename'));
+      fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
 
       expect(mockSetSessions).not.toHaveBeenCalled();
       expect(mockOnClose).not.toHaveBeenCalled();
@@ -305,7 +305,7 @@ describe('RenameSessionModal', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText('Rename'));
+      fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
 
       expect(mockSetSessions).not.toHaveBeenCalled();
       expect(mockOnClose).not.toHaveBeenCalled();
@@ -481,7 +481,7 @@ describe('RenameSessionModal', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText('Rename'));
+      fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
 
       expect(mockSetSessions).toHaveBeenCalled();
       // The updater function should be called with the active session ID
@@ -507,7 +507,7 @@ describe('RenameSessionModal', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText('Rename'));
+      fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
 
       expect(mockSetSessions).toHaveBeenCalled();
       const updaterFn = mockSetSessions.mock.calls[0][0];
@@ -531,7 +531,7 @@ describe('RenameSessionModal', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText('Rename'));
+      fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
 
       const updaterFn = mockSetSessions.mock.calls[0][0];
       const result = updaterFn(mockSessions);
@@ -555,7 +555,7 @@ describe('RenameSessionModal', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText('Rename'));
+      fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
 
       expect((window as any).maestro.claude.updateSessionName).toHaveBeenCalledWith(
         '/home/user/project',
@@ -579,7 +579,7 @@ describe('RenameSessionModal', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText('Rename'));
+      fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
 
       expect((window as any).maestro.claude.updateSessionName).not.toHaveBeenCalled();
     });

@@ -337,7 +337,7 @@ describe('GitDiffViewer', () => {
         />
       );
 
-      fireEvent.click(screen.getByText('Close (Esc)'));
+      fireEvent.click(screen.getByRole('button', { name: 'Close (Esc)' }));
       expect(onClose).toHaveBeenCalled();
     });
 
@@ -390,7 +390,7 @@ describe('GitDiffViewer', () => {
         />
       );
 
-      fireEvent.click(screen.getByText('Close (Esc)'));
+      fireEvent.click(screen.getByRole('button', { name: 'Close (Esc)' }));
       expect(onClose).toHaveBeenCalled();
     });
   });

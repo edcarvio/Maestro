@@ -437,19 +437,19 @@ describe('AchievementCard', () => {
     it('does not show history for first badge only', () => {
       render(<AchievementCard theme={mockTheme} autoRunStats={firstBadgeStats} />);
 
-      expect(screen.queryByText('Unlock History')).not.toBeInTheDocument();
+      expect(screen.queryByText('Path to the Podium: Timeline')).not.toBeInTheDocument();
     });
 
     it('shows history button for multiple badges', () => {
       render(<AchievementCard theme={mockTheme} autoRunStats={level5Stats} />);
 
-      expect(screen.getByText('Unlock History')).toBeInTheDocument();
+      expect(screen.getByText('Path to the Podium: Timeline')).toBeInTheDocument();
     });
 
     it('expands history when clicking button', async () => {
       render(<AchievementCard theme={mockTheme} autoRunStats={level5Stats} />);
 
-      const historyButton = screen.getByText('Unlock History');
+      const historyButton = screen.getByText('Path to the Podium: Timeline');
       fireEvent.click(historyButton);
 
       // Should show badge history entries - short names
@@ -467,7 +467,7 @@ describe('AchievementCard', () => {
     it('collapses history when clicking again', async () => {
       render(<AchievementCard theme={mockTheme} autoRunStats={level5Stats} />);
 
-      const historyButton = screen.getByText('Unlock History');
+      const historyButton = screen.getByText('Path to the Podium: Timeline');
 
       // Expand
       fireEvent.click(historyButton);

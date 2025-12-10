@@ -244,7 +244,7 @@ describe('BatchRunnerModal', () => {
     it('opens document selector modal when Add Docs is clicked', async () => {
       render(<BatchRunnerModal {...createDefaultProps()} />);
 
-      const addButton = screen.getByText('Add Docs');
+      const addButton = screen.getByRole('button', { name: 'Add Docs' });
       fireEvent.click(addButton);
 
       expect(screen.getByText('Select Documents')).toBeInTheDocument();
@@ -253,7 +253,7 @@ describe('BatchRunnerModal', () => {
     it('displays all documents in selector modal', async () => {
       render(<BatchRunnerModal {...createDefaultProps()} />);
 
-      fireEvent.click(screen.getByText('Add Docs'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Docs' }));
 
       await waitFor(() => {
         // Look within the selector modal for doc names (test-doc appears in main list AND selector)
@@ -268,7 +268,7 @@ describe('BatchRunnerModal', () => {
     it('adds selected documents from selector', async () => {
       render(<BatchRunnerModal {...createDefaultProps()} />);
 
-      fireEvent.click(screen.getByText('Add Docs'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Docs' }));
 
       // Select doc1 (current doc is already selected)
       const doc1Button = screen.getByRole('button', { name: /doc1\.md/ });
@@ -290,7 +290,7 @@ describe('BatchRunnerModal', () => {
       render(<BatchRunnerModal {...props} />);
 
       // Add another document first
-      fireEvent.click(screen.getByText('Add Docs'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Docs' }));
       const doc1Button = screen.getByRole('button', { name: /doc1\.md/ });
       fireEvent.click(doc1Button);
       fireEvent.click(screen.getByRole('button', { name: /Add \(/ }));
@@ -361,7 +361,7 @@ describe('BatchRunnerModal', () => {
       const props = createDefaultProps();
       render(<BatchRunnerModal {...props} />);
 
-      fireEvent.click(screen.getByText('Add Docs'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Docs' }));
 
       const refreshButton = screen.getByTitle('Refresh document list');
       fireEvent.click(refreshButton);
@@ -372,7 +372,7 @@ describe('BatchRunnerModal', () => {
     it('closes document selector on backdrop click', async () => {
       render(<BatchRunnerModal {...createDefaultProps()} />);
 
-      fireEvent.click(screen.getByText('Add Docs'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Docs' }));
       expect(screen.getByText('Select Documents')).toBeInTheDocument();
 
       // Click on backdrop (the outer div)
@@ -393,7 +393,7 @@ describe('BatchRunnerModal', () => {
       render(<BatchRunnerModal {...props} />);
 
       // Add a second document
-      fireEvent.click(screen.getByText('Add Docs'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Docs' }));
       fireEvent.click(screen.getByRole('button', { name: /doc1\.md/ }));
       fireEvent.click(screen.getByRole('button', { name: /Add \(/ }));
 
@@ -417,7 +417,7 @@ describe('BatchRunnerModal', () => {
       render(<BatchRunnerModal {...props} />);
 
       // Add another document
-      fireEvent.click(screen.getByText('Add Docs'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Docs' }));
       fireEvent.click(screen.getByRole('button', { name: /doc1\.md/ }));
       fireEvent.click(screen.getByRole('button', { name: /Add \(/ }));
 
@@ -431,7 +431,7 @@ describe('BatchRunnerModal', () => {
       render(<BatchRunnerModal {...props} />);
 
       // Add another document
-      fireEvent.click(screen.getByText('Add Docs'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Docs' }));
       fireEvent.click(screen.getByRole('button', { name: /doc1\.md/ }));
       fireEvent.click(screen.getByRole('button', { name: /Add \(/ }));
 
@@ -450,7 +450,7 @@ describe('BatchRunnerModal', () => {
       render(<BatchRunnerModal {...props} />);
 
       // Add another document
-      fireEvent.click(screen.getByText('Add Docs'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Docs' }));
       fireEvent.click(screen.getByRole('button', { name: /doc1\.md/ }));
       fireEvent.click(screen.getByRole('button', { name: /Add \(/ }));
 
@@ -476,11 +476,11 @@ describe('BatchRunnerModal', () => {
       render(<BatchRunnerModal {...props} />);
 
       // Add another document and enable loop with max
-      fireEvent.click(screen.getByText('Add Docs'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Docs' }));
       fireEvent.click(screen.getByRole('button', { name: /doc1\.md/ }));
       fireEvent.click(screen.getByRole('button', { name: /Add \(/ }));
       fireEvent.click(await screen.findByText('Loop'));
-      fireEvent.click(screen.getByText('max'));
+      fireEvent.click(screen.getByRole('button', { name: 'max' }));
 
       const slider = screen.getByRole('slider');
       fireEvent.change(slider, { target: { value: '10' } });
@@ -557,7 +557,7 @@ describe('BatchRunnerModal', () => {
       render(<BatchRunnerModal {...createDefaultProps()} />);
 
       fireEvent.click(screen.getByTitle('Expand editor'));
-      fireEvent.click(screen.getByText('Submit'));
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
       const textarea = screen.getByPlaceholderText('Enter the prompt for the batch agent...');
       expect(textarea).toHaveValue('Updated prompt from composer');
@@ -579,7 +579,7 @@ describe('BatchRunnerModal', () => {
     it('shows template variable documentation', async () => {
       render(<BatchRunnerModal {...createDefaultProps()} />);
 
-      fireEvent.click(screen.getByText('Template Variables'));
+      fireEvent.click(screen.getByRole('button', { name: /Template Variables/ }));
 
       await waitFor(() => {
         expect(screen.getByText('{{DOCUMENT_PATH}}')).toBeInTheDocument();
@@ -623,7 +623,7 @@ describe('BatchRunnerModal', () => {
         expect(screen.getByText('Load Playbook')).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Load Playbook'));
+      fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
 
       await waitFor(() => {
         expect(screen.getByText('Test Playbook')).toBeInTheDocument();
@@ -645,7 +645,7 @@ describe('BatchRunnerModal', () => {
       render(<BatchRunnerModal {...createDefaultProps()} />);
 
       await waitFor(() => screen.getByText('Load Playbook'));
-      fireEvent.click(screen.getByText('Load Playbook'));
+      fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
       fireEvent.click(screen.getByText('Test Playbook'));
 
       // Should now show playbook name in button
@@ -660,7 +660,7 @@ describe('BatchRunnerModal', () => {
       render(<BatchRunnerModal {...props} />);
 
       // Add another document
-      fireEvent.click(screen.getByText('Add Docs'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Docs' }));
       fireEvent.click(screen.getByRole('button', { name: /doc1\.md/ }));
       fireEvent.click(screen.getByRole('button', { name: /Add \(/ }));
 
@@ -674,11 +674,11 @@ describe('BatchRunnerModal', () => {
       render(<BatchRunnerModal {...props} />);
 
       // Add another document
-      fireEvent.click(screen.getByText('Add Docs'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Docs' }));
       fireEvent.click(screen.getByRole('button', { name: /doc1\.md/ }));
       fireEvent.click(screen.getByRole('button', { name: /Add \(/ }));
 
-      fireEvent.click(screen.getByText('Save as Playbook'));
+      fireEvent.click(screen.getByRole('button', { name: 'Save as Playbook' }));
 
       expect(screen.getByTestId('playbook-name-modal')).toBeInTheDocument();
     });
@@ -694,11 +694,11 @@ describe('BatchRunnerModal', () => {
       render(<BatchRunnerModal {...props} />);
 
       // Add another document
-      fireEvent.click(screen.getByText('Add Docs'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Docs' }));
       fireEvent.click(screen.getByRole('button', { name: /doc1\.md/ }));
       fireEvent.click(screen.getByRole('button', { name: /Add \(/ }));
 
-      fireEvent.click(screen.getByText('Save as Playbook'));
+      fireEvent.click(screen.getByRole('button', { name: 'Save as Playbook' }));
 
       // Find and click Save button in the playbook name modal
       const modal = screen.getByTestId('playbook-name-modal');
@@ -725,7 +725,7 @@ describe('BatchRunnerModal', () => {
 
       // Load playbook
       await waitFor(() => screen.getByText('Load Playbook'));
-      fireEvent.click(screen.getByText('Load Playbook'));
+      fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
       fireEvent.click(screen.getByText('Test Playbook'));
 
       // Modify prompt
@@ -755,7 +755,7 @@ describe('BatchRunnerModal', () => {
 
       // Open dropdown
       await waitFor(() => screen.getByText('Load Playbook'));
-      fireEvent.click(screen.getByText('Load Playbook'));
+      fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
 
       // Click delete button (X next to playbook)
       const deleteButton = screen.getByTitle('Delete playbook');
@@ -763,7 +763,7 @@ describe('BatchRunnerModal', () => {
 
       // Confirm delete
       expect(screen.getByTestId('playbook-delete-modal')).toBeInTheDocument();
-      fireEvent.click(screen.getByText('Confirm Delete'));
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm Delete' }));
 
       await waitFor(() => {
         expect(mockDelete).toHaveBeenCalledWith('session-123', 'playbook-1');
@@ -786,7 +786,7 @@ describe('BatchRunnerModal', () => {
       render(<BatchRunnerModal {...createDefaultProps()} />);
 
       await waitFor(() => screen.getByText('Load Playbook'));
-      fireEvent.click(screen.getByText('Load Playbook'));
+      fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
 
       const exportButton = screen.getByTitle('Export playbook');
       fireEvent.click(exportButton);
@@ -811,8 +811,8 @@ describe('BatchRunnerModal', () => {
       render(<BatchRunnerModal {...createDefaultProps()} />);
 
       await waitFor(() => screen.getByText('Load Playbook'));
-      fireEvent.click(screen.getByText('Load Playbook'));
-      fireEvent.click(screen.getByText('Import Playbook'));
+      fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Import Playbook' }));
 
       await waitFor(() => {
         expect(mockImport).toHaveBeenCalledWith('session-123', '/path/to/folder');
@@ -839,7 +839,7 @@ describe('BatchRunnerModal', () => {
       render(<BatchRunnerModal {...createDefaultProps()} />);
 
       await waitFor(() => screen.getByText('Load Playbook'));
-      fireEvent.click(screen.getByText('Load Playbook'));
+      fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
       fireEvent.click(screen.getByText('Test Playbook'));
 
       await waitFor(() => {
@@ -905,7 +905,7 @@ describe('BatchRunnerModal', () => {
         expect(screen.getByText('Enable Worktree')).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Enable Worktree'));
+      fireEvent.click(screen.getByRole('button', { name: 'Enable Worktree' }));
 
       await waitFor(() => {
         expect(screen.getByPlaceholderText('/path/to/worktree')).toBeInTheDocument();
@@ -919,9 +919,9 @@ describe('BatchRunnerModal', () => {
       await waitFor(() => {
         expect(screen.getByText('Enable Worktree')).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByText('Enable Worktree'));
+      fireEvent.click(screen.getByRole('button', { name: 'Enable Worktree' }));
 
-      fireEvent.click(screen.getByText('Browse'));
+      fireEvent.click(screen.getByRole('button', { name: 'Browse' }));
 
       expect(window.maestro.dialog.selectFolder).toHaveBeenCalled();
     });
@@ -932,7 +932,7 @@ describe('BatchRunnerModal', () => {
       await waitFor(() => {
         expect(screen.getByText('Enable Worktree')).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByText('Enable Worktree'));
+      fireEvent.click(screen.getByRole('button', { name: 'Enable Worktree' }));
 
       await waitFor(() => {
         expect(screen.getByText('Create PR on completion')).toBeInTheDocument();
@@ -945,7 +945,7 @@ describe('BatchRunnerModal', () => {
       await waitFor(() => {
         expect(screen.getByText('Enable Worktree')).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByText('Enable Worktree'));
+      fireEvent.click(screen.getByRole('button', { name: 'Enable Worktree' }));
 
       await waitFor(() => {
         expect(screen.getByText('main')).toBeInTheDocument();
@@ -960,7 +960,7 @@ describe('BatchRunnerModal', () => {
       await waitFor(() => {
         expect(screen.getByText('Enable Worktree')).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByText('Enable Worktree'));
+      fireEvent.click(screen.getByRole('button', { name: 'Enable Worktree' }));
 
       await waitFor(() => {
         expect(screen.getByText(/gh auth login/)).toBeInTheDocument();
@@ -981,7 +981,7 @@ describe('BatchRunnerModal', () => {
       await waitFor(() => {
         expect(screen.getByText('Enable Worktree')).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByText('Enable Worktree'));
+      fireEvent.click(screen.getByRole('button', { name: 'Enable Worktree' }));
 
       const pathInput = screen.getByPlaceholderText('/path/to/worktree');
       fireEvent.change(pathInput, { target: { value: '/path/to/worktree' } });
@@ -1011,7 +1011,7 @@ describe('BatchRunnerModal', () => {
       await waitFor(() => {
         expect(screen.getByText('Enable Worktree')).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByText('Enable Worktree'));
+      fireEvent.click(screen.getByRole('button', { name: 'Enable Worktree' }));
 
       const pathInput = screen.getByPlaceholderText('/path/to/worktree');
       fireEvent.change(pathInput, { target: { value: '/different/worktree' } });
@@ -1082,7 +1082,7 @@ describe('BatchRunnerModal', () => {
       await waitFor(() => {
         expect(screen.getByText('Enable Worktree')).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByText('Enable Worktree'));
+      fireEvent.click(screen.getByRole('button', { name: 'Enable Worktree' }));
 
       fireEvent.change(screen.getByPlaceholderText('/path/to/worktree'), { target: { value: '/my/worktree' } });
       fireEvent.change(screen.getByPlaceholderText('autorun-feature-xyz'), { target: { value: 'my-branch' } });
@@ -1158,7 +1158,7 @@ describe('BatchRunnerModal', () => {
       props.currentDocument = '';
       render(<BatchRunnerModal {...props} />);
 
-      fireEvent.click(screen.getByText('Add Docs'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Docs' }));
 
       expect(screen.getByText('No documents found in folder')).toBeInTheDocument();
     });
@@ -1339,7 +1339,7 @@ describe('Loop Mode Additional Controls', () => {
     // Enable loop and set max
     const loopButton = await screen.findByText('Loop');
     fireEvent.click(loopButton);
-    fireEvent.click(screen.getByText('max'));
+    fireEvent.click(screen.getByRole('button', { name: 'max' }));
 
     // Verify slider is visible
     expect(screen.getByRole('slider')).toBeInTheDocument();
@@ -1365,7 +1365,7 @@ describe('Loop Mode Additional Controls', () => {
     // Enable loop with max
     const loopButton = await screen.findByText('Loop');
     fireEvent.click(loopButton);
-    fireEvent.click(screen.getByText('max'));
+    fireEvent.click(screen.getByRole('button', { name: 'max' }));
 
     // Set max loops to 15
     const slider = screen.getByRole('slider');
@@ -1440,7 +1440,7 @@ describe('Playbook with Worktree Settings', () => {
 
     // Wait for playbooks to load
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
     fireEvent.click(screen.getByText('Test Playbook'));
 
     // Verify worktree settings are restored
@@ -1468,14 +1468,14 @@ describe('Playbook with Worktree Settings', () => {
     await waitFor(() => {
       expect(screen.getByText('Enable Worktree')).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText('Enable Worktree'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enable Worktree' }));
 
     const branchInput = screen.getByPlaceholderText('autorun-feature-xyz');
     fireEvent.change(branchInput, { target: { value: 'my-branch' } });
 
     // Now load a playbook without worktree settings
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
     fireEvent.click(screen.getByText('Test Playbook'));
 
     // Worktree should be disabled (Enable Worktree button should appear again)
@@ -1503,7 +1503,7 @@ describe('Playbook Update Functionality', () => {
 
     // Load playbook
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
     fireEvent.click(screen.getByText('Test Playbook'));
 
     // Modify the prompt
@@ -1548,7 +1548,7 @@ describe('Playbook Update Functionality', () => {
 
     // Load playbook
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
     fireEvent.click(screen.getByText('Test Playbook'));
 
     // Modify and save
@@ -1582,7 +1582,7 @@ describe('Discard Changes Functionality', () => {
 
     // Load playbook
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
     fireEvent.click(screen.getByText('Test Playbook'));
 
     // Verify original prompt is loaded
@@ -1624,7 +1624,7 @@ describe('Delete Playbook Edge Cases', () => {
 
     // Load the playbook first
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
     fireEvent.click(screen.getByText('Test Playbook'));
 
     // Wait for playbook to be loaded (button text changes)
@@ -1643,7 +1643,7 @@ describe('Delete Playbook Edge Cases', () => {
 
     // Confirm delete
     expect(screen.getByTestId('playbook-delete-modal')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Confirm Delete'));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Delete' }));
 
     await waitFor(() => {
       expect(mockDelete).toHaveBeenCalled();
@@ -1667,11 +1667,11 @@ describe('Delete Playbook Edge Cases', () => {
     render(<BatchRunnerModal {...createDefaultProps()} />);
 
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
 
     const deleteButton = screen.getByTitle('Delete playbook');
     fireEvent.click(deleteButton);
-    fireEvent.click(screen.getByText('Confirm Delete'));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Delete' }));
 
     await waitFor(() => {
       expect(consoleError).toHaveBeenCalledWith('Failed to delete playbook:', expect.any(Error));
@@ -1695,7 +1695,7 @@ describe('Delete Playbook Edge Cases', () => {
     render(<BatchRunnerModal {...createDefaultProps()} />);
 
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
 
     const deleteButton = screen.getByTitle('Delete playbook');
     fireEvent.click(deleteButton);
@@ -1732,7 +1732,7 @@ describe('Export Playbook Edge Cases', () => {
     render(<BatchRunnerModal {...createDefaultProps()} />);
 
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
 
     const exportButton = screen.getByTitle('Export playbook');
     fireEvent.click(exportButton);
@@ -1761,7 +1761,7 @@ describe('Export Playbook Edge Cases', () => {
     render(<BatchRunnerModal {...createDefaultProps()} />);
 
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
 
     const exportButton = screen.getByTitle('Export playbook');
     fireEvent.click(exportButton);
@@ -1793,7 +1793,7 @@ describe('Export Playbook Edge Cases', () => {
     render(<BatchRunnerModal {...createDefaultProps()} />);
 
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
 
     const exportButton = screen.getByTitle('Export playbook');
     fireEvent.click(exportButton);
@@ -1824,8 +1824,8 @@ describe('Import Playbook Edge Cases', () => {
     render(<BatchRunnerModal {...createDefaultProps()} />);
 
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Import Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Import Playbook' }));
 
     await waitFor(() => {
       expect(consoleError).toHaveBeenCalledWith('Failed to import playbook:', 'Invalid format');
@@ -1851,8 +1851,8 @@ describe('Import Playbook Edge Cases', () => {
     render(<BatchRunnerModal {...createDefaultProps()} />);
 
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Import Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Import Playbook' }));
 
     await waitFor(() => {
       expect(mockImport).toHaveBeenCalled();
@@ -1881,8 +1881,8 @@ describe('Import Playbook Edge Cases', () => {
     render(<BatchRunnerModal {...createDefaultProps()} />);
 
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Import Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Import Playbook' }));
 
     await waitFor(() => {
       expect(consoleError).toHaveBeenCalledWith('Failed to import playbook:', expect.any(Error));
@@ -1908,7 +1908,7 @@ describe('Click Outside Dropdown Handlers', () => {
     render(<BatchRunnerModal {...createDefaultProps()} />);
 
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
 
     // Dropdown should be visible
     expect(screen.getByText('Test Playbook')).toBeInTheDocument();
@@ -1934,7 +1934,7 @@ describe('Click Outside Dropdown Handlers', () => {
     await waitFor(() => {
       expect(screen.getByText('Enable Worktree')).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText('Enable Worktree'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enable Worktree' }));
 
     // Enable Create PR checkbox to show branch dropdown
     await waitFor(() => {
@@ -1982,7 +1982,7 @@ describe('Save as New Playbook', () => {
 
     // Load playbook
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
     fireEvent.click(screen.getByText('Test Playbook'));
 
     // Modify the prompt
@@ -2011,7 +2011,7 @@ describe('Save as New Playbook', () => {
 
     // Load playbook and modify
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
     fireEvent.click(screen.getByText('Test Playbook'));
 
     const textarea = screen.getByPlaceholderText('Enter the prompt for the batch agent...');
@@ -2038,9 +2038,9 @@ describe('Worktree Browse Button', () => {
     await waitFor(() => {
       expect(screen.getByText('Enable Worktree')).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText('Enable Worktree'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enable Worktree' }));
 
-    fireEvent.click(screen.getByText('Browse'));
+    fireEvent.click(screen.getByRole('button', { name: 'Browse' }));
 
     await waitFor(() => {
       expect(window.maestro.dialog.selectFolder).toHaveBeenCalled();
@@ -2061,12 +2061,12 @@ describe('Worktree Browse Button', () => {
     await waitFor(() => {
       expect(screen.getByText('Enable Worktree')).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText('Enable Worktree'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enable Worktree' }));
 
     const pathInput = screen.getByPlaceholderText('/path/to/worktree');
     fireEvent.change(pathInput, { target: { value: '/original/path' } });
 
-    fireEvent.click(screen.getByText('Browse'));
+    fireEvent.click(screen.getByRole('button', { name: 'Browse' }));
 
     await waitFor(() => {
       expect(window.maestro.dialog.selectFolder).toHaveBeenCalled();
@@ -2102,7 +2102,7 @@ describe('Worktree Validation Edge Cases', () => {
     await waitFor(() => {
       expect(screen.getByText('Enable Worktree')).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText('Enable Worktree'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enable Worktree' }));
 
     const pathInput = screen.getByPlaceholderText('/path/to/worktree');
     fireEvent.change(pathInput, { target: { value: '/path/to/worktree' } });
@@ -2130,7 +2130,7 @@ describe('Worktree Validation Edge Cases', () => {
     await waitFor(() => {
       expect(screen.getByText('Enable Worktree')).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText('Enable Worktree'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enable Worktree' }));
 
     const pathInput = screen.getByPlaceholderText('/path/to/worktree');
     fireEvent.change(pathInput, { target: { value: '/path/to/worktree' } });
@@ -2273,7 +2273,7 @@ describe('Escape Handler Priority', () => {
     render(<BatchRunnerModal {...props} />);
 
     await waitFor(() => screen.getByText('Load Playbook'));
-    fireEvent.click(screen.getByText('Load Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Playbook' }));
 
     // Open delete modal
     const deleteButton = screen.getByTitle('Delete playbook');
@@ -2306,7 +2306,7 @@ describe('Escape Handler Priority', () => {
     fireEvent.click(screen.getByRole('button', { name: /Add \(/ }));
 
     await waitFor(() => screen.getByText('Save as Playbook'));
-    fireEvent.click(screen.getByText('Save as Playbook'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Playbook' }));
 
     expect(screen.getByTestId('playbook-name-modal')).toBeInTheDocument();
 

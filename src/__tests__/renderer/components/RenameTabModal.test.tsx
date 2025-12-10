@@ -199,7 +199,7 @@ describe('RenameTabModal', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText('Cancel'));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
       expect(mockOnClose).toHaveBeenCalledTimes(1);
       expect(mockOnRename).not.toHaveBeenCalled();
@@ -217,7 +217,7 @@ describe('RenameTabModal', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText('Rename'));
+      fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
 
       expect(mockOnRename).toHaveBeenCalledWith('My Tab');
       expect(mockOnClose).toHaveBeenCalledTimes(1);
@@ -298,7 +298,7 @@ describe('RenameTabModal', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText('Rename'));
+      fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
 
       expect(mockOnRename).toHaveBeenCalledWith('Padded Name');
     });
@@ -505,7 +505,7 @@ describe('RenameTabModal', () => {
 
       const input = screen.getByRole('textbox');
       fireEvent.change(input, { target: { value: '' } });
-      fireEvent.click(screen.getByText('Rename'));
+      fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
 
       expect(mockOnRename).toHaveBeenCalledWith('');
     });

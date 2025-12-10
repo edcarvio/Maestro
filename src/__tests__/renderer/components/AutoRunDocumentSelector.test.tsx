@@ -471,7 +471,7 @@ describe('AutoRunDocumentSelector', () => {
       fireEvent.click(button);
       expect(screen.getByText('doc1.md')).toBeInTheDocument();
 
-      fireEvent.click(screen.getByText('Change Folder...'));
+      fireEvent.click(screen.getByRole('button', { name: /Change Folder/ }));
       expect(screen.queryByText('doc1.md')).not.toBeInTheDocument();
     });
   });

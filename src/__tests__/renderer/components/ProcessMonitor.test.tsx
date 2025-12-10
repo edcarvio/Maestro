@@ -1286,7 +1286,7 @@ describe('ProcessMonitor', () => {
       expect(screen.getByText('Kill Process?')).toBeInTheDocument();
 
       // Click Cancel
-      fireEvent.click(screen.getByText('Cancel'));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
       await waitFor(() => {
         expect(screen.queryByText('Kill Process?')).not.toBeInTheDocument();

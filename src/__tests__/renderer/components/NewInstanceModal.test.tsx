@@ -943,7 +943,7 @@ describe('NewInstanceModal', () => {
         expect(screen.getByText('Cancel')).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Cancel'));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
       expect(onClose).toHaveBeenCalled();
     });
 

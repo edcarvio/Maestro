@@ -701,7 +701,7 @@ diff --git a/src/test.ts b/src/test.ts
         expect(screen.queryByText('Loading git log...')).not.toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Close (Esc)'));
+      fireEvent.click(screen.getByRole('button', { name: 'Close (Esc)' }));
 
       expect(onClose).toHaveBeenCalled();
     });

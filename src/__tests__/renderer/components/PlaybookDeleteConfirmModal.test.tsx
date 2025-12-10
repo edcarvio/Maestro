@@ -161,7 +161,7 @@ describe('PlaybookDeleteConfirmModal', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText('Cancel'));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
       expect(mockOnCancel).toHaveBeenCalledTimes(1);
       expect(mockOnConfirm).not.toHaveBeenCalled();
@@ -179,7 +179,7 @@ describe('PlaybookDeleteConfirmModal', () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText('Delete'));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
       expect(mockOnConfirm).toHaveBeenCalledTimes(1);
       expect(mockOnCancel).toHaveBeenCalledTimes(1);

@@ -514,7 +514,7 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('Small'));
+      fireEvent.click(screen.getByRole('button', { name: 'Small' }));
       expect(setFontSize).toHaveBeenCalledWith(12);
     });
 
@@ -526,7 +526,7 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('Medium'));
+      fireEvent.click(screen.getByRole('button', { name: 'Medium' }));
       expect(setFontSize).toHaveBeenCalledWith(14);
     });
 
@@ -538,7 +538,7 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('Large'));
+      fireEvent.click(screen.getByRole('button', { name: 'Large' }));
       expect(setFontSize).toHaveBeenCalledWith(16);
     });
 
@@ -550,7 +550,7 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('X-Large'));
+      fireEvent.click(screen.getByRole('button', { name: 'X-Large' }));
       expect(setFontSize).toHaveBeenCalledWith(18);
     });
 
@@ -575,7 +575,7 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('80'));
+      fireEvent.click(screen.getByRole('button', { name: '80' }));
       expect(setTerminalWidth).toHaveBeenCalledWith(80);
     });
 
@@ -604,7 +604,7 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('Debug'));
+      fireEvent.click(screen.getByRole('button', { name: 'Debug' }));
       expect(setLogLevel).toHaveBeenCalledWith('debug');
     });
 
@@ -616,7 +616,7 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('Info'));
+      fireEvent.click(screen.getByRole('button', { name: 'Info' }));
       expect(setLogLevel).toHaveBeenCalledWith('info');
     });
 
@@ -628,7 +628,7 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('Warn'));
+      fireEvent.click(screen.getByRole('button', { name: 'Warn' }));
       expect(setLogLevel).toHaveBeenCalledWith('warn');
     });
 
@@ -640,7 +640,7 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('Error'));
+      fireEvent.click(screen.getByRole('button', { name: 'Error' }));
       expect(setLogLevel).toHaveBeenCalledWith('error');
     });
   });
@@ -654,16 +654,16 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('1000'));
+      fireEvent.click(screen.getByRole('button', { name: '1000' }));
       expect(setMaxLogBuffer).toHaveBeenCalledWith(1000);
 
-      fireEvent.click(screen.getByText('5000'));
+      fireEvent.click(screen.getByRole('button', { name: '5000' }));
       expect(setMaxLogBuffer).toHaveBeenCalledWith(5000);
 
-      fireEvent.click(screen.getByText('10000'));
+      fireEvent.click(screen.getByRole('button', { name: '10000' }));
       expect(setMaxLogBuffer).toHaveBeenCalledWith(10000);
 
-      fireEvent.click(screen.getByText('25000'));
+      fireEvent.click(screen.getByRole('button', { name: '25000' }));
       expect(setMaxLogBuffer).toHaveBeenCalledWith(25000);
     });
   });
@@ -677,16 +677,16 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('15'));
+      fireEvent.click(screen.getByRole('button', { name: '15' }));
       expect(setMaxOutputLines).toHaveBeenCalledWith(15);
 
-      fireEvent.click(screen.getByText('25'));
+      fireEvent.click(screen.getByRole('button', { name: '25' }));
       expect(setMaxOutputLines).toHaveBeenCalledWith(25);
 
-      fireEvent.click(screen.getByText('50'));
+      fireEvent.click(screen.getByRole('button', { name: '50' }));
       expect(setMaxOutputLines).toHaveBeenCalledWith(50);
 
-      fireEvent.click(screen.getByText('All'));
+      fireEvent.click(screen.getByRole('button', { name: 'All' }));
       expect(setMaxOutputLines).toHaveBeenCalledWith(Infinity);
     });
   });
@@ -995,7 +995,7 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('GitHub Light'));
+      fireEvent.click(screen.getByRole('button', { name: 'GitHub Light' }));
       expect(setActiveThemeId).toHaveBeenCalledWith('github-light');
     });
 
@@ -1061,7 +1061,7 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('Test Notification'));
+      fireEvent.click(screen.getByRole('button', { name: 'Test Notification' }));
       expect(window.maestro.notification.show).toHaveBeenCalledWith('Maestro', 'Test notification - notifications are working!');
     });
 
@@ -1110,7 +1110,7 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('Test'));
+      fireEvent.click(screen.getByRole('button', { name: 'Test' }));
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(50);
@@ -1137,19 +1137,19 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('5s'));
+      fireEvent.click(screen.getByRole('button', { name: '5s' }));
       expect(setToastDuration).toHaveBeenCalledWith(5);
 
-      fireEvent.click(screen.getByText('10s'));
+      fireEvent.click(screen.getByRole('button', { name: '10s' }));
       expect(setToastDuration).toHaveBeenCalledWith(10);
 
-      fireEvent.click(screen.getByText('20s'));
+      fireEvent.click(screen.getByRole('button', { name: '20s' }));
       expect(setToastDuration).toHaveBeenCalledWith(20);
 
-      fireEvent.click(screen.getByText('30s'));
+      fireEvent.click(screen.getByRole('button', { name: '30s' }));
       expect(setToastDuration).toHaveBeenCalledWith(30);
 
-      fireEvent.click(screen.getByText('Never'));
+      fireEvent.click(screen.getByRole('button', { name: 'Never' }));
       expect(setToastDuration).toHaveBeenCalledWith(0);
     });
   });
@@ -1176,7 +1176,7 @@ describe('SettingsModal', () => {
 
       const customFontInput = screen.getByPlaceholderText('Add custom font name...');
       fireEvent.change(customFontInput, { target: { value: 'My Custom Font' } });
-      fireEvent.click(screen.getByText('Add'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(50);
@@ -1212,7 +1212,7 @@ describe('SettingsModal', () => {
 
       const customFontInput = screen.getByPlaceholderText('Add custom font name...');
       fireEvent.change(customFontInput, { target: { value: '   ' } });
-      fireEvent.click(screen.getByText('Add'));
+      fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(50);
@@ -1458,7 +1458,7 @@ describe('SettingsModal', () => {
       });
 
       // Click Test button to start TTS
-      fireEvent.click(screen.getByText('Test'));
+      fireEvent.click(screen.getByRole('button', { name: 'Test' }));
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(100);
@@ -1468,7 +1468,7 @@ describe('SettingsModal', () => {
       expect(screen.getByText('Stop')).toBeInTheDocument();
 
       // Click Stop button
-      fireEvent.click(screen.getByText('Stop'));
+      fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(100);
@@ -1490,14 +1490,14 @@ describe('SettingsModal', () => {
       });
 
       // Click Test button to start TTS
-      fireEvent.click(screen.getByText('Test'));
+      fireEvent.click(screen.getByRole('button', { name: 'Test' }));
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
       // Click Stop button
-      fireEvent.click(screen.getByText('Stop'));
+      fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(100);
@@ -1519,7 +1519,7 @@ describe('SettingsModal', () => {
       });
 
       // Click Test button to trigger speak error
-      fireEvent.click(screen.getByText('Test'));
+      fireEvent.click(screen.getByRole('button', { name: 'Test' }));
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(100);
@@ -1539,7 +1539,7 @@ describe('SettingsModal', () => {
       });
 
       // Click Test button to start TTS
-      fireEvent.click(screen.getByText('Test'));
+      fireEvent.click(screen.getByRole('button', { name: 'Test' }));
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(100);
@@ -1784,7 +1784,7 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('120'));
+      fireEvent.click(screen.getByRole('button', { name: '120' }));
       expect(setTerminalWidth).toHaveBeenCalledWith(120);
     });
 
@@ -1796,7 +1796,7 @@ describe('SettingsModal', () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
-      fireEvent.click(screen.getByText('160'));
+      fireEvent.click(screen.getByRole('button', { name: '160' }));
       expect(setTerminalWidth).toHaveBeenCalledWith(160);
     });
   });

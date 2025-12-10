@@ -352,7 +352,7 @@ describe('HistoryDetailModal', () => {
         />
       );
 
-      fireEvent.click(screen.getByText('Resume'));
+      fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
 
       expect(mockOnResumeSession).toHaveBeenCalledWith(sessionId);
       expect(mockOnClose).toHaveBeenCalled();
@@ -395,7 +395,7 @@ describe('HistoryDetailModal', () => {
         />
       );
 
-      fireEvent.click(screen.getByText('Validated'));
+      fireEvent.click(screen.getByRole('button', { name: 'Validated' }));
 
       expect(mockOnUpdate).toHaveBeenCalledWith('entry-1', { validated: true });
     });
@@ -410,7 +410,7 @@ describe('HistoryDetailModal', () => {
         />
       );
 
-      fireEvent.click(screen.getByText('Validated'));
+      fireEvent.click(screen.getByRole('button', { name: 'Validated' }));
 
       expect(mockOnUpdate).toHaveBeenCalledWith('entry-1', { validated: false });
     });
@@ -971,7 +971,7 @@ describe('HistoryDetailModal', () => {
         />
       );
 
-      fireEvent.click(screen.getByText('Prev'));
+      fireEvent.click(screen.getByRole('button', { name: 'Prev' }));
 
       expect(mockOnNavigate).toHaveBeenCalledWith(mockEntries[0], 0);
     });
@@ -988,7 +988,7 @@ describe('HistoryDetailModal', () => {
         />
       );
 
-      fireEvent.click(screen.getByText('Next'));
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
       expect(mockOnNavigate).toHaveBeenCalledWith(mockEntries[2], 2);
     });
@@ -1250,9 +1250,9 @@ describe('HistoryDetailModal', () => {
       );
 
       // Rapid clicks
-      fireEvent.click(screen.getByText('Next'));
-      fireEvent.click(screen.getByText('Next'));
-      fireEvent.click(screen.getByText('Prev'));
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Prev' }));
 
       expect(mockOnNavigate).toHaveBeenCalledTimes(3);
     });

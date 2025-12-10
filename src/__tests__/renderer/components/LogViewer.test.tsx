@@ -672,7 +672,7 @@ describe('LogViewer', () => {
       });
 
       fireEvent.click(screen.getByTitle('Clear logs'));
-      fireEvent.click(screen.getByText('Confirm'));
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
 
       expect(getMockClearLogs()).toHaveBeenCalled();
     });
@@ -687,7 +687,7 @@ describe('LogViewer', () => {
       });
 
       fireEvent.click(screen.getByTitle('Clear logs'));
-      fireEvent.click(screen.getByText('Cancel'));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
       expect(getMockClearLogs()).not.toHaveBeenCalled();
       await waitFor(() => {
@@ -1055,7 +1055,7 @@ describe('LogViewer', () => {
       });
 
       fireEvent.click(screen.getByTitle('Clear logs'));
-      fireEvent.click(screen.getByText('Confirm'));
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
 
       await waitFor(() => {
         expect(consoleError).toHaveBeenCalledWith('Failed to clear logs:', expect.any(Error));

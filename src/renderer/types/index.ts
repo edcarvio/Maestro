@@ -451,3 +451,27 @@ export interface CustomAICommand {
   isBuiltIn?: boolean; // If true, cannot be deleted (only edited)
 }
 
+// Leaderboard registration data for runmaestro.ai integration
+export interface LeaderboardRegistration {
+  // Required fields
+  email: string;                 // User's email (will be confirmed)
+  displayName: string;           // Display name on leaderboard
+  // Optional social handles (without @)
+  twitterHandle?: string;        // X/Twitter handle
+  githubUsername?: string;       // GitHub username
+  linkedinHandle?: string;       // LinkedIn handle
+  // Registration state
+  registeredAt: number;          // Timestamp when registered
+  emailConfirmed: boolean;       // Whether email has been confirmed
+  lastSubmissionAt?: number;     // Last successful submission timestamp
+}
+
+// Response from leaderboard submission API
+export interface LeaderboardSubmitResponse {
+  success: boolean;
+  message: string;
+  requiresConfirmation?: boolean;
+  confirmationUrl?: string;
+  error?: string;
+}
+

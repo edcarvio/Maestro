@@ -97,6 +97,17 @@ const formatTokenCount = (count: number): string => {
   return count.toLocaleString();
 };
 
+// Count markdown tasks (checkboxes)
+const countMarkdownTasks = (content: string): { open: number; closed: number } => {
+  // Match markdown checkboxes: - [ ] or - [x] (also * [ ] and * [x])
+  const openMatches = content.match(/^[\s]*[-*]\s*\[\s*\]/gm);
+  const closedMatches = content.match(/^[\s]*[-*]\s*\[[xX]\]/gm);
+  return {
+    open: openMatches?.length || 0,
+    closed: closedMatches?.length || 0
+  };
+};
+
 // Lazy-loaded tokenizer encoder (cl100k_base is used by Claude/GPT-4)
 let encoderPromise: Promise<ReturnType<typeof getEncoding>> | null = null;
 const getEncoder = () => {
@@ -321,6 +332,15 @@ export function FilePreview({ file, onClose, theme, markdownRawMode, setMarkdown
   const language = getLanguageFromFilename(file.name);
   const isMarkdown = language === 'markdown';
   const isImage = isImageFile(file.name);
+
+  // Calculate task counts for markdown files
+  const taskCounts = useMemo(() => {
+    if (!isMarkdown || !file?.content) return null;
+    const counts = countMarkdownTasks(file.content);
+    // Only return if there are any tasks
+    if (counts.open === 0 && counts.closed === 0) return null;
+    return counts;
+  }, [isMarkdown, file?.content]);
 
   // Extract directory path without filename
   const directoryPath = file.path.substring(0, file.path.lastIndexOf('/'));
@@ -796,7 +816,7 @@ export function FilePreview({ file, onClose, theme, markdownRawMode, setMarkdown
           </div>
         </div>
         {/* File Stats subbar - hidden on scroll */}
-        {(fileStats || tokenCount !== null) && showStatsBar && (
+        {(fileStats || tokenCount !== null || taskCounts) && showStatsBar && (
           <div
             className="flex items-center gap-4 px-6 py-1.5 border-b transition-all duration-200"
             style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgActivity }}
@@ -824,6 +844,14 @@ export function FilePreview({ file, onClose, theme, markdownRawMode, setMarkdown
                   <span style={{ color: theme.colors.textMain }}>{formatDateTime(fileStats.createdAt)}</span>
                 </div>
               </>
+            )}
+            {taskCounts && (
+              <div className="text-[10px]" style={{ color: theme.colors.textDim }}>
+                <span className="opacity-60">Tasks:</span>{' '}
+                <span style={{ color: theme.colors.success }}>{taskCounts.closed}</span>
+                <span className="opacity-60">/</span>
+                <span style={{ color: theme.colors.textMain }}>{taskCounts.open + taskCounts.closed}</span>
+              </div>
             )}
           </div>
         )}

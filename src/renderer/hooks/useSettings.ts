@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { LLMProvider, ThemeId, Shortcut, CustomAICommand, GlobalStats, AutoRunStats, OnboardingStats } from '../types';
+import type { LLMProvider, ThemeId, Shortcut, CustomAICommand, GlobalStats, AutoRunStats, OnboardingStats, LeaderboardRegistration } from '../types';
 import { DEFAULT_SHORTCUTS } from '../constants/shortcuts';
 
 // Default global stats
@@ -208,6 +208,11 @@ export interface UseSettingsReturn {
     averageConversationExchanges: number;
     averagePhasesPerWizard: number;
   };
+
+  // Leaderboard Registration (persistent)
+  leaderboardRegistration: LeaderboardRegistration | null;
+  setLeaderboardRegistration: (value: LeaderboardRegistration | null) => void;
+  isLeaderboardRegistered: boolean;
 }
 
 export function useSettings(): UseSettingsReturn {
@@ -286,6 +291,9 @@ export function useSettings(): UseSettingsReturn {
 
   // Onboarding Stats (persistent, local-only analytics)
   const [onboardingStats, setOnboardingStatsState] = useState<OnboardingStats>(DEFAULT_ONBOARDING_STATS);
+
+  // Leaderboard Registration (persistent)
+  const [leaderboardRegistration, setLeaderboardRegistrationState] = useState<LeaderboardRegistration | null>(null);
 
   // Wrapper functions that persist to electron-store
   // PERF: All wrapped in useCallback to prevent re-renders
@@ -611,8 +619,11 @@ export function useSettings(): UseSettingsReturn {
 
   // UI collapse state setters
   const setUngroupedCollapsed = useCallback((value: boolean) => {
+    console.log('[useSettings] setUngroupedCollapsed called with:', value);
     setUngroupedCollapsedState(value);
-    window.maestro.settings.set('ungroupedCollapsed', value);
+    window.maestro.settings.set('ungroupedCollapsed', value)
+      .then(() => console.log('[useSettings] ungroupedCollapsed persisted successfully'))
+      .catch((err: unknown) => console.error('[useSettings] Failed to persist ungroupedCollapsed:', err));
   }, []);
 
   // Onboarding setters
@@ -792,6 +803,17 @@ export function useSettings(): UseSettingsReturn {
     onboardingStats.averagePhasesPerWizard,
   ]);
 
+  // Leaderboard Registration setter
+  const setLeaderboardRegistration = useCallback((value: LeaderboardRegistration | null) => {
+    setLeaderboardRegistrationState(value);
+    window.maestro.settings.set('leaderboardRegistration', value);
+  }, []);
+
+  // Computed property for checking if registered
+  const isLeaderboardRegistered = useMemo(() => {
+    return leaderboardRegistration !== null && leaderboardRegistration.emailConfirmed;
+  }, [leaderboardRegistration]);
+
   // Load settings from electron-store on mount
   useEffect(() => {
     const loadSettings = async () => {
@@ -831,6 +853,7 @@ export function useSettings(): UseSettingsReturn {
       const savedTourCompleted = await window.maestro.settings.get('tourCompleted');
       const savedFirstAutoRunCompleted = await window.maestro.settings.get('firstAutoRunCompleted');
       const savedOnboardingStats = await window.maestro.settings.get('onboardingStats');
+      const savedLeaderboardRegistration = await window.maestro.settings.get('leaderboardRegistration');
 
       if (savedEnterToSendAI !== undefined) setEnterToSendAIState(savedEnterToSendAI);
       if (savedEnterToSendTerminal !== undefined) setEnterToSendTerminalState(savedEnterToSendTerminal);
@@ -950,6 +973,11 @@ export function useSettings(): UseSettingsReturn {
         setOnboardingStatsState({ ...DEFAULT_ONBOARDING_STATS, ...savedOnboardingStats });
       }
 
+      // Load leaderboard registration
+      if (savedLeaderboardRegistration !== undefined) {
+        setLeaderboardRegistrationState(savedLeaderboardRegistration as LeaderboardRegistration | null);
+      }
+
       // Mark settings as loaded
       setSettingsLoaded(true);
     };
@@ -1050,6 +1078,9 @@ export function useSettings(): UseSettingsReturn {
     recordTourComplete,
     recordTourSkip,
     getOnboardingAnalytics,
+    leaderboardRegistration,
+    setLeaderboardRegistration,
+    isLeaderboardRegistered,
   }), [
     // State values
     settingsLoaded,
@@ -1137,5 +1168,8 @@ export function useSettings(): UseSettingsReturn {
     recordTourComplete,
     recordTourSkip,
     getOnboardingAnalytics,
+    leaderboardRegistration,
+    setLeaderboardRegistration,
+    isLeaderboardRegistered,
   ]);
 }

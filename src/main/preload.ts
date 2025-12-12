@@ -641,6 +641,27 @@ contextBridge.exposeInMainWorld('maestro', {
     import: (sessionId: string, autoRunFolderPath: string) =>
       ipcRenderer.invoke('playbooks:import', sessionId, autoRunFolderPath),
   },
+
+  // Leaderboard API (runmaestro.ai integration)
+  leaderboard: {
+    submit: (data: {
+      email: string;
+      displayName: string;
+      githubUsername?: string;
+      twitterHandle?: string;
+      linkedinHandle?: string;
+      badgeLevel: number;
+      badgeName: string;
+      cumulativeTimeMs: number;
+      totalRuns: number;
+      longestRunMs?: number;
+      longestRunDate?: string;
+    }) => ipcRenderer.invoke('leaderboard:submit', data),
+    get: (options?: { limit?: number }) =>
+      ipcRenderer.invoke('leaderboard:get', options),
+    getLongestRuns: (options?: { limit?: number }) =>
+      ipcRenderer.invoke('leaderboard:getLongestRuns', options),
+  },
 });
 
 // Type definitions for TypeScript
@@ -1132,6 +1153,53 @@ export interface MaestroAPI {
     }>;
     delete: (sessionId: string, playbookId: string) => Promise<{
       success: boolean;
+      error?: string;
+    }>;
+  };
+  leaderboard: {
+    submit: (data: {
+      email: string;
+      displayName: string;
+      githubUsername?: string;
+      twitterHandle?: string;
+      linkedinHandle?: string;
+      badgeLevel: number;
+      badgeName: string;
+      cumulativeTimeMs: number;
+      totalRuns: number;
+      longestRunMs?: number;
+      longestRunDate?: string;
+    }) => Promise<{
+      success: boolean;
+      message: string;
+      requiresConfirmation?: boolean;
+      confirmationUrl?: string;
+      error?: string;
+    }>;
+    get: (options?: { limit?: number }) => Promise<{
+      success: boolean;
+      entries?: Array<{
+        rank: number;
+        displayName: string;
+        githubUsername?: string;
+        avatarUrl?: string;
+        badgeLevel: number;
+        badgeName: string;
+        cumulativeTimeMs: number;
+        totalRuns: number;
+      }>;
+      error?: string;
+    }>;
+    getLongestRuns: (options?: { limit?: number }) => Promise<{
+      success: boolean;
+      entries?: Array<{
+        rank: number;
+        displayName: string;
+        githubUsername?: string;
+        avatarUrl?: string;
+        longestRunMs: number;
+        runDate: string;
+      }>;
       error?: string;
     }>;
   };

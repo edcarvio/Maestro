@@ -4993,6 +4993,199 @@ function setupIpcHandlers() {
       }
     }
   );
+
+  // ==========================================================================
+  // Leaderboard API
+  // ==========================================================================
+
+  // Submit leaderboard entry to runmaestro.ai
+  ipcMain.handle(
+    'leaderboard:submit',
+    async (
+      _event,
+      data: {
+        email: string;
+        displayName: string;
+        githubUsername?: string;
+        twitterHandle?: string;
+        linkedinHandle?: string;
+        badgeLevel: number;
+        badgeName: string;
+        cumulativeTimeMs: number;
+        totalRuns: number;
+        longestRunMs?: number;
+        longestRunDate?: string;
+      }
+    ): Promise<{
+      success: boolean;
+      message: string;
+      requiresConfirmation?: boolean;
+      confirmationUrl?: string;
+      error?: string;
+    }> => {
+      try {
+        logger.info('Submitting leaderboard entry', 'Leaderboard', {
+          displayName: data.displayName,
+          email: data.email.substring(0, 3) + '***',
+          badgeLevel: data.badgeLevel,
+        });
+
+        const response = await fetch('https://runmaestro.ai/api/m4estr0/submit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': `Maestro/${app.getVersion()}`,
+          },
+          body: JSON.stringify(data),
+        });
+
+        const result = await response.json() as {
+          success?: boolean;
+          message?: string;
+          requiresConfirmation?: boolean;
+          confirmationUrl?: string;
+          error?: string;
+        };
+
+        if (response.ok) {
+          logger.info('Leaderboard submission successful', 'Leaderboard', {
+            requiresConfirmation: result.requiresConfirmation,
+          });
+          return {
+            success: true,
+            message: result.message || 'Submission received',
+            requiresConfirmation: result.requiresConfirmation,
+            confirmationUrl: result.confirmationUrl,
+          };
+        } else {
+          logger.warn('Leaderboard submission failed', 'Leaderboard', {
+            status: response.status,
+            error: result.error || result.message,
+          });
+          return {
+            success: false,
+            message: result.message || 'Submission failed',
+            error: result.error || `Server error: ${response.status}`,
+          };
+        }
+      } catch (error) {
+        logger.error('Error submitting to leaderboard', 'Leaderboard', error);
+        return {
+          success: false,
+          message: 'Failed to connect to leaderboard server',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
+    }
+  );
+
+  // Get leaderboard entries
+  ipcMain.handle(
+    'leaderboard:get',
+    async (
+      _event,
+      options?: { limit?: number }
+    ): Promise<{
+      success: boolean;
+      entries?: Array<{
+        rank: number;
+        displayName: string;
+        githubUsername?: string;
+        avatarUrl?: string;
+        badgeLevel: number;
+        badgeName: string;
+        cumulativeTimeMs: number;
+        totalRuns: number;
+      }>;
+      error?: string;
+    }> => {
+      try {
+        const limit = options?.limit || 50;
+        const response = await fetch(`https://runmaestro.ai/api/leaderboard?limit=${limit}`, {
+          headers: {
+            'User-Agent': `Maestro/${app.getVersion()}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json() as { entries?: unknown[] };
+          return { success: true, entries: data.entries as Array<{
+            rank: number;
+            displayName: string;
+            githubUsername?: string;
+            avatarUrl?: string;
+            badgeLevel: number;
+            badgeName: string;
+            cumulativeTimeMs: number;
+            totalRuns: number;
+          }> };
+        } else {
+          return {
+            success: false,
+            error: `Server error: ${response.status}`,
+          };
+        }
+      } catch (error) {
+        logger.error('Error fetching leaderboard', 'Leaderboard', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
+    }
+  );
+
+  // Get longest runs leaderboard
+  ipcMain.handle(
+    'leaderboard:getLongestRuns',
+    async (
+      _event,
+      options?: { limit?: number }
+    ): Promise<{
+      success: boolean;
+      entries?: Array<{
+        rank: number;
+        displayName: string;
+        githubUsername?: string;
+        avatarUrl?: string;
+        longestRunMs: number;
+        runDate: string;
+      }>;
+      error?: string;
+    }> => {
+      try {
+        const limit = options?.limit || 50;
+        const response = await fetch(`https://runmaestro.ai/api/longest-runs?limit=${limit}`, {
+          headers: {
+            'User-Agent': `Maestro/${app.getVersion()}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json() as { entries?: unknown[] };
+          return { success: true, entries: data.entries as Array<{
+            rank: number;
+            displayName: string;
+            githubUsername?: string;
+            avatarUrl?: string;
+            longestRunMs: number;
+            runDate: string;
+          }> };
+        } else {
+          return {
+            success: false,
+            error: `Server error: ${response.status}`,
+          };
+        }
+      } catch (error) {
+        logger.error('Error fetching longest runs leaderboard', 'Leaderboard', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
+    }
+  );
 }
 
 // Handle process output streaming (set up after initialization)

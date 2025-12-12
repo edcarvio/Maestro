@@ -28,6 +28,10 @@ interface FirstRunCelebrationProps {
   totalTasks: number;
   /** Callback when modal is dismissed */
   onClose: () => void;
+  /** Callback to open leaderboard registration */
+  onOpenLeaderboardRegistration?: () => void;
+  /** Whether the user is already registered for the leaderboard */
+  isLeaderboardRegistered?: boolean;
 }
 
 /**
@@ -66,6 +70,8 @@ export function FirstRunCelebration({
   completedTasks,
   totalTasks,
   onClose,
+  onOpenLeaderboardRegistration,
+  isLeaderboardRegistered,
 }: FirstRunCelebrationProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
@@ -408,7 +414,7 @@ export function FirstRunCelebration({
           </div>
 
           {/* Button */}
-          <div className="px-8 pb-8">
+          <div className="px-8 pb-8 space-y-3">
             <button
               onClick={handleClose}
               disabled={isClosing}
@@ -424,8 +430,30 @@ export function FirstRunCelebration({
               {isClosing ? '🎉 Let\'s Go! 🎉' : 'Got It!'}
             </button>
 
+            {/* Leaderboard Registration */}
+            {onOpenLeaderboardRegistration && !isLeaderboardRegistered && (
+              <button
+                onClick={() => {
+                  handleClose();
+                  setTimeout(() => {
+                    onOpenLeaderboardRegistration();
+                  }, 1100); // Wait for close animation
+                }}
+                disabled={isClosing}
+                className="w-full py-2.5 rounded-lg font-medium transition-all flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50"
+                style={{
+                  backgroundColor: `${goldColor}20`,
+                  color: goldColor,
+                  border: `1px solid ${goldColor}60`,
+                }}
+              >
+                <Trophy className="w-4 h-4" />
+                Join Global Leaderboard
+              </button>
+            )}
+
             <p
-              className="text-xs text-center mt-3"
+              className="text-xs text-center"
               style={{ color: theme.colors.textDim }}
             >
               Press Enter or Escape to dismiss

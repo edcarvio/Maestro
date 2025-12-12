@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { X, Wand2, ExternalLink, FileCode, BarChart3, Loader2 } from 'lucide-react';
+import { X, Wand2, ExternalLink, FileCode, BarChart3, Loader2, Trophy } from 'lucide-react';
 import type { Theme, Session, AutoRunStats } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
@@ -23,9 +23,11 @@ interface AboutModalProps {
   sessions: Session[];
   autoRunStats: AutoRunStats;
   onClose: () => void;
+  onOpenLeaderboardRegistration?: () => void;
+  isLeaderboardRegistered?: boolean;
 }
 
-export function AboutModal({ theme, sessions, autoRunStats, onClose }: AboutModalProps) {
+export function AboutModal({ theme, sessions, autoRunStats, onClose, onOpenLeaderboardRegistration, isLeaderboardRegistered }: AboutModalProps) {
   const { registerLayer, unregisterLayer, updateLayerHandler } = useLayerStack();
   const layerIdRef = useRef<string>();
   const [globalStats, setGlobalStats] = useState<ClaudeGlobalStats | null>(null);
@@ -275,18 +277,45 @@ export function AboutModal({ theme, sessions, autoRunStats, onClose }: AboutModa
             )}
           </div>
 
-          {/* Project Link */}
-          <button
-            onClick={() => window.maestro.shell.openExternal('https://github.com/pedramamini/Maestro')}
-            className="w-full flex items-center justify-between p-3 rounded border hover:bg-white/5 transition-colors"
-            style={{ borderColor: theme.colors.border }}
-          >
-            <div className="flex items-center gap-2">
-              <FileCode className="w-4 h-4" style={{ color: theme.colors.accent }} />
-              <span className="text-sm font-medium" style={{ color: theme.colors.textMain }}>View on GitHub</span>
-            </div>
-            <ExternalLink className="w-4 h-4" style={{ color: theme.colors.textDim }} />
-          </button>
+          {/* Action Links */}
+          <div className="flex gap-2">
+            {/* Project Link */}
+            <button
+              onClick={() => window.maestro.shell.openExternal('https://github.com/pedramamini/Maestro')}
+              className="flex-1 flex items-center justify-between p-3 rounded border hover:bg-white/5 transition-colors"
+              style={{ borderColor: theme.colors.border }}
+            >
+              <div className="flex items-center gap-2">
+                <FileCode className="w-4 h-4" style={{ color: theme.colors.accent }} />
+                <span className="text-sm font-medium" style={{ color: theme.colors.textMain }}>GitHub</span>
+              </div>
+              <ExternalLink className="w-4 h-4" style={{ color: theme.colors.textDim }} />
+            </button>
+
+            {/* Leaderboard Registration */}
+            {onOpenLeaderboardRegistration && (
+              <button
+                onClick={onOpenLeaderboardRegistration}
+                className="flex-1 flex items-center justify-between p-3 rounded border hover:bg-white/5 transition-colors"
+                style={{
+                  borderColor: isLeaderboardRegistered ? theme.colors.success : theme.colors.accent,
+                  backgroundColor: isLeaderboardRegistered ? `${theme.colors.success}10` : undefined,
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-4 h-4" style={{ color: isLeaderboardRegistered ? theme.colors.success : '#FFD700' }} />
+                  <span className="text-sm font-medium" style={{ color: theme.colors.textMain }}>
+                    {isLeaderboardRegistered ? 'Leaderboard' : 'Join Leaderboard'}
+                  </span>
+                </div>
+                {isLeaderboardRegistered ? (
+                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: theme.colors.success, color: '#fff' }}>Active</span>
+                ) : (
+                  <ExternalLink className="w-4 h-4" style={{ color: theme.colors.textDim }} />
+                )}
+              </button>
+            )}
+          </div>
 
           {/* Made in Austin */}
           <div className="pt-1 text-center flex flex-col items-center gap-1">

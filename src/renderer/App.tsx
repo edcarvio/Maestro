@@ -49,6 +49,7 @@ import { useAgentExecution } from './hooks/useAgentExecution';
 import { useFileTreeManagement } from './hooks/useFileTreeManagement';
 import { useGroupManagement } from './hooks/useGroupManagement';
 import { useWebBroadcasting } from './hooks/useWebBroadcasting';
+import { useCliActivityMonitoring } from './hooks/useCliActivityMonitoring';
 
 // Import contexts
 import { useLayerStack } from './contexts/LayerStackContext';
@@ -1634,55 +1635,10 @@ export default function MaestroConsole() {
     rightPanelRef,
   });
 
-  // Listen for CLI activity changes (when CLI is running playbooks)
-  // Update session states to show busy when CLI is active
-  useEffect(() => {
-    const checkCliActivity = async () => {
-      try {
-        const activities = await window.maestro.cli.getActivity();
-        setSessions(prev => prev.map(session => {
-          const cliActivity = activities.find(a => a.sessionId === session.id);
-          if (cliActivity) {
-            // CLI is running a playbook on this session - mark as busy
-            // Only update if not already busy (to preserve aiPid-based busy state)
-            if (session.state !== 'busy') {
-              return {
-                ...session,
-                state: 'busy' as const,
-                cliActivity: {
-                  playbookId: cliActivity.playbookId,
-                  playbookName: cliActivity.playbookName,
-                  startedAt: cliActivity.startedAt,
-                },
-              };
-            }
-          } else if (session.cliActivity) {
-            // CLI activity ended - set back to idle (unless process is still running)
-            if (!session.aiPid) {
-              return {
-                ...session,
-                state: 'idle' as const,
-                cliActivity: undefined,
-              };
-            }
-          }
-          return session;
-        }));
-      } catch (error) {
-        console.error('[CLI Activity] Error checking activity:', error);
-      }
-    };
-
-    // Check immediately on mount
-    checkCliActivity();
-
-    // Listen for changes
-    const unsubscribe = window.maestro.cli.onActivityChange(() => {
-      console.log('[CLI Activity] Activity change detected');
-      checkCliActivity();
-    });
-    return unsubscribe;
-  }, []);
+  // CLI activity monitoring hook - tracks CLI playbook runs and updates session states
+  useCliActivityMonitoring({
+    setSessions,
+  });
 
   // Combine built-in slash commands with custom AI commands AND Claude Code commands for autocomplete
   const allSlashCommands = useMemo(() => {

@@ -26,6 +26,7 @@ export { useAgentExecution } from './useAgentExecution';
 export { useFileTreeManagement } from './useFileTreeManagement';
 export { useGroupManagement } from './useGroupManagement';
 export { useWebBroadcasting } from './useWebBroadcasting';
+export { useCliActivityMonitoring } from './useCliActivityMonitoring';
 
 export type { UseSettingsReturn } from './useSettings';
 export type { UseSessionManagerReturn } from './useSessionManager';
@@ -89,3 +90,7 @@ export type {
   UseWebBroadcastingReturn,
   RightPanelHistoryHandle,
 } from './useWebBroadcasting';
+export type {
+  UseCliActivityMonitoringDeps,
+  UseCliActivityMonitoringReturn,
+} from './useCliActivityMonitoring';

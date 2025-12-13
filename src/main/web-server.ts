@@ -4,7 +4,6 @@ import websocket from '@fastify/websocket';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { WebSocket } from 'ws';
 import { randomUUID } from 'crypto';
 import path from 'path';
 import { existsSync, readFileSync } from 'fs';
@@ -16,6 +15,14 @@ import {
   WebClient,
   WebClientMessage,
 } from './web-server/handlers';
+import {
+  BroadcastService,
+  AITabData as BroadcastAITabData,
+  CustomAICommand as BroadcastCustomAICommand,
+  AutoRunState,
+  CliActivity,
+  SessionBroadcastData,
+} from './web-server/services';
 
 // Logger context for all web server logs
 const LOG_CONTEXT = 'WebServer';
@@ -259,6 +266,9 @@ export class WebServer {
   // WebSocket message handler instance
   private messageHandler: WebSocketMessageHandler;
 
+  // Broadcast service instance
+  private broadcastService: BroadcastService;
+
   constructor(port: number = 0) {
     // Use port 0 to let OS assign a random available port
     this.port = port;
@@ -277,6 +287,10 @@ export class WebServer {
 
     // Initialize the WebSocket message handler
     this.messageHandler = new WebSocketMessageHandler();
+
+    // Initialize the broadcast service
+    this.broadcastService = new BroadcastService();
+    this.broadcastService.setGetWebClientsCallback(() => this.webClients);
 
     // Note: setupMiddleware and setupRoutes are called in start() to handle async properly
   }
@@ -375,12 +389,7 @@ export class WebServer {
     logger.info(`Session ${sessionId} marked as live (total: ${this.liveSessions.size})`, LOG_CONTEXT);
 
     // Broadcast to all connected clients
-    this.broadcastToWebClients({
-      type: 'session_live',
-      sessionId,
-      claudeSessionId,
-      timestamp: Date.now(),
-    });
+    this.broadcastService.broadcastSessionLive(sessionId, claudeSessionId);
   }
 
   /**
@@ -392,11 +401,7 @@ export class WebServer {
       logger.info(`Session ${sessionId} marked as offline (remaining: ${this.liveSessions.size})`, LOG_CONTEXT);
 
       // Broadcast to all connected clients
-      this.broadcastToWebClients({
-        type: 'session_offline',
-        sessionId,
-        timestamp: Date.now(),
-      });
+      this.broadcastService.broadcastSessionOffline(sessionId);
     }
   }
 
@@ -1055,42 +1060,15 @@ export class WebServer {
   /**
    * Broadcast a message to all connected web clients
    */
-  broadcastToWebClients(message: object) {
-    const data = JSON.stringify(message);
-    for (const client of this.webClients.values()) {
-      if (client.socket.readyState === WebSocket.OPEN) {
-        client.socket.send(data);
-      }
-    }
+  broadcastToWebClients(message: object): void {
+    this.broadcastService.broadcastToAll(message);
   }
 
   /**
    * Broadcast a message to clients subscribed to a specific session
    */
-  broadcastToSessionClients(sessionId: string, message: object) {
-    const data = JSON.stringify(message);
-    let sentCount = 0;
-    const msgType = (message as any).type || 'unknown';
-
-    for (const client of this.webClients.values()) {
-      const isOpen = client.socket.readyState === WebSocket.OPEN;
-      const matchesSession = client.subscribedSessionId === sessionId || !client.subscribedSessionId;
-      const shouldSend = isOpen && matchesSession;
-
-      if (msgType === 'session_output') {
-        console.log(`[WebBroadcast] Client ${client.id}: isOpen=${isOpen}, subscribedTo=${client.subscribedSessionId || 'none'}, matchesSession=${matchesSession}, shouldSend=${shouldSend}`);
-      }
-
-      if (shouldSend) {
-        client.socket.send(data);
-        sentCount++;
-      }
-    }
-
-    // Log summary for session_output
-    if (msgType === 'session_output') {
-      console.log(`[WebBroadcast] Sent session_output to ${sentCount}/${this.webClients.size} clients for session ${sessionId}`);
-    }
+  broadcastToSessionClients(sessionId: string, message: object): void {
+    this.broadcastService.broadcastToSession(sessionId, message);
   }
 
   /**
@@ -1102,156 +1080,79 @@ export class WebServer {
     toolType?: string;
     inputMode?: string;
     cwd?: string;
-    cliActivity?: {
-      playbookId: string;
-      playbookName: string;
-      startedAt: number;
-    };
-  }) {
-    this.broadcastToWebClients({
-      type: 'session_state_change',
-      sessionId,
-      state,
-      ...additionalData,
-      timestamp: Date.now(),
-    });
+    cliActivity?: CliActivity;
+  }): void {
+    this.broadcastService.broadcastSessionStateChange(sessionId, state, additionalData);
   }
 
   /**
    * Broadcast when a session is added
    */
-  broadcastSessionAdded(session: {
-    id: string;
-    name: string;
-    toolType: string;
-    state: string;
-    inputMode: string;
-    cwd: string;
-    groupId?: string | null;
-    groupName?: string | null;
-    groupEmoji?: string | null;
-  }) {
-    this.broadcastToWebClients({
-      type: 'session_added',
-      session,
-      timestamp: Date.now(),
-    });
+  broadcastSessionAdded(session: SessionBroadcastData): void {
+    this.broadcastService.broadcastSessionAdded(session);
   }
 
   /**
    * Broadcast when a session is removed
    */
-  broadcastSessionRemoved(sessionId: string) {
-    this.broadcastToWebClients({
-      type: 'session_removed',
-      sessionId,
-      timestamp: Date.now(),
-    });
+  broadcastSessionRemoved(sessionId: string): void {
+    this.broadcastService.broadcastSessionRemoved(sessionId);
   }
 
   /**
    * Broadcast the full sessions list to all connected web clients
    * Used for initial sync or bulk updates
    */
-  broadcastSessionsList(sessions: Array<{
-    id: string;
-    name: string;
-    toolType: string;
-    state: string;
-    inputMode: string;
-    cwd: string;
-    groupId?: string | null;
-    groupName?: string | null;
-    groupEmoji?: string | null;
-  }>) {
-    this.broadcastToWebClients({
-      type: 'sessions_list',
-      sessions,
-      timestamp: Date.now(),
-    });
+  broadcastSessionsList(sessions: SessionBroadcastData[]): void {
+    this.broadcastService.broadcastSessionsList(sessions);
   }
 
   /**
    * Broadcast active session change to all connected web clients
    * Called when the user switches sessions in the desktop app
    */
-  broadcastActiveSessionChange(sessionId: string) {
-    this.broadcastToWebClients({
-      type: 'active_session_changed',
-      sessionId,
-      timestamp: Date.now(),
-    });
+  broadcastActiveSessionChange(sessionId: string): void {
+    this.broadcastService.broadcastActiveSessionChange(sessionId);
   }
 
   /**
    * Broadcast tab change to all connected web clients
    * Called when the tabs array or active tab changes in a session
    */
-  broadcastTabsChange(sessionId: string, aiTabs: AITabData[], activeTabId: string) {
-    this.broadcastToWebClients({
-      type: 'tabs_changed',
-      sessionId,
-      aiTabs,
-      activeTabId,
-      timestamp: Date.now(),
-    });
+  broadcastTabsChange(sessionId: string, aiTabs: BroadcastAITabData[], activeTabId: string): void {
+    this.broadcastService.broadcastTabsChange(sessionId, aiTabs, activeTabId);
   }
 
   /**
    * Broadcast theme change to all connected web clients
    * Called when the user changes the theme in the desktop app
    */
-  broadcastThemeChange(theme: Theme) {
-    this.broadcastToWebClients({
-      type: 'theme',
-      theme,
-      timestamp: Date.now(),
-    });
+  broadcastThemeChange(theme: Theme): void {
+    this.broadcastService.broadcastThemeChange(theme);
   }
 
   /**
    * Broadcast custom commands update to all connected web clients
    * Called when the user modifies custom AI commands in the desktop app
    */
-  broadcastCustomCommands(commands: CustomAICommand[]) {
-    this.broadcastToWebClients({
-      type: 'custom_commands',
-      commands,
-      timestamp: Date.now(),
-    });
+  broadcastCustomCommands(commands: BroadcastCustomAICommand[]): void {
+    this.broadcastService.broadcastCustomCommands(commands);
   }
 
   /**
    * Broadcast AutoRun state to all connected web clients
    * Called when batch processing starts, progresses, or stops
    */
-  broadcastAutoRunState(sessionId: string, state: {
-    isRunning: boolean;
-    totalTasks: number;
-    completedTasks: number;
-    currentTaskIndex: number;
-    isStopping?: boolean;
-  } | null) {
-    this.broadcastToWebClients({
-      type: 'autorun_state',
-      sessionId,
-      state,
-      timestamp: Date.now(),
-    });
+  broadcastAutoRunState(sessionId: string, state: AutoRunState | null): void {
+    this.broadcastService.broadcastAutoRunState(sessionId, state);
   }
 
   /**
    * Broadcast user input to web clients subscribed to a session
    * Called when a command is sent from the desktop app so web clients stay in sync
    */
-  broadcastUserInput(sessionId: string, command: string, inputMode: 'ai' | 'terminal') {
-    this.broadcastToSessionClients(sessionId, {
-      type: 'user_input',
-      sessionId,
-      command,
-      inputMode,
-      timestamp: Date.now(),
-    });
+  broadcastUserInput(sessionId: string, command: string, inputMode: 'ai' | 'terminal'): void {
+    this.broadcastService.broadcastUserInput(sessionId, command, inputMode);
   }
 
   /**

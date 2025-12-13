@@ -19,6 +19,7 @@ export { useSessionPagination } from './useSessionPagination';
 export { useFilteredAndSortedSessions } from './useFilteredAndSortedSessions';
 export { useKeyboardShortcutHelpers } from './useKeyboardShortcutHelpers';
 export { useKeyboardNavigation } from './useKeyboardNavigation';
+export { useMainKeyboardHandler } from './useMainKeyboardHandler';
 
 export type { UseSettingsReturn } from './useSettings';
 export type { UseSessionManagerReturn } from './useSessionManager';
@@ -50,3 +51,6 @@ export type {
   UseKeyboardNavigationDeps,
   UseKeyboardNavigationReturn,
 } from './useKeyboardNavigation';
+export type {
+  UseMainKeyboardHandlerReturn,
+} from './useMainKeyboardHandler';

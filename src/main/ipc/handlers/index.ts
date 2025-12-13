@@ -15,9 +15,11 @@ import { registerPlaybooksHandlers } from './playbooks';
 import { registerHistoryHandlers, HistoryHandlerDependencies } from './history';
 import { registerAgentsHandlers, AgentsHandlerDependencies } from './agents';
 import { registerProcessHandlers, ProcessHandlerDependencies } from './process';
+import { registerPersistenceHandlers, PersistenceHandlerDependencies, MaestroSettings, SessionsData, GroupsData } from './persistence';
 import { HistoryEntry } from '../../../shared/types';
 import { AgentDetector } from '../../agent-detector';
 import { ProcessManager } from '../../process-manager';
+import { WebServer } from '../../web-server';
 
 // Re-export individual handlers for selective registration
 export { registerGitHandlers };
@@ -26,9 +28,12 @@ export { registerPlaybooksHandlers };
 export { registerHistoryHandlers };
 export { registerAgentsHandlers };
 export { registerProcessHandlers };
+export { registerPersistenceHandlers };
 export type { HistoryHandlerDependencies };
 export type { AgentsHandlerDependencies };
 export type { ProcessHandlerDependencies };
+export type { PersistenceHandlerDependencies };
+export type { MaestroSettings, SessionsData, GroupsData };
 
 /**
  * Interface for history store data (matches main/index.ts definition)
@@ -42,14 +47,6 @@ interface HistoryData {
  */
 interface AgentConfigsData {
   configs: Record<string, Record<string, any>>;
-}
-
-/**
- * Interface for Maestro settings store
- */
-interface MaestroSettings {
-  defaultShell: string;
-  [key: string]: any;
 }
 
 /**
@@ -69,6 +66,10 @@ export interface HandlerDependencies {
   // Process-specific dependencies
   getProcessManager: () => ProcessManager | null;
   settingsStore: Store<MaestroSettings>;
+  // Persistence-specific dependencies
+  sessionsStore: Store<SessionsData>;
+  groupsStore: Store<GroupsData>;
+  getWebServer: () => WebServer | null;
 }
 
 /**
@@ -94,7 +95,12 @@ export function registerAllHandlers(deps: HandlerDependencies): void {
     agentConfigsStore: deps.agentConfigsStore,
     settingsStore: deps.settingsStore,
   });
+  registerPersistenceHandlers({
+    settingsStore: deps.settingsStore,
+    sessionsStore: deps.sessionsStore,
+    groupsStore: deps.groupsStore,
+    getWebServer: deps.getWebServer,
+  });
   // Future handlers will be registered here:
-  // registerPersistenceHandlers();
   // registerSystemHandlers();
 }

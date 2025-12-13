@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, memo } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { X, Key, Moon, Sun, Keyboard, Check, Terminal, Bell, Volume2, Square, Cpu, Clock, Settings, Palette, Sparkles, History, Download } from 'lucide-react';
 import type { AgentConfig, Theme, Shortcut, ShellInfo, CustomAICommand } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
@@ -8,6 +8,7 @@ import { formatShortcutKeys } from '../utils/shortcutFormatter';
 import { ToggleButtonGroup, ToggleButtonOption } from './ToggleButtonGroup';
 import { SettingCheckbox } from './SettingCheckbox';
 import { AgentSelectionPanel } from './AgentSelectionPanel';
+import { FontConfigurationPanel } from './FontConfigurationPanel';
 
 // Feature flags - set to true to enable dormant features
 const FEATURE_FLAGS = {
@@ -73,7 +74,6 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
   const { isOpen, onClose, theme, themes, initialTab } = props;
   const [activeTab, setActiveTab] = useState<'general' | 'llm' | 'shortcuts' | 'theme' | 'notifications' | 'aicommands'>('general');
   const [systemFonts, setSystemFonts] = useState<string[]>([]);
-  const [customFontInput, setCustomFontInput] = useState('');
   const [customFonts, setCustomFonts] = useState<string[]>([]);
   const [fontLoading, setFontLoading] = useState(false);
   const [fontsLoaded, setFontsLoaded] = useState(false);
@@ -267,12 +267,11 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
     }
   };
 
-  const addCustomFont = () => {
-    if (customFontInput.trim() && !customFonts.includes(customFontInput.trim())) {
-      const newCustomFonts = [...customFonts, customFontInput.trim()];
+  const addCustomFont = (font: string) => {
+    if (font && !customFonts.includes(font)) {
+      const newCustomFonts = [...customFonts, font];
       setCustomFonts(newCustomFonts);
       window.maestro.settings.set('customFonts', newCustomFonts);
-      setCustomFontInput('');
     }
   };
 
@@ -391,36 +390,6 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
     } finally {
       setTestingLLM(false);
     }
-  };
-
-  // Check if a font is available on the system
-  // Memoize normalized font set for O(1) lookup instead of O(n) array search
-  const normalizedFontsSet = useMemo(() => {
-    const normalize = (str: string) => str.toLowerCase().replace(/[\s-]/g, '');
-    const fontSet = new Set<string>();
-    systemFonts.forEach(font => {
-      fontSet.add(normalize(font));
-      // Also add the original name for exact matches
-      fontSet.add(font.toLowerCase());
-    });
-    return fontSet;
-  }, [systemFonts]);
-
-  const isFontAvailable = (fontName: string) => {
-    const normalize = (str: string) => str.toLowerCase().replace(/[\s-]/g, '');
-    const normalizedSearch = normalize(fontName);
-
-    // Fast O(1) lookup
-    if (normalizedFontsSet.has(normalizedSearch)) return true;
-    if (normalizedFontsSet.has(fontName.toLowerCase())) return true;
-
-    // Fallback to substring search (slower but comprehensive)
-    for (const font of normalizedFontsSet) {
-      if (font.includes(normalizedSearch) || normalizedSearch.includes(font)) {
-        return true;
-      }
-    }
-    return false;
   };
 
   const handleRecord = (e: React.KeyboardEvent, actionId: string) => {
@@ -600,89 +569,18 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
               />
 
               {/* Font Family */}
-              <div>
-                <label className="block text-xs font-bold opacity-70 uppercase mb-2">Interface Font</label>
-                {fontLoading ? (
-                  <div className="text-sm opacity-50 p-2">Loading fonts...</div>
-                ) : (
-                  <>
-                    <select
-                      value={props.fontFamily}
-                      onChange={(e) => props.setFontFamily(e.target.value)}
-                      onFocus={handleFontInteraction}
-                      onClick={handleFontInteraction}
-                      className="w-full p-2 rounded border bg-transparent outline-none mb-3"
-                      style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-                    >
-                      <optgroup label="Common Monospace Fonts">
-                        {['Roboto Mono', 'JetBrains Mono', 'Fira Code', 'Monaco', 'Menlo', 'Consolas', 'Courier New', 'SF Mono', 'Cascadia Code', 'Source Code Pro'].map(font => {
-                          const available = fontsLoaded ? isFontAvailable(font) : true;
-                          return (
-                            <option
-                              key={font}
-                              value={font}
-                              style={{ opacity: available ? 1 : 0.4 }}
-                            >
-                              {font} {fontsLoaded && !available && '(Not Found)'}
-                            </option>
-                          );
-                        })}
-                      </optgroup>
-                      {customFonts.length > 0 && (
-                        <optgroup label="Custom Fonts">
-                          {customFonts.map(font => (
-                            <option key={font} value={font}>
-                              {font}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
-                    </select>
-
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={customFontInput}
-                          onChange={(e) => setCustomFontInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && addCustomFont()}
-                          placeholder="Add custom font name..."
-                          className="flex-1 p-2 rounded border bg-transparent outline-none text-sm"
-                          style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-                        />
-                        <button
-                          onClick={addCustomFont}
-                          className="px-3 py-2 rounded text-xs font-bold"
-                          style={{ backgroundColor: theme.colors.accent, color: theme.colors.accentForeground }}
-                        >
-                          Add
-                        </button>
-                      </div>
-
-                      {customFonts.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {customFonts.map(font => (
-                            <div
-                              key={font}
-                              className="flex items-center gap-2 px-2 py-1 rounded text-xs"
-                              style={{ backgroundColor: theme.colors.bgActivity, borderColor: theme.colors.border }}
-                            >
-                              <span style={{ color: theme.colors.textMain }}>{font}</span>
-                              <button
-                                onClick={() => removeCustomFont(font)}
-                                className="hover:opacity-70"
-                                style={{ color: theme.colors.error }}
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
+              <FontConfigurationPanel
+                fontFamily={props.fontFamily}
+                setFontFamily={props.setFontFamily}
+                systemFonts={systemFonts}
+                fontsLoaded={fontsLoaded}
+                fontLoading={fontLoading}
+                customFonts={customFonts}
+                onAddCustomFont={addCustomFont}
+                onRemoveCustomFont={removeCustomFont}
+                onFontInteraction={handleFontInteraction}
+                theme={theme}
+              />
 
               {/* Font Size */}
               <div>

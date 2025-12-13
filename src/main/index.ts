@@ -12,6 +12,17 @@ import { getThemeById } from './themes';
 import Store from 'electron-store';
 import { registerGitHandlers, registerAutorunHandlers, registerHistoryHandlers, registerAgentsHandlers, registerProcessHandlers, registerPersistenceHandlers, registerSystemHandlers, setupLoggerEventForwarding } from './ipc/handlers';
 import { DEMO_MODE, DEMO_DATA_PATH, CLAUDE_SESSION_PARSE_LIMITS, CLAUDE_PRICING } from './constants';
+import {
+  SessionStatsCache,
+  GlobalStatsCache,
+  STATS_CACHE_VERSION,
+  GLOBAL_STATS_CACHE_VERSION,
+  encodeClaudeProjectPath,
+  loadStatsCache,
+  saveStatsCache,
+  loadGlobalStatsCache,
+  saveGlobalStatsCache,
+} from './utils/statsCache';
 
 // Demo mode: use a separate data directory for fresh demos
 if (DEMO_MODE) {
@@ -55,131 +66,6 @@ const store = new Store<MaestroSettings>({
     webAuthToken: null,
   },
 });
-
-// Helper: Encode project path the same way Claude Code does
-// Claude replaces both '/' and '.' with '-' in the path encoding
-function encodeClaudeProjectPath(projectPath: string): string {
-  return projectPath.replace(/[/.]/g, '-');
-}
-
-// Cache structure for project stats
-interface SessionStatsCache {
-  // Per-session stats keyed by session ID
-  sessions: Record<string, {
-    messages: number;
-    costUsd: number;
-    sizeBytes: number;
-    tokens: number;
-    oldestTimestamp: string | null;
-    fileMtimeMs: number; // File modification time to detect changes
-  }>;
-  // Aggregate totals (computed from sessions)
-  totals: {
-    totalSessions: number;
-    totalMessages: number;
-    totalCostUsd: number;
-    totalSizeBytes: number;
-    totalTokens: number;
-    oldestTimestamp: string | null;
-  };
-  // Cache metadata
-  lastUpdated: number;
-  version: number; // Bump this to invalidate old caches
-}
-
-const STATS_CACHE_VERSION = 1;
-
-// Helper to get cache file path for a project
-function getStatsCachePath(projectPath: string): string {
-  const encodedPath = encodeClaudeProjectPath(projectPath);
-  return path.join(app.getPath('userData'), 'stats-cache', `${encodedPath}.json`);
-}
-
-// Helper to load stats cache for a project
-async function loadStatsCache(projectPath: string): Promise<SessionStatsCache | null> {
-  try {
-    const cachePath = getStatsCachePath(projectPath);
-    const content = await fs.readFile(cachePath, 'utf-8');
-    const cache = JSON.parse(content) as SessionStatsCache;
-    // Invalidate cache if version mismatch
-    if (cache.version !== STATS_CACHE_VERSION) {
-      return null;
-    }
-    return cache;
-  } catch {
-    return null;
-  }
-}
-
-// Helper to save stats cache for a project
-async function saveStatsCache(projectPath: string, cache: SessionStatsCache): Promise<void> {
-  try {
-    const cachePath = getStatsCachePath(projectPath);
-    const cacheDir = path.dirname(cachePath);
-    await fs.mkdir(cacheDir, { recursive: true });
-    await fs.writeFile(cachePath, JSON.stringify(cache), 'utf-8');
-  } catch (error) {
-    logger.warn('Failed to save stats cache', 'ClaudeSessions', { projectPath, error });
-  }
-}
-
-// Global stats cache structure (for About modal)
-interface GlobalStatsCache {
-  // Per-session stats keyed by "projectDir/sessionId"
-  sessions: Record<string, {
-    messages: number;
-    inputTokens: number;
-    outputTokens: number;
-    cacheReadTokens: number;
-    cacheCreationTokens: number;
-    sizeBytes: number;
-    fileMtimeMs: number;
-  }>;
-  // Aggregate totals
-  totals: {
-    totalSessions: number;
-    totalMessages: number;
-    totalInputTokens: number;
-    totalOutputTokens: number;
-    totalCacheReadTokens: number;
-    totalCacheCreationTokens: number;
-    totalCostUsd: number;
-    totalSizeBytes: number;
-  };
-  lastUpdated: number;
-  version: number;
-}
-
-const GLOBAL_STATS_CACHE_VERSION = 1;
-
-function getGlobalStatsCachePath(): string {
-  return path.join(app.getPath('userData'), 'stats-cache', 'global-stats.json');
-}
-
-async function loadGlobalStatsCache(): Promise<GlobalStatsCache | null> {
-  try {
-    const cachePath = getGlobalStatsCachePath();
-    const content = await fs.readFile(cachePath, 'utf-8');
-    const cache = JSON.parse(content) as GlobalStatsCache;
-    if (cache.version !== GLOBAL_STATS_CACHE_VERSION) {
-      return null;
-    }
-    return cache;
-  } catch {
-    return null;
-  }
-}
-
-async function saveGlobalStatsCache(cache: GlobalStatsCache): Promise<void> {
-  try {
-    const cachePath = getGlobalStatsCachePath();
-    const cacheDir = path.dirname(cachePath);
-    await fs.mkdir(cacheDir, { recursive: true });
-    await fs.writeFile(cachePath, JSON.stringify(cache), 'utf-8');
-  } catch (error) {
-    logger.warn('Failed to save global stats cache', 'ClaudeSessions', { error });
-  }
-}
 
 // Helper: Extract semantic text from message content
 // Skips images, tool_use, and tool_result - only returns actual text content

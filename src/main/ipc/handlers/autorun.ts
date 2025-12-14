@@ -162,6 +162,10 @@ export function registerAutorunHandlers(deps: {
   // Write a markdown document for Auto Run (supports subdirectories)
   ipcMain.handle('autorun:writeDoc', async (_event, folderPath: string, filename: string, content: string) => {
     try {
+      // DEBUG: Log all write attempts to trace cross-session contamination
+      logger.info(`[DEBUG] writeDoc called: folder=${folderPath}, file=${filename}, content.length=${content.length}, content.slice(0,50)="${content.slice(0, 50).replace(/\n/g, '\\n')}"`, LOG_CONTEXT);
+      console.log(`[DEBUG writeDoc] folder=${folderPath}, file=${filename}, content.length=${content.length}`);
+
       // Reject obvious traversal attempts
       if (filename.includes('..')) {
         return { success: false, error: 'Invalid filename' };

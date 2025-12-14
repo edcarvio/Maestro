@@ -447,38 +447,25 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
   }, [sessionId, selectedFile, contentVersion, content]);
 
   // Save function - writes to disk
+  // Note: We do NOT call handleContentChange here because it would update the
+  // activeSession's content, which may be a different session than the one we're
+  // editing (during rapid session switches). The file watcher will pick up the
+  // change and update the correct session's content.
   const handleSave = useCallback(async () => {
     if (!folderPath || !selectedFile || !isDirty) return;
 
     try {
       await window.maestro.autorun.writeDoc(folderPath, selectedFile + '.md', localContent);
       setSavedContent(localContent);
-      handleContentChange(localContent);
     } catch (err) {
       console.error('Failed to save:', err);
     }
-  }, [folderPath, selectedFile, localContent, isDirty, handleContentChange]);
+  }, [folderPath, selectedFile, localContent, isDirty]);
 
   // Revert function - discard changes
   const handleRevert = useCallback(() => {
     setLocalContent(savedContent);
   }, [savedContent]);
-
-  // Handle Cmd+S to save
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        // Only handle if we're in edit mode and have focus
-        if (mode === 'edit' && isDirty) {
-          e.preventDefault();
-          handleSave();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mode, isDirty, handleSave]);
 
   // Track mode before auto-run to restore when it ends
   const modeBeforeAutoRunRef = useRef<'edit' | 'preview' | null>(null);
@@ -883,6 +870,16 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
         handleRedo();
       } else {
         handleUndo();
+      }
+      return;
+    }
+
+    // Cmd+S to save
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isDirty) {
+        handleSave();
       }
       return;
     }

@@ -1,9 +1,11 @@
 /**
  * remarkFileLinks - A remark plugin that transforms file path references into clickable links.
  *
- * Supports two patterns:
+ * Supports multiple patterns:
  * 1. Path-style references: `Folder/Subfolder/File` or `README.md`
  * 2. Wiki-style references (Obsidian): `[[Note Name]]` or `[[Folder/Note]]`
+ * 3. Wiki-style with alias: `[[Folder/Note|Display Text]]` - links to Note but shows "Display Text"
+ * 4. Absolute paths: `/Users/name/Project/file.md` (converted to relative if within projectRoot)
  *
  * Links are validated against the provided fileTree before conversion.
  * Uses `maestro-file://` protocol for internal file preview handling.
@@ -189,8 +191,9 @@ function validatePathReference(
 }
 
 // Regex patterns
-// Wiki-style: [[Note Name]] or [[Folder/Note]]
-const WIKI_LINK_PATTERN = /\[\[([^\]]+)\]\]/g;
+// Wiki-style: [[Note Name]] or [[Folder/Note]] or [[Folder/Note|Display Text]]
+// The pipe syntax allows custom display text: [[path|display]]
+const WIKI_LINK_PATTERN = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 
 // Path-style: Must contain a slash OR end with common file extensions
 // Avoid matching URLs (no :// prefix)
@@ -244,14 +247,16 @@ export function remarkFileLinks(options: RemarkFileLinksOptions) {
       let wikiMatch;
       WIKI_LINK_PATTERN.lastIndex = 0;
       while ((wikiMatch = WIKI_LINK_PATTERN.exec(text)) !== null) {
-        const reference = wikiMatch[1];
+        const reference = wikiMatch[1];  // The path part
+        const displayText = wikiMatch[2];  // Optional display text after |
         const resolvedPath = findClosestMatch(reference, filenameIndex, allPaths, cwd);
 
         if (resolvedPath) {
           matches.push({
             start: wikiMatch.index,
             end: wikiMatch.index + wikiMatch[0].length,
-            display: reference,
+            // Use display text if provided, otherwise use the reference
+            display: displayText || reference,
             resolvedPath,
           });
         }

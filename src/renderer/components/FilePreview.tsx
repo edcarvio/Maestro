@@ -42,6 +42,14 @@ interface FilePreviewProps {
   onNavigateBack?: () => void;
   /** Navigate forward in history */
   onNavigateForward?: () => void;
+  /** Navigation history for back breadcrumbs (items before current) */
+  backHistory?: {name: string; content: string; path: string}[];
+  /** Navigation history for forward breadcrumbs (items after current) */
+  forwardHistory?: {name: string; content: string; path: string}[];
+  /** Navigate to a specific index in history */
+  onNavigateToIndex?: (index: number) => void;
+  /** Current index in history */
+  currentHistoryIndex?: number;
 }
 
 // Get language from filename extension
@@ -334,10 +342,14 @@ function remarkHighlight() {
   };
 }
 
-export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdownEditMode, onSave, shortcuts, fileTree, cwd, onFileClick, canGoBack, canGoForward, onNavigateBack, onNavigateForward }: FilePreviewProps) {
+export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdownEditMode, onSave, shortcuts, fileTree, cwd, onFileClick, canGoBack, canGoForward, onNavigateBack, onNavigateForward, backHistory, forwardHistory, onNavigateToIndex, currentHistoryIndex }: FilePreviewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [showCopyNotification, setShowCopyNotification] = useState(false);
+  const [showBackPopup, setShowBackPopup] = useState(false);
+  const [showForwardPopup, setShowForwardPopup] = useState(false);
+  const backPopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const forwardPopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
   const [fileStats, setFileStats] = useState<FileStats | null>(null);
@@ -1003,24 +1015,108 @@ export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdow
             {/* Navigation buttons - show when either direction is available */}
             {(canGoBack || canGoForward) && (
               <div className="flex items-center gap-1">
-                <button
-                  onClick={onNavigateBack}
-                  disabled={!canGoBack}
-                  className="p-1 rounded hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-default"
-                  style={{ color: canGoBack ? theme.colors.textMain : theme.colors.textDim }}
-                  title="Go back (⌘←)"
+                {/* Back button with popup */}
+                <div
+                  className="relative"
+                  onMouseEnter={() => {
+                    if (backPopupTimeoutRef.current) {
+                      clearTimeout(backPopupTimeoutRef.current);
+                      backPopupTimeoutRef.current = null;
+                    }
+                    if (canGoBack) setShowBackPopup(true);
+                  }}
+                  onMouseLeave={() => {
+                    backPopupTimeoutRef.current = setTimeout(() => {
+                      setShowBackPopup(false);
+                    }, 150);
+                  }}
                 >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={onNavigateForward}
-                  disabled={!canGoForward}
-                  className="p-1 rounded hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-default"
-                  style={{ color: canGoForward ? theme.colors.textMain : theme.colors.textDim }}
-                  title="Go forward (⌘→)"
+                  <button
+                    onClick={onNavigateBack}
+                    disabled={!canGoBack}
+                    className="p-1 rounded hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-default"
+                    style={{ color: canGoBack ? theme.colors.textMain : theme.colors.textDim }}
+                    title="Go back (⌘←)"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  {/* Back history popup */}
+                  {showBackPopup && backHistory && backHistory.length > 0 && (
+                    <div
+                      className="absolute right-0 top-full py-1 rounded shadow-lg z-50 min-w-[200px] max-w-[300px] max-h-[300px] overflow-y-auto"
+                      style={{ backgroundColor: theme.colors.bgSidebar, border: `1px solid ${theme.colors.border}` }}
+                    >
+                      {backHistory.slice().reverse().map((item, idx) => {
+                        const actualIndex = backHistory.length - 1 - idx;
+                        return (
+                          <button
+                            key={`back-${actualIndex}`}
+                            className="w-full px-3 py-1.5 text-left text-xs hover:bg-white/10 truncate flex items-center gap-2"
+                            style={{ color: theme.colors.textMain }}
+                            onClick={() => {
+                              onNavigateToIndex?.(actualIndex);
+                              setShowBackPopup(false);
+                            }}
+                          >
+                            <span className="opacity-50 shrink-0">{actualIndex + 1}.</span>
+                            <span className="truncate">{item.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                {/* Forward button with popup */}
+                <div
+                  className="relative"
+                  onMouseEnter={() => {
+                    if (forwardPopupTimeoutRef.current) {
+                      clearTimeout(forwardPopupTimeoutRef.current);
+                      forwardPopupTimeoutRef.current = null;
+                    }
+                    if (canGoForward) setShowForwardPopup(true);
+                  }}
+                  onMouseLeave={() => {
+                    forwardPopupTimeoutRef.current = setTimeout(() => {
+                      setShowForwardPopup(false);
+                    }, 150);
+                  }}
                 >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+                  <button
+                    onClick={onNavigateForward}
+                    disabled={!canGoForward}
+                    className="p-1 rounded hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-default"
+                    style={{ color: canGoForward ? theme.colors.textMain : theme.colors.textDim }}
+                    title="Go forward (⌘→)"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                  {/* Forward history popup */}
+                  {showForwardPopup && forwardHistory && forwardHistory.length > 0 && (
+                    <div
+                      className="absolute right-0 top-full py-1 rounded shadow-lg z-50 min-w-[200px] max-w-[300px] max-h-[300px] overflow-y-auto"
+                      style={{ backgroundColor: theme.colors.bgSidebar, border: `1px solid ${theme.colors.border}` }}
+                    >
+                      {forwardHistory.map((item, idx) => {
+                        const actualIndex = (currentHistoryIndex ?? 0) + 1 + idx;
+                        return (
+                          <button
+                            key={`forward-${actualIndex}`}
+                            className="w-full px-3 py-1.5 text-left text-xs hover:bg-white/10 truncate flex items-center gap-2"
+                            style={{ color: theme.colors.textMain }}
+                            onClick={() => {
+                              onNavigateToIndex?.(actualIndex);
+                              setShowForwardPopup(false);
+                            }}
+                          >
+                            <span className="opacity-50 shrink-0">{actualIndex + 1}.</span>
+                            <span className="truncate">{item.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

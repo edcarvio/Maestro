@@ -169,6 +169,10 @@ interface MainPanelProps {
   canGoForward?: boolean;
   onNavigateBack?: () => void;
   onNavigateForward?: () => void;
+  backHistory?: {name: string; content: string; path: string}[];
+  forwardHistory?: {name: string; content: string; path: string}[];
+  currentHistoryIndex?: number;
+  onNavigateToIndex?: (index: number) => void;
 }
 
 export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function MainPanel(props, ref) {
@@ -891,6 +895,10 @@ export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function Ma
                 canGoForward={props.canGoForward}
                 onNavigateBack={props.onNavigateBack}
                 onNavigateForward={props.onNavigateForward}
+                backHistory={props.backHistory}
+                forwardHistory={props.forwardHistory}
+                currentHistoryIndex={props.currentHistoryIndex}
+                onNavigateToIndex={props.onNavigateToIndex}
               />
             </div>
           ) : (

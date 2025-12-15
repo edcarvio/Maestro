@@ -170,6 +170,42 @@ describe('remarkFileLinks', () => {
       expect(result).toContain('[TODO](maestro-file://Notes/TODO.md)');
       expect(result).toContain('[README.md](maestro-file://README.md)');
     });
+
+    it('converts wiki link with alias (pipe syntax)', async () => {
+      const result = await processMarkdown(
+        'Established in 2024: [[Notes/TODO|my tasks]]',
+        sampleFileTree,
+        ''
+      );
+      expect(result).toContain('[my tasks](maestro-file://Notes/TODO.md)');
+    });
+
+    it('converts wiki link with alias and spaces in display text', async () => {
+      const result = await processMarkdown(
+        'See [[OPSWAT/README|OPSWAT Documentation]] for details.',
+        sampleFileTree,
+        ''
+      );
+      expect(result).toContain('[OPSWAT Documentation](maestro-file://OPSWAT/README.md)');
+    });
+
+    it('converts wiki link with alias preserving original display', async () => {
+      const result = await processMarkdown(
+        'Check the [[config.json|configuration file]] settings.',
+        sampleFileTree,
+        ''
+      );
+      expect(result).toContain('[configuration file](maestro-file://config.json)');
+    });
+
+    it('handles alias with complex path', async () => {
+      const result = await processMarkdown(
+        'Meeting details: [[OPSWAT/Meetings/OP-0088|ELT Call Notes]]',
+        sampleFileTree,
+        ''
+      );
+      expect(result).toContain('[ELT Call Notes](maestro-file://OPSWAT/Meetings/OP-0088.md)');
+    });
   });
 
   describe('duplicate filename resolution', () => {

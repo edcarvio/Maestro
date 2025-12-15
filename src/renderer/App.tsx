@@ -4053,11 +4053,23 @@ export default function MaestroConsole() {
         }
 
         const content = await window.maestro.fs.readFile(fullPath);
-        setPreviewFile({
+        const newFile = {
           name: node.name,
           content: content,
           path: fullPath
-        });
+        };
+
+        // Only add to history if it's a different file than the current one
+        const currentFile = filePreviewHistory[filePreviewHistoryIndex];
+        if (!currentFile || currentFile.path !== fullPath) {
+          // Add to navigation history (truncate forward history if we're not at the end)
+          const newHistory = filePreviewHistory.slice(0, filePreviewHistoryIndex + 1);
+          newHistory.push(newFile);
+          setFilePreviewHistory(newHistory);
+          setFilePreviewHistoryIndex(newHistory.length - 1);
+        }
+
+        setPreviewFile(newFile);
         setActiveFocus('main');
       } catch (error) {
         console.error('Failed to read file:', error);
@@ -4190,16 +4202,30 @@ export default function MaestroConsole() {
     handleSidebarNavigation, handleTabNavigation, handleEnterToActivate, handleEscapeInMain
   };
 
-  // Update flat file list when active session's tree, expanded folders, or filter changes
+  // Update flat file list when active session's tree, expanded folders, filter, or hidden files setting changes
   useEffect(() => {
     if (!activeSession || !activeSession.fileExplorerExpanded) {
       setFlatFileList([]);
       return;
     }
     const expandedSet = new Set(activeSession.fileExplorerExpanded);
+
+    // Apply hidden files filter to match FileExplorerPanel's display
+    const filterHiddenFiles = (nodes: FileNode[]): FileNode[] => {
+      if (showHiddenFiles) return nodes;
+      return nodes
+        .filter(node => !node.name.startsWith('.'))
+        .map(node => ({
+          ...node,
+          children: node.children ? filterHiddenFiles(node.children) : undefined
+        }));
+    };
+
     // Use filteredFileTree when available (it returns the full tree when no filter is active)
-    setFlatFileList(flattenTree(filteredFileTree, expandedSet));
-  }, [activeSession?.fileExplorerExpanded, filteredFileTree]);
+    // Then apply hidden files filter to match what FileExplorerPanel displays
+    const displayTree = filterHiddenFiles(filteredFileTree);
+    setFlatFileList(flattenTree(displayTree, expandedSet));
+  }, [activeSession?.fileExplorerExpanded, filteredFileTree, showHiddenFiles]);
 
   // Handle pending jump path from /jump command
   useEffect(() => {
@@ -5286,11 +5312,15 @@ export default function MaestroConsole() {
               path: fullPath
             };
 
-            // Add to navigation history (truncate forward history if we're not at the end)
-            const newHistory = filePreviewHistory.slice(0, filePreviewHistoryIndex + 1);
-            newHistory.push(newFile);
-            setFilePreviewHistory(newHistory);
-            setFilePreviewHistoryIndex(newHistory.length - 1);
+            // Only add to history if it's a different file than the current one
+            const currentFile = filePreviewHistory[filePreviewHistoryIndex];
+            if (!currentFile || currentFile.path !== fullPath) {
+              // Add to navigation history (truncate forward history if we're not at the end)
+              const newHistory = filePreviewHistory.slice(0, filePreviewHistoryIndex + 1);
+              newHistory.push(newFile);
+              setFilePreviewHistory(newHistory);
+              setFilePreviewHistoryIndex(newHistory.length - 1);
+            }
 
             setPreviewFile(newFile);
             setActiveFocus('main');
@@ -5312,6 +5342,15 @@ export default function MaestroConsole() {
             const newIndex = filePreviewHistoryIndex + 1;
             setFilePreviewHistoryIndex(newIndex);
             setPreviewFile(filePreviewHistory[newIndex]);
+          }
+        }}
+        backHistory={filePreviewHistory.slice(0, filePreviewHistoryIndex)}
+        forwardHistory={filePreviewHistory.slice(filePreviewHistoryIndex + 1)}
+        currentHistoryIndex={filePreviewHistoryIndex}
+        onNavigateToIndex={(index: number) => {
+          if (index >= 0 && index < filePreviewHistory.length) {
+            setFilePreviewHistoryIndex(index);
+            setPreviewFile(filePreviewHistory[index]);
           }
         }}
       />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search } from 'lucide-react';
 import type { Session, Group, Theme, Shortcut } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
@@ -6,6 +6,7 @@ import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { gitService } from '../services/git';
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
 import type { WizardStep } from './Wizard/WizardContext';
+import { useListNavigation } from '../hooks/useListNavigation';
 
 interface QuickAction {
   id: string;
@@ -85,7 +86,6 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
   } = props;
 
   const [search, setSearch] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [mode, setMode] = useState<'main' | 'move-to-group'>(initialMode);
   const [renamingSession, setRenamingSession] = useState(false);
   const [renameValue, setRenameValue] = useState('');
@@ -118,20 +118,25 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     };
   }, [registerLayer, unregisterLayer, setQuickActionOpen]);
 
-  // Update handler when mode changes
+  // Update handler when mode changes - use a ref-based approach to avoid stale closure
+  const handleEscapeRef = useRef<() => void>(() => setQuickActionOpen(false));
+  useEffect(() => {
+    handleEscapeRef.current = () => {
+      // Handle escape based on current mode
+      if (mode === 'move-to-group') {
+        setMode('main');
+        // Note: Selection will be reset by the search/mode change useEffect
+      } else {
+        setQuickActionOpen(false);
+      }
+    };
+  }, [mode, setQuickActionOpen]);
+
   useEffect(() => {
     if (layerIdRef.current) {
-      updateLayerHandler(layerIdRef.current, () => {
-        // Handle escape based on current mode
-        if (mode === 'move-to-group') {
-          setMode('main');
-          setSelectedIndex(0);
-        } else {
-          setQuickActionOpen(false);
-        }
-      });
+      updateLayerHandler(layerIdRef.current, () => handleEscapeRef.current());
     }
-  }, [mode, setQuickActionOpen, updateLayerHandler]);
+  }, [updateLayerHandler]);
 
   // Focus input on mount
   useEffect(() => {
@@ -139,11 +144,6 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     const timer = setTimeout(() => inputRef.current?.focus(), 50);
     return () => clearTimeout(timer);
   }, []);
-
-  // Scroll selected item into view
-  useEffect(() => {
-    selectedItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [selectedIndex]);
 
   // Track scroll position to determine which items are visible
   const handleScroll = () => {
@@ -373,10 +373,43 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     })
     .sort((a, b) => a.label.localeCompare(b.label));
 
+  // Callback for when an item is selected (by Enter key or number hotkey)
+  const handleSelectByIndex = useCallback((index: number) => {
+    const selectedAction = filtered[index];
+    if (!selectedAction) return;
+
+    // Don't close modal if action switches modes
+    const switchesModes = selectedAction.id === 'moveToGroup' || selectedAction.id === 'back';
+    selectedAction.action();
+    if (!renamingSession && mode === 'main' && !switchesModes) {
+      setQuickActionOpen(false);
+    }
+  }, [filtered, renamingSession, mode, setQuickActionOpen]);
+
+  // Use hook for list navigation (arrow keys, number hotkeys, Enter)
+  const {
+    selectedIndex,
+    setSelectedIndex,
+    handleKeyDown: listHandleKeyDown,
+    resetSelection
+  } = useListNavigation({
+    listLength: filtered.length,
+    onSelect: handleSelectByIndex,
+    enableNumberHotkeys: true,
+    firstVisibleIndex,
+    enabled: !renamingSession, // Disable navigation when renaming
+  });
+
+  // Scroll selected item into view
   useEffect(() => {
-    setSelectedIndex(0);
+    selectedItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selectedIndex]);
+
+  // Reset selection when search or mode changes
+  useEffect(() => {
+    resetSelection();
     setFirstVisibleIndex(0);
-  }, [search, mode]);
+  }, [search, mode, resetSelection]);
 
   // Clear search when switching to move-to-group mode
   useEffect(() => {
@@ -386,6 +419,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
   }, [mode]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Handle rename mode separately
     if (renamingSession) {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -397,38 +431,12 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
       return;
     }
 
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSelectedIndex(prev => Math.min(prev + 1, filtered.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedIndex(prev => Math.max(prev - 1, 0));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
+    // Delegate to list navigation hook
+    listHandleKeyDown(e);
+
+    // Add stopPropagation for Enter to prevent event bubbling
+    if (e.key === 'Enter') {
       e.stopPropagation();
-      if (filtered[selectedIndex]) {
-        const selectedAction = filtered[selectedIndex];
-        // Don't close modal if action switches modes
-        const switchesModes = selectedAction.id === 'moveToGroup' || selectedAction.id === 'back';
-        selectedAction.action();
-        if (!renamingSession && mode === 'main' && !switchesModes) {
-          setQuickActionOpen(false);
-        }
-      }
-    } else if (e.metaKey && ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].includes(e.key)) {
-      e.preventDefault();
-      // 1-9 map to positions 1-9, 0 maps to position 10
-      const number = e.key === '0' ? 10 : parseInt(e.key);
-      // Cap firstVisibleIndex so hotkeys always work for the last 10 items
-      const maxFirstIndex = Math.max(0, filtered.length - 10);
-      const effectiveFirstIndex = Math.min(firstVisibleIndex, maxFirstIndex);
-      const targetIndex = effectiveFirstIndex + number - 1;
-      if (filtered[targetIndex]) {
-        filtered[targetIndex].action();
-        if (!renamingSession && mode === 'main') {
-          setQuickActionOpen(false);
-        }
-      }
     }
   };
 

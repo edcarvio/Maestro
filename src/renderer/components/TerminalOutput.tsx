@@ -1311,6 +1311,8 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
     .prose th { background-color: ${theme.colors.bgSidebar}; font-weight: bold; }
     .prose strong { font-weight: bold; }
     .prose em { font-style: italic; }
+    .prose li > strong:first-child, .prose li > b:first-child, .prose li > em:first-child, .prose li > code:first-child, .prose li > a:first-child { vertical-align: baseline; line-height: inherit; }
+    .prose li::marker { font-weight: normal; }
   `, [theme.colors]);
 
   return (

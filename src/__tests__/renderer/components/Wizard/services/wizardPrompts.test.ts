@@ -20,6 +20,7 @@ import {
   type ParsedResponse,
   type SystemPromptConfig,
 } from '../../../../../renderer/components/Wizard/services/wizardPrompts';
+import { getAllInitialQuestions } from '../../../../../renderer/components/Wizard/services/fillerPhrases';
 
 describe('wizardPrompts', () => {
   describe('Constants', () => {
@@ -722,8 +723,9 @@ describe('wizardPrompts', () => {
     });
 
     it('should ask about building or projects', () => {
-      const question = getInitialQuestion();
-      const lowerQuestion = question.toLowerCase();
+      // Test ALL initial questions to ensure they all contain project-related keywords
+      // This makes the test deterministic instead of relying on random selection
+      const allQuestions = getAllInitialQuestions();
 
       // The initial question should ask about what to build/create/work on
       // It may use various phrasings - check for common project-related words
@@ -731,6 +733,7 @@ describe('wizardPrompts', () => {
         'build',
         'project',
         'create',
+        'creating',
         'working',
         'making',
         'vision',
@@ -756,9 +759,28 @@ describe('wizardPrompts', () => {
         'manifest',
         'fabricating',
         'creation',
+        'existence',  // "bring into existence"
+        'life',       // "bring to life"
+        'cooking',    // "cooking up"
+        'brewing',    // "brewing"
+        'assembling', // "assembling"
+        'piece',      // "piece together"
+        'energy',     // "putting our energy into"
+        'magic',      // "project magic"
+        'journey',    // "project journey"
+        'diving',     // "diving into"
+        'focus',      // "focus on"
+        'embarking',  // "embarking on"
+        'passionate', // "passionate about building"
+        'ready',      // "ready to come to life"
+        'happen',     // "make happen"
       ];
-      const asksBuildQuestion = projectKeywords.some((kw) => lowerQuestion.includes(kw));
-      expect(asksBuildQuestion).toBe(true);
+
+      for (const question of allQuestions) {
+        const lowerQuestion = question.toLowerCase();
+        const asksBuildQuestion = projectKeywords.some((kw) => lowerQuestion.includes(kw));
+        expect(asksBuildQuestion, `Question "${question}" should contain a project-related keyword`).toBe(true);
+      }
     });
 
     it('should be a question', () => {

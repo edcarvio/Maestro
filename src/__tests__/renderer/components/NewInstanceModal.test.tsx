@@ -1011,7 +1011,7 @@ describe('NewInstanceModal', () => {
       ]);
       vi.mocked(window.maestro.dialog.selectFolder).mockResolvedValue('/selected/via/shortcut');
 
-      render(
+      const { container } = render(
         <NewInstanceModal
           isOpen={true}
           onClose={onClose}
@@ -1026,9 +1026,10 @@ describe('NewInstanceModal', () => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
       });
 
-      const modal = screen.getByRole('dialog');
+      // Keyboard events are handled by the wrapper div around Modal
+      const wrapper = container.firstChild as HTMLElement;
       await act(async () => {
-        fireEvent.keyDown(modal, { key: 'o', metaKey: true });
+        fireEvent.keyDown(wrapper, { key: 'o', metaKey: true });
       });
 
       expect(window.maestro.dialog.selectFolder).toHaveBeenCalled();
@@ -1040,7 +1041,7 @@ describe('NewInstanceModal', () => {
       ]);
       vi.mocked(window.maestro.dialog.selectFolder).mockResolvedValue('/selected/via/shortcut');
 
-      render(
+      const { container } = render(
         <NewInstanceModal
           isOpen={true}
           onClose={onClose}
@@ -1055,9 +1056,10 @@ describe('NewInstanceModal', () => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
       });
 
-      const modal = screen.getByRole('dialog');
+      // Keyboard events are handled by the wrapper div around Modal
+      const wrapper = container.firstChild as HTMLElement;
       await act(async () => {
-        fireEvent.keyDown(modal, { key: 'O', ctrlKey: true });
+        fireEvent.keyDown(wrapper, { key: 'O', ctrlKey: true });
       });
 
       expect(window.maestro.dialog.selectFolder).toHaveBeenCalled();
@@ -1068,7 +1070,7 @@ describe('NewInstanceModal', () => {
         createAgentConfig({ id: 'claude-code', name: 'Claude Code', available: true }),
       ]);
 
-      render(
+      const { container } = render(
         <NewInstanceModal
           isOpen={true}
           onClose={onClose}
@@ -1089,9 +1091,10 @@ describe('NewInstanceModal', () => {
       const dirInput = screen.getByPlaceholderText('Select directory...');
       fireEvent.change(dirInput, { target: { value: '/my/project' } });
 
-      const modal = screen.getByRole('dialog');
+      // Keyboard events are handled by the wrapper div around Modal
+      const wrapper = container.firstChild as HTMLElement;
       await act(async () => {
-        fireEvent.keyDown(modal, { key: 'Enter', metaKey: true });
+        fireEvent.keyDown(wrapper, { key: 'Enter', metaKey: true });
       });
 
       expect(onCreate).toHaveBeenCalled();

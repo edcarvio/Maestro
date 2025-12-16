@@ -60,6 +60,8 @@ export interface UseInputProcessingDeps {
   activeBatchRunState: BatchState;
   /** Ref to processQueuedItem function (defined later in component, accessed via ref to avoid stale closure) */
   processQueuedItemRef: React.MutableRefObject<((sessionId: string, item: QueuedItem) => Promise<void>) | null>;
+  /** Flush any pending batched session updates (ensures AI output is flushed before user message appears) */
+  flushBatchedUpdates?: () => void;
 }
 
 /**
@@ -104,6 +106,7 @@ export function useInputProcessing(deps: UseInputProcessingDeps): UseInputProces
     getBatchState,
     activeBatchRunState,
     processQueuedItemRef,
+    flushBatchedUpdates,
   } = deps;
 
   // Ref for the processInput function so external code can access the latest version
@@ -113,6 +116,10 @@ export function useInputProcessing(deps: UseInputProcessingDeps): UseInputProces
    * Process user input - handles slash commands, queuing, and message sending.
    */
   const processInput = useCallback(async (overrideInputValue?: string) => {
+    // Flush any pending batched updates before processing user input
+    // This ensures AI output appears before the user's new message
+    flushBatchedUpdates?.();
+
     const effectiveInputValue = overrideInputValue ?? inputValue;
     console.log('[processInput] Called with:', {
       overrideInputValue,
@@ -706,6 +713,7 @@ export function useInputProcessing(deps: UseInputProcessingDeps): UseInputProces
     activeBatchRunState,
     processQueuedItemRef,
     setSessions,
+    flushBatchedUpdates,
   ]);
 
   // Update ref for external access

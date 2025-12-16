@@ -37,7 +37,7 @@ import { EmptyStateView } from './components/EmptyStateView';
 
 // Import custom hooks
 import { useBatchProcessor } from './hooks/useBatchProcessor';
-import { useSettings, useActivityTracker, useMobileLandscape, useNavigationHistory, useAutoRunHandlers, useInputSync, useSessionNavigation, useDebouncedPersistence } from './hooks';
+import { useSettings, useActivityTracker, useMobileLandscape, useNavigationHistory, useAutoRunHandlers, useInputSync, useSessionNavigation, useDebouncedPersistence, useBatchedSessionUpdates } from './hooks';
 import type { AutoRunTreeNode } from './hooks';
 import { useTabCompletion, TabCompletionSuggestion, TabCompletionFilter } from './hooks/useTabCompletion';
 import { useAtMentionCompletion } from './hooks/useAtMentionCompletion';
@@ -192,6 +192,9 @@ export default function MaestroConsole() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
 
+  // --- BATCHED SESSION UPDATES (reduces React re-renders during AI streaming) ---
+  const batchedUpdater = useBatchedSessionUpdates(setSessions);
+
   // Track if initial data has been loaded to prevent overwriting on mount
   const initialLoadComplete = useRef(false);
 
@@ -204,10 +207,12 @@ export default function MaestroConsole() {
   const cyclePositionRef = useRef<number>(-1);
 
   // Wrapper that resets cycle position when session is changed via click (not cycling)
+  // Also flushes batched updates to ensure previous session's state is fully updated
   const setActiveSessionId = useCallback((id: string) => {
+    batchedUpdater.flushNow(); // Flush pending updates before switching sessions
     cyclePositionRef.current = -1; // Reset so next cycle finds first occurrence
     setActiveSessionIdInternal(id);
-  }, []);
+  }, [batchedUpdater]);
 
   // Input State - both modes use local state for responsive typing
   // AI mode syncs to tab state on blur/submit for persistence
@@ -681,7 +686,7 @@ export default function MaestroConsole() {
 
   // Set up process event listeners for real-time output
   useEffect(() => {
-    // Handle process output data
+    // Handle process output data (BATCHED for performance)
     // sessionId will be in format: "{id}-ai-{tabId}", "{id}-terminal", "{id}-batch-{timestamp}", etc.
     const unsubscribeData = window.maestro.process.onData((sessionId: string, data: string) => {
       // Parse sessionId to determine which process this is from
@@ -712,112 +717,52 @@ export default function MaestroConsole() {
       // Filter out empty stdout for terminal commands (AI output should pass through)
       if (!isFromAi && !data.trim()) return;
 
-      setSessions(prev => prev.map(s => {
-        if (s.id !== actualSessionId) return s;
+      // For terminal output, use batched append to shell logs
+      if (!isFromAi) {
+        batchedUpdater.appendLog(actualSessionId, null, false, data);
+        return;
+      }
 
-        // For terminal output, use shellLogs as before
-        if (!isFromAi) {
-          const existingLogs = s.shellLogs;
-          const lastLog = existingLogs[existingLogs.length - 1];
-          const shouldGroup = lastLog &&
-                             lastLog.source === 'stdout' &&
-                             s.state === 'busy';
-
-          if (shouldGroup) {
-            const updatedLogs = [...existingLogs];
-            updatedLogs[updatedLogs.length - 1] = {
-              ...updatedLogs[updatedLogs.length - 1],
-              text: updatedLogs[updatedLogs.length - 1].text + data
-            };
-            return { ...s, shellLogs: updatedLogs };
-          } else {
-            const newLog: LogEntry = {
-              id: generateId(),
-              timestamp: Date.now(),
-              source: 'stdout',
-              text: data
-            };
-            return { ...s, shellLogs: [...existingLogs, newLog] };
+      // For AI output, determine target tab ID
+      // Priority: 1) tab ID from session ID (most reliable), 2) busy tab, 3) active tab
+      let targetTabId = tabIdFromSession;
+      if (!targetTabId) {
+        // Fallback: look up session from ref to find busy/active tab
+        const session = sessionsRef.current.find(s => s.id === actualSessionId);
+        if (session) {
+          const targetTab = getWriteModeTab(session) || getActiveTab(session);
+          if (targetTab) {
+            targetTabId = targetTab.id;
           }
         }
+      }
 
-        // For AI output, route to the specific tab that initiated the request
-        // Priority: 1) tab ID from session ID (most reliable), 2) busy tab, 3) active tab
-        let targetTab;
-        if (tabIdFromSession) {
-          // Tab ID encoded in session ID - use it directly
-          targetTab = s.aiTabs?.find(tab => tab.id === tabIdFromSession);
+      if (!targetTabId) {
+        console.error('[onData] No target tab found - session has no aiTabs, this should not happen');
+        return;
+      }
+
+      // Batch the log append, delivery mark, unread mark, and byte tracking
+      batchedUpdater.appendLog(actualSessionId, targetTabId, true, data);
+      batchedUpdater.markDelivered(actualSessionId, targetTabId);
+      batchedUpdater.updateCycleBytes(actualSessionId, data.length);
+
+      // Determine if tab should be marked as unread
+      // Mark as unread if user hasn't seen the new message:
+      // - The tab is not the active tab in this session, OR
+      // - The session is not the active session, OR
+      // - The user has scrolled up (not at bottom)
+      const session = sessionsRef.current.find(s => s.id === actualSessionId);
+      if (session) {
+        const targetTab = session.aiTabs?.find(t => t.id === targetTabId);
+        if (targetTab) {
+          const isTargetTabActive = targetTab.id === session.activeTabId;
+          const isThisSessionActive = session.id === activeSessionIdRef.current;
+          const isUserAtBottom = targetTab.isAtBottom !== false; // Default to true if undefined
+          const shouldMarkUnread = !isTargetTabActive || !isThisSessionActive || !isUserAtBottom;
+          batchedUpdater.markUnread(actualSessionId, targetTabId, shouldMarkUnread);
         }
-        if (!targetTab) {
-          // Fallback: find busy tab or active tab
-          targetTab = getWriteModeTab(s) || getActiveTab(s);
-        }
-        if (!targetTab) {
-          // No tabs exist - this is a bug, sessions must have aiTabs
-          console.error('[onData] No target tab found - session has no aiTabs, this should not happen');
-          return s;
-        }
-
-        const existingLogs = targetTab.logs;
-        const lastLog = existingLogs[existingLogs.length - 1];
-
-        // Time-based grouping for AI output (500ms window)
-        const shouldGroup = lastLog &&
-                           lastLog.source === 'stdout' &&
-                           (Date.now() - lastLog.timestamp) < 500;
-
-        // Mark the most recent user message as delivered when we receive AI output
-        let logsWithDelivery = existingLogs;
-        const lastUserIndex = existingLogs.map((log, i) => ({ log, i }))
-          .filter(({ log }) => log.source === 'user' && !log.delivered)
-          .pop()?.i;
-        if (lastUserIndex !== undefined) {
-          logsWithDelivery = existingLogs.map((log, i) =>
-            i === lastUserIndex ? { ...log, delivered: true } : log
-          );
-        }
-
-        let updatedTabLogs: LogEntry[];
-        if (shouldGroup) {
-          // Append to existing log entry
-          updatedTabLogs = [...logsWithDelivery];
-          updatedTabLogs[updatedTabLogs.length - 1] = {
-            ...updatedTabLogs[updatedTabLogs.length - 1],
-            text: updatedTabLogs[updatedTabLogs.length - 1].text + data
-          };
-        } else {
-          // Create new log entry
-          const newLog: LogEntry = {
-            id: generateId(),
-            timestamp: Date.now(),
-            source: 'stdout',
-            text: data
-          };
-          updatedTabLogs = [...logsWithDelivery, newLog];
-        }
-
-        // Update the target tab's logs within the aiTabs array
-        // Mark as unread if user hasn't seen the new message:
-        // - The tab is not the active tab in this session, OR
-        // - The session is not the active session, OR
-        // - The user has scrolled up (not at bottom)
-        const isTargetTabActive = targetTab.id === s.activeTabId;
-        const isThisSessionActive = s.id === activeSessionIdRef.current;
-        const isUserAtBottom = targetTab.isAtBottom !== false; // Default to true if undefined
-        const shouldMarkUnread = !isTargetTabActive || !isThisSessionActive || !isUserAtBottom;
-        const updatedAiTabs = s.aiTabs.map(tab =>
-          tab.id === targetTab.id
-            ? { ...tab, logs: updatedTabLogs, hasUnread: shouldMarkUnread }
-            : tab
-        );
-
-        return {
-          ...s,
-          aiTabs: updatedAiTabs,
-          // Track bytes received for real-time progress display
-          currentCycleBytes: (s.currentCycleBytes || 0) + data.length
-        };
-      }));
+      }
     });
 
     // Handle process exit
@@ -1352,7 +1297,7 @@ export default function MaestroConsole() {
       }));
     });
 
-    // Handle stderr from runCommand (separate from stdout)
+    // Handle stderr from runCommand (BATCHED - separate from stdout)
     const unsubscribeStderr = window.maestro.process.onStderr((sessionId: string, data: string) => {
       // runCommand uses plain session ID (no suffix)
       const actualSessionId = sessionId;
@@ -1360,34 +1305,8 @@ export default function MaestroConsole() {
       // Filter out empty stderr (only whitespace)
       if (!data.trim()) return;
 
-      setSessions(prev => prev.map(s => {
-        if (s.id !== actualSessionId) return s;
-
-        const existingLogs = s.shellLogs;
-        const lastLog = existingLogs[existingLogs.length - 1];
-
-        // Group all stderr while command is running (state === 'busy')
-        const shouldGroup = lastLog &&
-                           lastLog.source === 'stderr' &&
-                           s.state === 'busy';
-
-        if (shouldGroup) {
-          const updatedLogs = [...existingLogs];
-          updatedLogs[updatedLogs.length - 1] = {
-            ...lastLog,
-            text: lastLog.text + data
-          };
-          return { ...s, shellLogs: updatedLogs };
-        } else {
-          const newLog: LogEntry = {
-            id: generateId(),
-            timestamp: Date.now(),
-            source: 'stderr',
-            text: data
-          };
-          return { ...s, shellLogs: [...existingLogs, newLog] };
-        }
-      }));
+      // Use batched append for stderr (isStderr = true)
+      batchedUpdater.appendLog(actualSessionId, null, false, data, true);
     });
 
     // Handle command exit from runCommand
@@ -1431,7 +1350,7 @@ export default function MaestroConsole() {
       }));
     });
 
-    // Handle usage statistics from AI responses
+    // Handle usage statistics from AI responses (BATCHED for performance)
     const unsubscribeUsage = window.maestro.process.onUsage((sessionId: string, usageStats) => {
       // Parse sessionId to get actual session ID and tab ID (handles -ai-tabId and legacy -ai suffix)
       let actualSessionId: string;
@@ -1446,68 +1365,22 @@ export default function MaestroConsole() {
         actualSessionId = sessionId;
       }
 
-      setSessions(prev => prev.map(s => {
-        if (s.id !== actualSessionId) return s;
+      // Calculate context window usage percentage from CURRENT reported tokens
+      // Claude Code reports the actual context size in each response (inputTokens + cache tokens)
+      // This naturally reflects compaction - after /compact, the reported context is smaller
+      const currentContextTokens = usageStats.inputTokens + usageStats.cacheReadInputTokens + usageStats.cacheCreationInputTokens;
+      const contextPercentage = usageStats.contextWindow > 0
+        ? Math.min(Math.round((currentContextTokens / usageStats.contextWindow) * 100), 100)
+        : 0;
 
-        // Current cycle tokens = output tokens from this response
-        // (These are the NEW tokens added to the context, not the cumulative total)
-        const cycleTokens = (s.currentCycleTokens || 0) + usageStats.outputTokens;
+      // Batch the usage stats update, context percentage, and cycle tokens
+      // The batched updater handles the accumulation logic internally
+      batchedUpdater.updateUsage(actualSessionId, tabId, usageStats);
+      batchedUpdater.updateUsage(actualSessionId, null, usageStats); // Session-level accumulation
+      batchedUpdater.updateContextUsage(actualSessionId, contextPercentage);
+      batchedUpdater.updateCycleTokens(actualSessionId, usageStats.outputTokens);
 
-        // Update the specific tab's usageStats if we have a tabId
-        // Token counts need to be accumulated across exchanges for accurate context window tracking
-        // Claude Code CLI reports per-exchange tokens, not cumulative session tokens
-        let updatedAiTabs = s.aiTabs;
-        if (tabId && s.aiTabs) {
-          updatedAiTabs = s.aiTabs.map(tab => {
-            if (tab.id !== tabId) return tab;
-            // Accumulate cost/output tokens for total tracking, but keep current context tokens
-            // This allows proper context display after /compact while still tracking total usage
-            const existing = tab.usageStats;
-            return {
-              ...tab,
-              usageStats: {
-                // Current context tokens (not accumulated - reflects actual state after compaction)
-                inputTokens: usageStats.inputTokens,
-                cacheReadInputTokens: usageStats.cacheReadInputTokens,
-                cacheCreationInputTokens: usageStats.cacheCreationInputTokens,
-                contextWindow: usageStats.contextWindow,
-                // Accumulated values for total tracking
-                outputTokens: (existing?.outputTokens || 0) + usageStats.outputTokens,
-                totalCostUsd: (existing?.totalCostUsd || 0) + usageStats.totalCostUsd,
-              }
-            };
-          });
-        }
-
-        // Calculate context window usage percentage from CURRENT reported tokens
-        // Claude Code reports the actual context size in each response (inputTokens + cache tokens)
-        // This naturally reflects compaction - after /compact, the reported context is smaller
-        // We use the raw usageStats (not accumulated) because it represents current context state
-        const currentContextTokens = usageStats.inputTokens + usageStats.cacheReadInputTokens + usageStats.cacheCreationInputTokens;
-        const contextPercentage = usageStats.contextWindow > 0
-          ? Math.min(Math.round((currentContextTokens / usageStats.contextWindow) * 100), 100)
-          : 0;
-
-        // Accumulate session-level stats for backwards compatibility
-        const existingSessionStats = s.usageStats;
-
-        return {
-          ...s,
-          contextUsage: contextPercentage,
-          currentCycleTokens: cycleTokens,
-          usageStats: {
-            inputTokens: (existingSessionStats?.inputTokens || 0) + usageStats.inputTokens,
-            outputTokens: (existingSessionStats?.outputTokens || 0) + usageStats.outputTokens,
-            cacheReadInputTokens: (existingSessionStats?.cacheReadInputTokens || 0) + usageStats.cacheReadInputTokens,
-            cacheCreationInputTokens: (existingSessionStats?.cacheCreationInputTokens || 0) + usageStats.cacheCreationInputTokens,
-            totalCostUsd: (existingSessionStats?.totalCostUsd || 0) + usageStats.totalCostUsd,
-            contextWindow: usageStats.contextWindow
-          },
-          aiTabs: updatedAiTabs
-        };
-      }));
-
-      // Update persistent global stats
+      // Update persistent global stats (not batched - this is a separate concern)
       updateGlobalStatsRef.current({
         totalInputTokens: usageStats.inputTokens,
         totalOutputTokens: usageStats.outputTokens,
@@ -2194,6 +2067,7 @@ export default function MaestroConsole() {
     getBatchState,
     activeBatchRunState,
     processQueuedItemRef,
+    flushBatchedUpdates: batchedUpdater.flushNow,
   });
 
   // Initialize activity tracker for time tracking

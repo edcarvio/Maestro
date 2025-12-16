@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Clock, MessageSquare, HardDrive, Play, ChevronLeft, Loader2, Star } from 'lucide-react';
 import type { Theme, Session } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
+import { useListNavigation } from '../hooks/useListNavigation';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { formatSize, formatRelativeTime } from '../utils/formatters';
 
@@ -41,7 +42,6 @@ export function AgentSessionsModal({
   const [sessions, setSessions] = useState<ClaudeSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [viewingSession, setViewingSession] = useState<ClaudeSession | null>(null);
   const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -222,11 +222,6 @@ export function AgentSessionsModal({
     return () => clearTimeout(timer);
   }, []);
 
-  // Scroll selected item into view
-  useEffect(() => {
-    selectedItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [selectedIndex]);
-
   // Load messages when viewing a session
   const loadMessages = useCallback(async (session: ClaudeSession, offset: number = 0) => {
     if (!activeSession?.cwd) return;
@@ -305,32 +300,36 @@ export function AgentSessionsModal({
       return new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime();
     });
 
-  // Reset selected index when search changes
+  // Handle selection by index - opens session view
+  const handleSelectByIndex = useCallback((index: number) => {
+    const selected = filteredSessions[index];
+    if (selected) {
+      handleViewSession(selected);
+    }
+  }, [filteredSessions, handleViewSession]);
+
+  // Keyboard navigation using useListNavigation hook
+  const { selectedIndex, handleKeyDown: listHandleKeyDown, resetSelection } = useListNavigation({
+    listLength: filteredSessions.length,
+    onSelect: handleSelectByIndex,
+    enabled: !viewingSession, // Disable navigation when viewing session messages
+  });
+
+  // Scroll selected item into view
   useEffect(() => {
-    setSelectedIndex(0);
-  }, [search]);
+    selectedItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selectedIndex]);
 
-  // Keyboard navigation
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (viewingSession) {
-      // In message view, only handle Escape (handled by layer stack)
-      return;
-    }
+  // Reset selection when search changes
+  useEffect(() => {
+    resetSelection();
+  }, [search, resetSelection]);
 
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSelectedIndex(prev => Math.min(prev + 1, filteredSessions.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedIndex(prev => Math.max(prev - 1, 0));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      const selected = filteredSessions[selectedIndex];
-      if (selected) {
-        handleViewSession(selected);
-      }
-    }
-  };
+  // Wrap keyboard handler to pass through to search input
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Let the hook handle navigation
+    listHandleKeyDown(e);
+  }, [listHandleKeyDown]);
 
   // Handle resume session
   const handleResume = useCallback(() => {

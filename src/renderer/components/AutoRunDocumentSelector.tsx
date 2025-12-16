@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, ChevronRight, RefreshCw, FolderOpen, Plus, Folder } from 'lucide-react';
 import type { Theme } from '../types';
+import { useClickOutside } from '../hooks';
 
 // Tree node type for folder structure
 export interface DocTreeNode {
@@ -91,18 +92,7 @@ export function AutoRunDocumentSelector({
   const selectedTaskPercentage = selectedDocument ? getTaskPercentage(selectedDocument) : null;
 
   // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isOpen]);
+  useClickOutside(dropdownRef, () => setIsOpen(false), isOpen);
 
   // Close dropdown on Escape
   useEffect(() => {

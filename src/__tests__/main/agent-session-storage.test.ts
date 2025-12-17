@@ -266,9 +266,77 @@ describe('OpenCodeSessionStorage', () => {
   });
 });
 
+describe('CodexSessionStorage', () => {
+  it('should be importable', async () => {
+    const { CodexSessionStorage } = await import('../../main/storage/codex-session-storage');
+    expect(CodexSessionStorage).toBeDefined();
+  });
+
+  it('should have codex as agentId', async () => {
+    const { CodexSessionStorage } = await import('../../main/storage/codex-session-storage');
+    const storage = new CodexSessionStorage();
+    expect(storage.agentId).toBe('codex');
+  });
+
+  it('should return empty results for non-existent sessions directory', async () => {
+    const { CodexSessionStorage } = await import('../../main/storage/codex-session-storage');
+    const storage = new CodexSessionStorage();
+
+    // Non-existent project should return empty results (since ~/.codex/sessions/ likely doesn't exist in test)
+    const sessions = await storage.listSessions('/test/nonexistent/project');
+    expect(sessions).toEqual([]);
+
+    const paginated = await storage.listSessionsPaginated('/test/nonexistent/project');
+    expect(paginated.sessions).toEqual([]);
+    expect(paginated.totalCount).toBe(0);
+
+    const messages = await storage.readSessionMessages('/test/nonexistent/project', 'nonexistent-session');
+    expect(messages.messages).toEqual([]);
+    expect(messages.total).toBe(0);
+
+    const search = await storage.searchSessions('/test/nonexistent/project', 'query', 'all');
+    expect(search).toEqual([]);
+  });
+
+  it('should return null for getSessionPath (async operation required)', async () => {
+    const { CodexSessionStorage } = await import('../../main/storage/codex-session-storage');
+    const storage = new CodexSessionStorage();
+
+    // getSessionPath is synchronous and always returns null for Codex
+    // Use findSessionFile async method internally
+    const path = storage.getSessionPath('/test/project', 'session-123');
+    expect(path).toBeNull();
+  });
+
+  it('should reject message deletion (not implemented)', async () => {
+    const { CodexSessionStorage } = await import('../../main/storage/codex-session-storage');
+    const storage = new CodexSessionStorage();
+
+    const deleteResult = await storage.deleteMessagePair('/test/project', 'session-123', 'uuid-456');
+    expect(deleteResult.success).toBe(false);
+    expect(deleteResult.error).toContain('not yet implemented');
+  });
+
+  it('should handle empty search query', async () => {
+    const { CodexSessionStorage } = await import('../../main/storage/codex-session-storage');
+    const storage = new CodexSessionStorage();
+
+    const search = await storage.searchSessions('/test/project', '', 'all');
+    expect(search).toEqual([]);
+
+    const searchWhitespace = await storage.searchSessions('/test/project', '   ', 'all');
+    expect(searchWhitespace).toEqual([]);
+  });
+});
+
 describe('Storage Module Initialization', () => {
   it('should export initializeSessionStorages function', async () => {
     const { initializeSessionStorages } = await import('../../main/storage/index');
     expect(typeof initializeSessionStorages).toBe('function');
+  });
+
+  it('should export CodexSessionStorage', async () => {
+    const { CodexSessionStorage } = await import('../../main/storage/index');
+    expect(CodexSessionStorage).toBeDefined();
   });
 });

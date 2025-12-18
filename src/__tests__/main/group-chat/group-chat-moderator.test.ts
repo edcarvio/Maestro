@@ -1,0 +1,288 @@
+/**
+ * @file group-chat-moderator.test.ts
+ * @description Unit tests for the Group Chat moderator management.
+ *
+ * Tests cover:
+ * - Spawning moderator in read-only mode (3.1)
+ * - Sending introduction message (3.2)
+ * - Sending messages to moderator and logging (3.3)
+ * - Killing moderator session (3.4)
+ * - Getting moderator session ID (3.5)
+ */
+
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import {
+  spawnModerator,
+  sendToModerator,
+  killModerator,
+  getModeratorSessionId,
+  clearAllModeratorSessions,
+  MODERATOR_SYSTEM_PROMPT,
+  type IProcessManager,
+} from '../../../main/group-chat/group-chat-moderator';
+import {
+  createGroupChat,
+  deleteGroupChat,
+  loadGroupChat,
+} from '../../../main/group-chat/group-chat-storage';
+import { readLog } from '../../../main/group-chat/group-chat-log';
+
+// Use real UUIDs for tests - we don't need predictable IDs since we track created chats
+// The uuid mock in other test files doesn't affect us since we import the real uuid
+
+describe('group-chat-moderator', () => {
+  let mockProcessManager: IProcessManager;
+  let createdChats: string[] = [];
+
+  beforeEach(() => {
+    // Create a fresh mock for each test
+    mockProcessManager = {
+      spawn: vi.fn().mockReturnValue({ pid: 12345, success: true }),
+      write: vi.fn().mockReturnValue(true),
+      kill: vi.fn().mockReturnValue(true),
+    };
+
+    // Clear any leftover sessions from previous tests
+    clearAllModeratorSessions();
+  });
+
+  afterEach(async () => {
+    // Clean up any created chats
+    for (const id of createdChats) {
+      try {
+        await deleteGroupChat(id);
+      } catch {
+        // Ignore errors
+      }
+    }
+    createdChats = [];
+
+    // Clear sessions
+    clearAllModeratorSessions();
+
+    // Clear mocks
+    vi.clearAllMocks();
+  });
+
+  // Helper to track created chats for cleanup
+  async function createTestChat(name: string, agentId: string = 'claude-code') {
+    const chat = await createGroupChat(name, agentId);
+    createdChats.push(chat.id);
+    return chat;
+  }
+
+  // ===========================================================================
+  // Test 3.1: spawnModerator creates session in read-only mode
+  // ===========================================================================
+  describe('spawnModerator', () => {
+    it('spawns moderator in read-only mode', async () => {
+      const chat = await createTestChat('Test', 'claude-code');
+      const sessionId = await spawnModerator(chat, mockProcessManager);
+
+      expect(sessionId).toBeTruthy();
+      expect(sessionId).toContain('group-chat');
+      expect(sessionId).toContain('moderator');
+
+      // Verify read-only flag was passed
+      expect(mockProcessManager.spawn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          readOnlyMode: true,
+        })
+      );
+    });
+
+    it('spawns with correct agent type', async () => {
+      const chat = await createTestChat('Agent Test', 'opencode');
+      await spawnModerator(chat, mockProcessManager);
+
+      expect(mockProcessManager.spawn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolType: 'opencode',
+        })
+      );
+    });
+
+    it('throws error when spawn fails', async () => {
+      const failingProcessManager: IProcessManager = {
+        spawn: vi.fn().mockReturnValue({ pid: -1, success: false }),
+        write: vi.fn(),
+        kill: vi.fn(),
+      };
+
+      const chat = await createTestChat('Fail Test', 'claude-code');
+
+      await expect(spawnModerator(chat, failingProcessManager))
+        .rejects.toThrow(/Failed to spawn moderator/);
+    });
+
+    it('updates group chat with session ID', async () => {
+      const chat = await createTestChat('Session Update Test', 'claude-code');
+      const sessionId = await spawnModerator(chat, mockProcessManager);
+
+      const updated = await loadGroupChat(chat.id);
+      expect(updated?.moderatorSessionId).toBe(sessionId);
+    });
+  });
+
+  // ===========================================================================
+  // Test 3.2: spawnModerator sends introduction message
+  // ===========================================================================
+  describe('spawnModerator - introduction', () => {
+    it('sends introduction with system prompt', async () => {
+      const chat = await createTestChat('Intro Test', 'claude-code');
+      await spawnModerator(chat, mockProcessManager);
+
+      // Verify the spawn was called with the system prompt
+      expect(mockProcessManager.spawn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: expect.stringContaining('Group Chat Moderator'),
+        })
+      );
+    });
+
+    it('system prompt contains moderator instructions', () => {
+      expect(MODERATOR_SYSTEM_PROMPT).toContain('Coordinate');
+      expect(MODERATOR_SYSTEM_PROMPT).toContain('@');
+      expect(MODERATOR_SYSTEM_PROMPT).toContain('agents');
+    });
+  });
+
+  // ===========================================================================
+  // Test 3.3: sendToModerator writes to session and logs
+  // ===========================================================================
+  describe('sendToModerator', () => {
+    it('sends message to moderator and appends to log', async () => {
+      const chat = await createTestChat('Send Test', 'claude-code');
+      await spawnModerator(chat, mockProcessManager);
+
+      await sendToModerator(chat.id, 'Hello moderator', mockProcessManager);
+
+      // Check log was updated
+      const messages = await readLog(chat.logPath);
+      expect(messages.some(m => m.from === 'user' && m.content === 'Hello moderator')).toBe(true);
+    });
+
+    it('writes to process manager session', async () => {
+      const chat = await createTestChat('Write Test', 'claude-code');
+      const sessionId = await spawnModerator(chat, mockProcessManager);
+
+      await sendToModerator(chat.id, 'Test message', mockProcessManager);
+
+      expect(mockProcessManager.write).toHaveBeenCalledWith(
+        sessionId,
+        'Test message\n'
+      );
+    });
+
+    it('logs message even without process manager', async () => {
+      const chat = await createTestChat('Log Only Test', 'claude-code');
+
+      // Don't spawn moderator, but still send message (log only mode)
+      await sendToModerator(chat.id, 'Log only message');
+
+      const messages = await readLog(chat.logPath);
+      expect(messages.some(m => m.content === 'Log only message')).toBe(true);
+    });
+
+    it('throws for non-existent chat', async () => {
+      await expect(sendToModerator('non-existent-id', 'Hello'))
+        .rejects.toThrow(/not found/i);
+    });
+  });
+
+  // ===========================================================================
+  // Test 3.4: killModerator terminates session
+  // ===========================================================================
+  describe('killModerator', () => {
+    it('kills moderator session', async () => {
+      const chat = await createTestChat('Kill Test', 'claude-code');
+      const sessionId = await spawnModerator(chat, mockProcessManager);
+
+      await killModerator(chat.id, mockProcessManager);
+
+      expect(mockProcessManager.kill).toHaveBeenCalledWith(sessionId);
+    });
+
+    it('removes session from active sessions', async () => {
+      const chat = await createTestChat('Remove Session Test', 'claude-code');
+      await spawnModerator(chat, mockProcessManager);
+
+      expect(getModeratorSessionId(chat.id)).toBeTruthy();
+
+      await killModerator(chat.id, mockProcessManager);
+
+      expect(getModeratorSessionId(chat.id)).toBeUndefined();
+    });
+
+    it('clears moderatorSessionId in storage', async () => {
+      const chat = await createTestChat('Clear Storage Test', 'claude-code');
+      await spawnModerator(chat, mockProcessManager);
+
+      await killModerator(chat.id, mockProcessManager);
+
+      const updated = await loadGroupChat(chat.id);
+      expect(updated?.moderatorSessionId).toBe('');
+    });
+
+    it('handles non-existent session gracefully', async () => {
+      // Should not throw
+      await expect(killModerator('non-existent-id', mockProcessManager))
+        .resolves.not.toThrow();
+    });
+  });
+
+  // ===========================================================================
+  // Test 3.5: getModeratorSessionId returns correct ID
+  // ===========================================================================
+  describe('getModeratorSessionId', () => {
+    it('returns moderator session ID', async () => {
+      const chat = await createTestChat('Get Session Test', 'claude-code');
+      const sessionId = await spawnModerator(chat, mockProcessManager);
+
+      expect(getModeratorSessionId(chat.id)).toBe(sessionId);
+    });
+
+    it('returns undefined for non-existent chat', () => {
+      expect(getModeratorSessionId('non-existent-id')).toBeUndefined();
+    });
+
+    it('returns undefined after moderator is killed', async () => {
+      const chat = await createTestChat('Killed Session Test', 'claude-code');
+      await spawnModerator(chat, mockProcessManager);
+
+      await killModerator(chat.id, mockProcessManager);
+
+      expect(getModeratorSessionId(chat.id)).toBeUndefined();
+    });
+  });
+
+  // ===========================================================================
+  // Additional tests for edge cases
+  // ===========================================================================
+  describe('edge cases', () => {
+    it('can spawn multiple moderators for different chats', async () => {
+      const chat1 = await createTestChat('Chat 1', 'claude-code');
+      const chat2 = await createTestChat('Chat 2', 'opencode');
+
+      const sessionId1 = await spawnModerator(chat1, mockProcessManager);
+      const sessionId2 = await spawnModerator(chat2, mockProcessManager);
+
+      expect(sessionId1).not.toBe(sessionId2);
+      expect(getModeratorSessionId(chat1.id)).toBe(sessionId1);
+      expect(getModeratorSessionId(chat2.id)).toBe(sessionId2);
+    });
+
+    it('clearAllModeratorSessions removes all sessions', async () => {
+      const chat1 = await createTestChat('Clear Test 1', 'claude-code');
+      const chat2 = await createTestChat('Clear Test 2', 'claude-code');
+
+      await spawnModerator(chat1, mockProcessManager);
+      await spawnModerator(chat2, mockProcessManager);
+
+      clearAllModeratorSessions();
+
+      expect(getModeratorSessionId(chat1.id)).toBeUndefined();
+      expect(getModeratorSessionId(chat2.id)).toBeUndefined();
+    });
+  });
+});

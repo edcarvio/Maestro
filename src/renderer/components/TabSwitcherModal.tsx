@@ -208,7 +208,7 @@ export function TabSwitcherModal({
         )
       );
       // Then load all named sessions (including the ones we just synced)
-      const sessions = await window.maestro.claude.getAllNamedSessions();
+      const sessions = await window.maestro.agentSessions.getAllNamedSessions();
       setNamedSessions(sessions);
       setNamedSessionsLoaded(true);
     };

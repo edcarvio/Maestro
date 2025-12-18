@@ -478,6 +478,51 @@ export function registerAgentSessionsHandlers(deps?: AgentSessionsHandlerDepende
     })
   );
 
+  // ============ Get All Named Sessions ============
+
+  ipcMain.handle(
+    'agentSessions:getAllNamedSessions',
+    withIpcErrorLogging(
+      handlerOpts('getAllNamedSessions'),
+      async (): Promise<
+        Array<{
+          agentSessionId: string;
+          projectPath: string;
+          sessionName: string;
+          starred?: boolean;
+          lastActivityAt?: number;
+        }>
+      > => {
+        // Aggregate named sessions from all providers that support it
+        const allNamedSessions: Array<{
+          agentSessionId: string;
+          projectPath: string;
+          sessionName: string;
+          starred?: boolean;
+          lastActivityAt?: number;
+        }> = [];
+
+        const storages = getAllSessionStorages();
+        for (const storage of storages) {
+          if ('getAllNamedSessions' in storage && typeof storage.getAllNamedSessions === 'function') {
+            try {
+              const sessions = await storage.getAllNamedSessions();
+              allNamedSessions.push(...sessions);
+            } catch (error) {
+              logger.warn(
+                `Failed to get named sessions from ${storage.agentId}: ${error}`,
+                LOG_CONTEXT
+              );
+            }
+          }
+        }
+
+        logger.info(`Found ${allNamedSessions.length} named sessions across all providers`, LOG_CONTEXT);
+        return allNamedSessions;
+      }
+    )
+  );
+
   // ============ Get Global Stats (All Providers) ============
 
   ipcMain.handle(

@@ -885,6 +885,15 @@ function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle('fs:writeFile', async (_, filePath: string, content: string) => {
+    try {
+      await fs.writeFile(filePath, content, 'utf-8');
+      return { success: true };
+    } catch (error) {
+      throw new Error(`Failed to write file: ${error}`);
+    }
+  });
+
   // Live session management - toggle sessions as live/offline in web interface
   ipcMain.handle('live:toggle', async (_, sessionId: string, agentSessionId?: string) => {
     if (!webServer) {

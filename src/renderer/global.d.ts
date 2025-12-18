@@ -201,6 +201,7 @@ interface MaestroAPI {
   fs: {
     readDir: (dirPath: string) => Promise<DirectoryEntry[]>;
     readFile: (filePath: string) => Promise<string>;
+    writeFile: (filePath: string, content: string) => Promise<{ success: boolean }>;
   };
   webserver: {
     getUrl: () => Promise<string>;
@@ -328,6 +329,15 @@ interface MaestroAPI {
         hasCostData: boolean;
       }>;
     }) => void) => () => void;
+    getAllNamedSessions: () => Promise<Array<{
+      agentSessionId: string;
+      projectPath: string;
+      sessionName: string;
+      starred?: boolean;
+      lastActivityAt?: number;
+    }>>;
+    registerSessionOrigin: (projectPath: string, agentSessionId: string, origin: 'user' | 'auto', sessionName?: string) => Promise<boolean>;
+    updateSessionName: (projectPath: string, agentSessionId: string, sessionName: string) => Promise<boolean>;
   };
   dialog: {
     selectFolder: () => Promise<string | null>;

@@ -353,6 +353,8 @@ contextBridge.exposeInMainWorld('maestro', {
     homeDir: () => ipcRenderer.invoke('fs:homeDir') as Promise<string>,
     readDir: (dirPath: string) => ipcRenderer.invoke('fs:readDir', dirPath),
     readFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath),
+    writeFile: (filePath: string, content: string) =>
+      ipcRenderer.invoke('fs:writeFile', filePath, content) as Promise<{ success: boolean }>,
     stat: (filePath: string) => ipcRenderer.invoke('fs:stat', filePath),
   },
 
@@ -637,6 +639,15 @@ contextBridge.exposeInMainWorld('maestro', {
     // Get global stats aggregated from all providers
     getGlobalStats: () =>
       ipcRenderer.invoke('agentSessions:getGlobalStats'),
+    // Get all named sessions across all providers
+    getAllNamedSessions: () =>
+      ipcRenderer.invoke('agentSessions:getAllNamedSessions') as Promise<Array<{
+        agentSessionId: string;
+        projectPath: string;
+        sessionName: string;
+        starred?: boolean;
+        lastActivityAt?: number;
+      }>>,
     // Subscribe to global stats updates (streaming)
     onGlobalStatsUpdate: (callback: (stats: {
       totalSessions: number;
@@ -1027,6 +1038,7 @@ export interface MaestroAPI {
     homeDir: () => Promise<string>;
     readDir: (dirPath: string) => Promise<DirectoryEntry[]>;
     readFile: (filePath: string) => Promise<string>;
+    writeFile: (filePath: string, content: string) => Promise<{ success: boolean }>;
     stat: (filePath: string) => Promise<{
       size: number;
       createdAt: string;
@@ -1297,6 +1309,13 @@ export interface MaestroAPI {
     deleteMessagePair: (agentId: string, projectPath: string, sessionId: string, userMessageUuid: string, fallbackContent?: string) => Promise<{ success: boolean; linesRemoved?: number; error?: string }>;
     hasStorage: (agentId: string) => Promise<boolean>;
     getAvailableStorages: () => Promise<string[]>;
+    getAllNamedSessions: () => Promise<Array<{
+      agentSessionId: string;
+      projectPath: string;
+      sessionName: string;
+      starred?: boolean;
+      lastActivityAt?: number;
+    }>>;
     registerSessionOrigin: (projectPath: string, agentSessionId: string, origin: 'user' | 'auto', sessionName?: string) => Promise<boolean>;
     updateSessionName: (projectPath: string, agentSessionId: string, sessionName: string) => Promise<boolean>;
   };

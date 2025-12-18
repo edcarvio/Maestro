@@ -153,9 +153,17 @@ export async function loadGroupChat(id: string): Promise<GroupChat | null> {
   try {
     const metadataPath = getMetadataPath(id);
     const content = await fs.readFile(metadataPath, 'utf-8');
+    if (!content.trim()) {
+      // Empty file treated as non-existent
+      return null;
+    }
     return JSON.parse(content) as GroupChat;
   } catch (error: unknown) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return null;
+    }
+    // Handle JSON parse errors as corrupted/invalid metadata
+    if (error instanceof SyntaxError) {
       return null;
     }
     throw error;

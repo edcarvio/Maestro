@@ -127,17 +127,19 @@ describe('AgentSessionsModal', () => {
     // Reset window.maestro mocks
     vi.mocked(window.maestro.settings.get).mockResolvedValue(undefined);
     vi.mocked(window.maestro.settings.set).mockResolvedValue(undefined);
-    vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+    vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
       sessions: [],
       hasMore: false,
       totalCount: 0,
       nextCursor: null,
     });
-    vi.mocked(window.maestro.claude.readSessionMessages).mockResolvedValue({
+    vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
       messages: [],
       total: 0,
       hasMore: false,
     });
+    // Origin tracking remains Claude-specific
+    vi.mocked(window.maestro.claude.getSessionOrigins).mockResolvedValue({});
   });
 
   afterEach(() => {
@@ -178,7 +180,7 @@ describe('AgentSessionsModal', () => {
     });
 
     it('should show loading state initially', async () => {
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockImplementation(() =>
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockImplementation(() =>
         new Promise(() => {})
       );
 
@@ -310,7 +312,7 @@ describe('AgentSessionsModal', () => {
   describe('Sessions Loading', () => {
     it('should load sessions for active project', async () => {
       const mockSessions = [createMockClaudeSession()];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -327,7 +329,8 @@ describe('AgentSessionsModal', () => {
       );
 
       await waitFor(() => {
-        expect(window.maestro.claude.listSessionsPaginated).toHaveBeenCalledWith(
+        expect(window.maestro.agentSessions.listPaginated).toHaveBeenCalledWith(
+          'claude-code',
           '/my/project',
           { limit: 100 }
         );
@@ -341,7 +344,7 @@ describe('AgentSessionsModal', () => {
         totalCount: 0,
         nextCursor: null,
       });
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockImplementation(listSessionsMock);
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockImplementation(listSessionsMock);
 
       render(
         <AgentSessionsModal
@@ -359,7 +362,7 @@ describe('AgentSessionsModal', () => {
     });
 
     it('should display empty state when no sessions', async () => {
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: [],
         hasMore: false,
         totalCount: 0,
@@ -385,7 +388,7 @@ describe('AgentSessionsModal', () => {
         createMockClaudeSession({ sessionId: 's1', firstMessage: 'First session message' }),
         createMockClaudeSession({ sessionId: 's2', firstMessage: 'Second session message' }),
       ];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 2,
@@ -411,7 +414,7 @@ describe('AgentSessionsModal', () => {
       const mockSessions = [
         createMockClaudeSession({ sessionName: 'Named Session', firstMessage: 'Should not show' }),
       ];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -436,7 +439,7 @@ describe('AgentSessionsModal', () => {
       const mockSessions = [
         createMockClaudeSession({ sessionId: 'abcdef12345678', sessionName: undefined, firstMessage: '' }),
       ];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -461,7 +464,7 @@ describe('AgentSessionsModal', () => {
   describe('Session Metadata Display', () => {
     it('should display message count', async () => {
       const mockSessions = [createMockClaudeSession({ messageCount: 42 })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -484,7 +487,7 @@ describe('AgentSessionsModal', () => {
 
     it('should format size in bytes', async () => {
       const mockSessions = [createMockClaudeSession({ sizeBytes: 500 })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -507,7 +510,7 @@ describe('AgentSessionsModal', () => {
 
     it('should format size in KB', async () => {
       const mockSessions = [createMockClaudeSession({ sizeBytes: 5120 })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -530,7 +533,7 @@ describe('AgentSessionsModal', () => {
 
     it('should format size in MB', async () => {
       const mockSessions = [createMockClaudeSession({ sizeBytes: 2 * 1024 * 1024 })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -555,7 +558,7 @@ describe('AgentSessionsModal', () => {
   describe('Relative Time Formatting', () => {
     it('should display "just now" for recent timestamps', async () => {
       const mockSessions = [createMockClaudeSession({ modifiedAt: new Date().toISOString() })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -580,7 +583,7 @@ describe('AgentSessionsModal', () => {
       const date = new Date();
       date.setMinutes(date.getMinutes() - 15);
       const mockSessions = [createMockClaudeSession({ modifiedAt: date.toISOString() })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -605,7 +608,7 @@ describe('AgentSessionsModal', () => {
       const date = new Date();
       date.setHours(date.getHours() - 5);
       const mockSessions = [createMockClaudeSession({ modifiedAt: date.toISOString() })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -630,7 +633,7 @@ describe('AgentSessionsModal', () => {
       const date = new Date();
       date.setDate(date.getDate() - 3);
       const mockSessions = [createMockClaudeSession({ modifiedAt: date.toISOString() })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -655,7 +658,7 @@ describe('AgentSessionsModal', () => {
       const date = new Date();
       date.setDate(date.getDate() - 30);
       const mockSessions = [createMockClaudeSession({ modifiedAt: date.toISOString() })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -685,7 +688,7 @@ describe('AgentSessionsModal', () => {
         createMockClaudeSession({ sessionId: 's1', firstMessage: 'Help with React' }),
         createMockClaudeSession({ sessionId: 's2', firstMessage: 'Fix Python bug' }),
       ];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 2,
@@ -720,7 +723,7 @@ describe('AgentSessionsModal', () => {
         createMockClaudeSession({ sessionId: 's1', sessionName: 'Auth Feature', firstMessage: 'test' }),
         createMockClaudeSession({ sessionId: 's2', sessionName: 'Database Migration', firstMessage: 'test' }),
       ];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 2,
@@ -754,7 +757,7 @@ describe('AgentSessionsModal', () => {
         createMockClaudeSession({ sessionId: 'abc123xyz', firstMessage: 'Session 1' }),
         createMockClaudeSession({ sessionId: 'def456uvw', firstMessage: 'Session 2' }),
       ];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 2,
@@ -785,7 +788,7 @@ describe('AgentSessionsModal', () => {
 
     it('should show no results message when search matches nothing', async () => {
       const mockSessions = [createMockClaudeSession({ firstMessage: 'Test session' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -819,7 +822,7 @@ describe('AgentSessionsModal', () => {
         createMockClaudeSession({ sessionId: 's2', firstMessage: 'Second' }),
         createMockClaudeSession({ sessionId: 's3', firstMessage: 'Third' }),
       ];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 3,
@@ -862,7 +865,7 @@ describe('AgentSessionsModal', () => {
         createMockClaudeSession({ sessionId: 's1', firstMessage: 'First' }),
         createMockClaudeSession({ sessionId: 's2', firstMessage: 'Second' }),
       ];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 2,
@@ -901,7 +904,7 @@ describe('AgentSessionsModal', () => {
         createMockClaudeSession({ sessionId: 's1', firstMessage: 'First' }),
         createMockClaudeSession({ sessionId: 's2', firstMessage: 'Second' }),
       ];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 2,
@@ -938,7 +941,7 @@ describe('AgentSessionsModal', () => {
         createMockClaudeSession({ sessionId: 's1', firstMessage: 'First' }),
         createMockClaudeSession({ sessionId: 's2', firstMessage: 'Second' }),
       ];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 2,
@@ -976,7 +979,7 @@ describe('AgentSessionsModal', () => {
         createMockClaudeSession({ sessionId: 's1', firstMessage: 'First' }),
         createMockClaudeSession({ sessionId: 's2', firstMessage: 'Second' }),
       ];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 2,
@@ -1010,7 +1013,7 @@ describe('AgentSessionsModal', () => {
 
     it('should open session view on Enter', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1', firstMessage: 'Test Session' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -1043,13 +1046,13 @@ describe('AgentSessionsModal', () => {
   describe('Session View', () => {
     it('should click to view session', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1', firstMessage: 'Test Session' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
         nextCursor: null,
       });
-      vi.mocked(window.maestro.claude.readSessionMessages).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
         messages: [createMockMessage({ content: 'Hello' })],
         total: 1,
         hasMore: false,
@@ -1072,14 +1075,14 @@ describe('AgentSessionsModal', () => {
       fireEvent.click(screen.getByText('Test Session'));
 
       await waitFor(() => {
-        expect(window.maestro.claude.readSessionMessages).toHaveBeenCalled();
+        expect(window.maestro.agentSessions.read).toHaveBeenCalled();
         expect(screen.getByText('Resume')).toBeInTheDocument();
       });
     });
 
     it('should display back button in session view', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1', firstMessage: 'Test Session' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -1108,7 +1111,7 @@ describe('AgentSessionsModal', () => {
 
     it('should go back to list view when clicking back button', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1', firstMessage: 'Test Session' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -1150,13 +1153,13 @@ describe('AgentSessionsModal', () => {
         sessionName: 'My Session',
         modifiedAt: new Date().toISOString(),
       })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
         nextCursor: null,
       });
-      vi.mocked(window.maestro.claude.readSessionMessages).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
         messages: [],
         total: 5,
         hasMore: false,
@@ -1189,7 +1192,7 @@ describe('AgentSessionsModal', () => {
         sessionName: undefined,
         firstMessage: '',
       })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -1221,13 +1224,13 @@ describe('AgentSessionsModal', () => {
   describe('Message Display', () => {
     it('should display user messages aligned right', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
         nextCursor: null,
       });
-      vi.mocked(window.maestro.claude.readSessionMessages).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
         messages: [createMockMessage({ type: 'user', content: 'User message' })],
         total: 1,
         hasMore: false,
@@ -1255,13 +1258,13 @@ describe('AgentSessionsModal', () => {
 
     it('should display assistant messages aligned left', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
         nextCursor: null,
       });
-      vi.mocked(window.maestro.claude.readSessionMessages).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
         messages: [createMockMessage({ type: 'assistant', content: 'Assistant message' })],
         total: 1,
         hasMore: false,
@@ -1289,13 +1292,13 @@ describe('AgentSessionsModal', () => {
 
     it('should display tool use fallback when no content', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
         nextCursor: null,
       });
-      vi.mocked(window.maestro.claude.readSessionMessages).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
         messages: [createMockMessage({
           type: 'assistant',
           content: '',
@@ -1325,13 +1328,13 @@ describe('AgentSessionsModal', () => {
 
     it('should display no content fallback', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
         nextCursor: null,
       });
-      vi.mocked(window.maestro.claude.readSessionMessages).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
         messages: [createMockMessage({
           type: 'assistant',
           content: '',
@@ -1361,13 +1364,13 @@ describe('AgentSessionsModal', () => {
 
     it('should display loading state for messages', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
         nextCursor: null,
       });
-      vi.mocked(window.maestro.claude.readSessionMessages).mockImplementation(() =>
+      vi.mocked(window.maestro.agentSessions.read).mockImplementation(() =>
         new Promise(() => {})
       );
 
@@ -1391,13 +1394,13 @@ describe('AgentSessionsModal', () => {
 
     it('should apply user message styling in dark mode', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
         nextCursor: null,
       });
-      vi.mocked(window.maestro.claude.readSessionMessages).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
         messages: [createMockMessage({ type: 'user', content: 'Dark mode message' })],
         total: 1,
         hasMore: false,
@@ -1425,13 +1428,13 @@ describe('AgentSessionsModal', () => {
 
     it('should apply user message styling in light mode', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
         nextCursor: null,
       });
-      vi.mocked(window.maestro.claude.readSessionMessages).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
         messages: [createMockMessage({ type: 'user', content: 'Light mode message' })],
         total: 1,
         hasMore: false,
@@ -1460,13 +1463,13 @@ describe('AgentSessionsModal', () => {
   describe('Message Pagination', () => {
     it('should load more messages button when hasMoreMessages', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
         nextCursor: null,
       });
-      vi.mocked(window.maestro.claude.readSessionMessages).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
         messages: [createMockMessage({ content: 'First batch' })],
         total: 50,
         hasMore: true,
@@ -1492,7 +1495,7 @@ describe('AgentSessionsModal', () => {
 
     it('should load more messages when clicking load more', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -1500,7 +1503,7 @@ describe('AgentSessionsModal', () => {
       });
 
       let callCount = 0;
-      vi.mocked(window.maestro.claude.readSessionMessages).mockImplementation(async () => {
+      vi.mocked(window.maestro.agentSessions.read).mockImplementation(async () => {
         callCount++;
         if (callCount === 1) {
           return {
@@ -1544,7 +1547,7 @@ describe('AgentSessionsModal', () => {
   describe('Resume Session', () => {
     it('should call onResumeSession when clicking Resume button', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 'session-123' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -1585,7 +1588,7 @@ describe('AgentSessionsModal', () => {
         createMockClaudeSession({ sessionId: 'session-1', firstMessage: 'Starred session' }),
         createMockClaudeSession({ sessionId: 'session-2', firstMessage: 'Not starred' }),
       ];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 2,
@@ -1626,7 +1629,7 @@ describe('AgentSessionsModal', () => {
           modifiedAt: oneHourAgo.toISOString(),
         }),
       ];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 2,
@@ -1656,7 +1659,7 @@ describe('AgentSessionsModal', () => {
       vi.mocked(window.maestro.claude.getSessionOrigins).mockResolvedValue({});
 
       const mockSessions = [createMockClaudeSession({ sessionId: 'session-1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -1694,7 +1697,7 @@ describe('AgentSessionsModal', () => {
       });
 
       const mockSessions = [createMockClaudeSession({ sessionId: 'session-1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -1730,7 +1733,7 @@ describe('AgentSessionsModal', () => {
       vi.mocked(window.maestro.claude.getSessionOrigins).mockResolvedValue({});
 
       const mockSessions = [createMockClaudeSession({ sessionId: 'session-1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -1765,7 +1768,7 @@ describe('AgentSessionsModal', () => {
       const mockSessions = Array.from({ length: 100 }, (_, i) =>
         createMockClaudeSession({ sessionId: `s${i}`, firstMessage: `Session ${i}` })
       );
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: true,
         totalCount: 250,
@@ -1788,7 +1791,7 @@ describe('AgentSessionsModal', () => {
 
     it('should not show pagination indicator when searching', async () => {
       const mockSessions = [createMockClaudeSession({ firstMessage: 'Test' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: true,
         totalCount: 250,
@@ -1822,7 +1825,7 @@ describe('AgentSessionsModal', () => {
       );
 
       let callCount = 0;
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockImplementation(async (cwd, opts) => {
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockImplementation(async (cwd, opts) => {
         callCount++;
         if (callCount === 1) {
           return {
@@ -1863,7 +1866,8 @@ describe('AgentSessionsModal', () => {
       }
 
       await waitFor(() => {
-        expect(window.maestro.claude.listSessionsPaginated).toHaveBeenCalledWith(
+        expect(window.maestro.agentSessions.listPaginated).toHaveBeenCalledWith(
+          'claude-code',
           expect.anything(),
           { cursor: 'cursor-100', limit: 100 }
         );
@@ -1872,7 +1876,7 @@ describe('AgentSessionsModal', () => {
 
     it('should show loading indicator while loading more sessions', async () => {
       const mockSessions = [createMockClaudeSession()];
-      vi.mocked(window.maestro.claude.listSessionsPaginated)
+      vi.mocked(window.maestro.agentSessions.listPaginated)
         .mockResolvedValueOnce({
           sessions: mockSessions,
           hasMore: true,
@@ -1932,7 +1936,7 @@ describe('AgentSessionsModal', () => {
           nextCursor: null,
         };
       });
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockImplementation(listSessionsMock);
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockImplementation(listSessionsMock);
 
       render(
         <AgentSessionsModal
@@ -1969,7 +1973,7 @@ describe('AgentSessionsModal', () => {
     it('should deduplicate sessions when loading more', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 'unique-1' })];
 
-      vi.mocked(window.maestro.claude.listSessionsPaginated)
+      vi.mocked(window.maestro.agentSessions.listPaginated)
         .mockResolvedValueOnce({
           sessions: mockSessions,
           hasMore: true,
@@ -2022,7 +2026,7 @@ describe('AgentSessionsModal', () => {
   describe('Escape Handler Updates', () => {
     it('should update layer handler when viewingSession changes', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -2053,7 +2057,7 @@ describe('AgentSessionsModal', () => {
 
     it('should go back to list view on Escape when viewing session', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -2102,7 +2106,7 @@ describe('AgentSessionsModal', () => {
   describe('Error Handling', () => {
     it('should handle session loading error gracefully', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockRejectedValue(new Error('Load failed'));
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockRejectedValue(new Error('Load failed'));
 
       render(
         <AgentSessionsModal
@@ -2128,13 +2132,13 @@ describe('AgentSessionsModal', () => {
     it('should handle message loading error gracefully', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const mockSessions = [createMockClaudeSession({ sessionId: 's1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
         nextCursor: null,
       });
-      vi.mocked(window.maestro.claude.readSessionMessages).mockRejectedValue(new Error('Read failed'));
+      vi.mocked(window.maestro.agentSessions.read).mockRejectedValue(new Error('Read failed'));
 
       render(
         <AgentSessionsModal
@@ -2159,7 +2163,7 @@ describe('AgentSessionsModal', () => {
     it('should handle load more sessions error gracefully', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const mockSessions = [createMockClaudeSession()];
-      vi.mocked(window.maestro.claude.listSessionsPaginated)
+      vi.mocked(window.maestro.agentSessions.listPaginated)
         .mockResolvedValueOnce({
           sessions: mockSessions,
           hasMore: true,
@@ -2219,7 +2223,7 @@ describe('AgentSessionsModal', () => {
 
     it('should apply accent color to Resume button', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -2254,7 +2258,7 @@ describe('AgentSessionsModal', () => {
       });
 
       const mockSessions = [createMockClaudeSession({ sessionId: 'session-1' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,
@@ -2291,7 +2295,7 @@ describe('AgentSessionsModal', () => {
         createMockClaudeSession({ sessionId: 's2', firstMessage: 'Second' }),
         createMockClaudeSession({ sessionId: 's3', firstMessage: 'Third' }),
       ];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 3,
@@ -2325,7 +2329,7 @@ describe('AgentSessionsModal', () => {
   describe('Modal Reset on Reopen', () => {
     it('should reset to list view when modal reopens', async () => {
       const mockSessions = [createMockClaudeSession({ sessionId: 's1', firstMessage: 'Test' })];
-      vi.mocked(window.maestro.claude.listSessionsPaginated).mockResolvedValue({
+      vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
         sessions: mockSessions,
         hasMore: false,
         totalCount: 1,

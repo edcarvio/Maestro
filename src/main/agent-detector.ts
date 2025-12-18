@@ -2,6 +2,10 @@ import { execFileNoThrow } from './utils/execFile';
 import { logger } from './utils/logger';
 import * as os from 'os';
 import * as fs from 'fs';
+import { AgentCapabilities, getAgentCapabilities } from './agent-capabilities';
+
+// Re-export AgentCapabilities for convenience
+export { AgentCapabilities } from './agent-capabilities';
 
 // Configuration option types for agent-specific settings
 export interface AgentConfigOption {
@@ -19,16 +23,28 @@ export interface AgentConfig {
   name: string;
   binaryName: string;
   command: string;
-  args: string[]; // Base args always included
+  args: string[]; // Base args always included (excludes batch mode prefix)
   available: boolean;
   path?: string;
   customPath?: string; // User-specified custom path (shown in UI even if not available)
   requiresPty?: boolean; // Whether this agent needs a pseudo-terminal
   configOptions?: AgentConfigOption[]; // Agent-specific configuration
   hidden?: boolean; // If true, agent is hidden from UI (internal use only)
+  capabilities: AgentCapabilities; // Agent feature capabilities
+
+  // Argument builders for dynamic CLI construction
+  // These are optional - agents that don't have them use hardcoded behavior
+  batchModePrefix?: string[]; // Args added before base args for batch mode (e.g., ['run'] for OpenCode)
+  batchModeArgs?: string[]; // Args only applied in batch mode (e.g., ['--skip-git-repo-check'] for Codex exec)
+  jsonOutputArgs?: string[]; // Args for JSON output format (e.g., ['--format', 'json'])
+  resumeArgs?: (sessionId: string) => string[]; // Function to build resume args
+  readOnlyArgs?: string[]; // Args for read-only/plan mode (e.g., ['--agent', 'plan'])
+  modelArgs?: (modelId: string) => string[]; // Function to build model selection args (e.g., ['--model', modelId])
+  yoloModeArgs?: string[]; // Args for YOLO/full-access mode (e.g., ['--dangerously-bypass-approvals-and-sandbox'])
+  workingDirArgs?: (dir: string) => string[]; // Function to build working directory args (e.g., ['-C', dir])
 }
 
-const AGENT_DEFINITIONS: Omit<AgentConfig, 'available' | 'path'>[] = [
+const AGENT_DEFINITIONS: Omit<AgentConfig, 'available' | 'path' | 'capabilities'>[] = [
   {
     id: 'terminal',
     name: 'Terminal',
@@ -45,13 +61,37 @@ const AGENT_DEFINITIONS: Omit<AgentConfig, 'available' | 'path'>[] = [
     command: 'claude',
     // YOLO mode (--dangerously-skip-permissions) is always enabled - Maestro requires it
     args: ['--print', '--verbose', '--output-format', 'stream-json', '--dangerously-skip-permissions'],
+    resumeArgs: (sessionId: string) => ['--resume', sessionId], // Resume with session ID
   },
   {
-    id: 'openai-codex',
-    name: 'OpenAI Codex',
+    id: 'codex',
+    name: 'Codex',
     binaryName: 'codex',
     command: 'codex',
+    // Base args for interactive mode (no flags that are exec-only)
     args: [],
+    // Codex CLI argument builders
+    // Batch mode: codex exec --json --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check [--sandbox read-only] [-C dir] [resume <id>] -- "prompt"
+    // Sandbox modes:
+    //   - Default (YOLO): --dangerously-bypass-approvals-and-sandbox (full system access, required by Maestro)
+    //   - Read-only: --sandbox read-only (can only read files, overrides YOLO)
+    batchModePrefix: ['exec'], // Codex uses 'exec' subcommand for batch mode
+    batchModeArgs: ['--dangerously-bypass-approvals-and-sandbox', '--skip-git-repo-check'], // Args only valid on 'exec' subcommand
+    jsonOutputArgs: ['--json'], // JSON output format (must come before resume subcommand)
+    resumeArgs: (sessionId: string) => ['resume', sessionId], // Resume with session/thread ID
+    readOnlyArgs: ['--sandbox', 'read-only'], // Read-only/plan mode
+    yoloModeArgs: ['--dangerously-bypass-approvals-and-sandbox'], // Full access mode
+    workingDirArgs: (dir: string) => ['-C', dir], // Set working directory
+    // Agent-specific configuration options shown in UI
+    configOptions: [
+      {
+        key: 'contextWindow',
+        type: 'number',
+        label: 'Context Window Size',
+        description: 'Maximum context window size in tokens. Required for context usage display. Common values: 128000 (o4-mini), 200000 (o3).',
+        default: 200000, // Default for GPT-5.x models
+      },
+    ],
   },
   {
     id: 'gemini-cli',
@@ -72,7 +112,47 @@ const AGENT_DEFINITIONS: Omit<AgentConfig, 'available' | 'path'>[] = [
     name: 'OpenCode',
     binaryName: 'opencode',
     command: 'opencode',
-    args: [],
+    args: [], // Base args (none for OpenCode - batch mode uses 'run' subcommand)
+    // OpenCode CLI argument builders
+    // Batch mode: opencode run --format json [--model provider/model] [--session <id>] [--agent plan] "prompt"
+    // Note: 'run' subcommand auto-approves all permissions (YOLO mode is implicit)
+    batchModePrefix: ['run'], // OpenCode uses 'run' subcommand for batch mode
+    jsonOutputArgs: ['--format', 'json'], // JSON output format
+    resumeArgs: (sessionId: string) => ['--session', sessionId], // Resume with session ID
+    readOnlyArgs: ['--agent', 'plan'], // Read-only/plan mode
+    modelArgs: (modelId: string) => ['--model', modelId], // Model selection (e.g., 'ollama/qwen3:8b')
+    yoloModeArgs: ['run'], // 'run' subcommand auto-approves all permissions (YOLO mode is implicit)
+    // Agent-specific configuration options shown in UI
+    configOptions: [
+      {
+        key: 'model',
+        type: 'text',
+        label: 'Model',
+        description: 'Model to use (e.g., "ollama/qwen3:8b", "anthropic/claude-sonnet-4-20250514"). Leave empty for default.',
+        default: '', // Empty string means use OpenCode's default model
+        argBuilder: (value: string) => {
+          // Only add --model arg if a model is specified
+          if (value && value.trim()) {
+            return ['--model', value.trim()];
+          }
+          return [];
+        },
+      },
+      {
+        key: 'contextWindow',
+        type: 'number',
+        label: 'Context Window Size',
+        description: 'Maximum context window size in tokens. Required for context usage display. Varies by model (e.g., 200000 for Claude, 128000 for GPT-4).',
+        default: 128000, // Default for common models (GPT-4, etc.)
+      },
+    ],
+  },
+  {
+    id: 'aider',
+    name: 'Aider',
+    binaryName: 'aider',
+    command: 'aider',
+    args: [], // Base args (placeholder - to be configured when implemented)
   },
 ];
 
@@ -80,6 +160,10 @@ export class AgentDetector {
   private cachedAgents: AgentConfig[] | null = null;
   private detectionInProgress: Promise<AgentConfig[]> | null = null;
   private customPaths: Record<string, string> = {};
+  // Cache for model discovery results: agentId -> { models, timestamp }
+  private modelCache: Map<string, { models: string[]; timestamp: number }> = new Map();
+  // Cache TTL: 5 minutes (model lists don't change frequently)
+  private readonly MODEL_CACHE_TTL_MS = 5 * 60 * 1000;
 
   /**
    * Set custom paths for agents (from user configuration)
@@ -169,6 +253,7 @@ export class AgentDetector {
         available: detection.exists,
         path: detection.path,
         customPath: customPath || undefined,
+        capabilities: getAgentCapabilities(agentDef.id),
       });
     }
 
@@ -284,6 +369,97 @@ export class AgentDetector {
    */
   clearCache(): void {
     this.cachedAgents = null;
+  }
+
+  /**
+   * Clear the model cache for a specific agent or all agents
+   */
+  clearModelCache(agentId?: string): void {
+    if (agentId) {
+      this.modelCache.delete(agentId);
+    } else {
+      this.modelCache.clear();
+    }
+  }
+
+  /**
+   * Discover available models for an agent that supports model selection.
+   * Returns cached results if available and not expired.
+   *
+   * @param agentId - The agent identifier (e.g., 'opencode')
+   * @param forceRefresh - If true, bypass cache and fetch fresh model list
+   * @returns Array of model names, or empty array if agent doesn't support model discovery
+   */
+  async discoverModels(agentId: string, forceRefresh = false): Promise<string[]> {
+    const agent = await this.getAgent(agentId);
+
+    if (!agent || !agent.available) {
+      logger.warn(`Cannot discover models: agent ${agentId} not available`, 'AgentDetector');
+      return [];
+    }
+
+    // Check if agent supports model selection
+    if (!agent.capabilities.supportsModelSelection) {
+      logger.debug(`Agent ${agentId} does not support model selection`, 'AgentDetector');
+      return [];
+    }
+
+    // Check cache unless force refresh
+    if (!forceRefresh) {
+      const cached = this.modelCache.get(agentId);
+      if (cached && (Date.now() - cached.timestamp) < this.MODEL_CACHE_TTL_MS) {
+        logger.debug(`Returning cached models for ${agentId}`, 'AgentDetector');
+        return cached.models;
+      }
+    }
+
+    // Run agent-specific model discovery command
+    const models = await this.runModelDiscovery(agentId, agent);
+
+    // Cache the results
+    this.modelCache.set(agentId, { models, timestamp: Date.now() });
+
+    return models;
+  }
+
+  /**
+   * Run the agent-specific model discovery command.
+   * Each agent may have a different way to list available models.
+   */
+  private async runModelDiscovery(agentId: string, agent: AgentConfig): Promise<string[]> {
+    const env = this.getExpandedEnv();
+    const command = agent.path || agent.command;
+
+    // Agent-specific model discovery commands
+    switch (agentId) {
+      case 'opencode': {
+        // OpenCode: `opencode models` returns one model per line
+        const result = await execFileNoThrow(command, ['models'], undefined, env);
+
+        if (result.exitCode !== 0) {
+          logger.warn(
+            `Model discovery failed for ${agentId}: exit code ${result.exitCode}`,
+            'AgentDetector',
+            { stderr: result.stderr }
+          );
+          return [];
+        }
+
+        // Parse output: one model per line (e.g., "opencode/gpt-5-nano", "ollama/gpt-oss:latest")
+        const models = result.stdout
+          .split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0);
+
+        logger.info(`Discovered ${models.length} models for ${agentId}`, 'AgentDetector', { models });
+        return models;
+      }
+
+      default:
+        // For agents without model discovery implemented, return empty array
+        logger.debug(`No model discovery implemented for ${agentId}`, 'AgentDetector');
+        return [];
+    }
   }
 }
 

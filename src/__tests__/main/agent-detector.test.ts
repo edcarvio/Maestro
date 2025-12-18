@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { AgentDetector, AgentConfig, AgentConfigOption } from '../../main/agent-detector';
+import { AgentDetector, AgentConfig, AgentConfigOption, AgentCapabilities } from '../../main/agent-detector';
 
 // Mock dependencies
 vi.mock('../../main/utils/execFile', () => ({
@@ -58,9 +58,24 @@ describe('agent-detector', () => {
         args: ['--flag'],
         available: true,
         path: '/usr/bin/test',
+        capabilities: {
+          supportsResume: false,
+          supportsReadOnlyMode: false,
+          supportsJsonOutput: false,
+          supportsSessionId: false,
+          supportsImageInput: false,
+          supportsSlashCommands: false,
+          supportsSessionStorage: false,
+          supportsCostTracking: false,
+          supportsUsageStats: false,
+          supportsBatchMode: false,
+          supportsStreaming: false,
+          supportsResultMessages: false,
+        },
       };
       expect(config.id).toBe('test-agent');
       expect(config.available).toBe(true);
+      expect(config.capabilities).toBeDefined();
     });
 
     it('should support optional AgentConfig fields', () => {
@@ -75,10 +90,47 @@ describe('agent-detector', () => {
         requiresPty: true,
         configOptions: [{ key: 'k', type: 'text', label: 'L', description: 'D', default: '' }],
         hidden: true,
+        capabilities: {
+          supportsResume: true,
+          supportsReadOnlyMode: false,
+          supportsJsonOutput: true,
+          supportsSessionId: true,
+          supportsImageInput: false,
+          supportsSlashCommands: false,
+          supportsSessionStorage: false,
+          supportsCostTracking: false,
+          supportsUsageStats: false,
+          supportsBatchMode: false,
+          supportsStreaming: true,
+          supportsResultMessages: false,
+          supportsModelSelection: false,
+        },
       };
       expect(config.customPath).toBe('/custom/path');
       expect(config.requiresPty).toBe(true);
       expect(config.hidden).toBe(true);
+      expect(config.capabilities.supportsResume).toBe(true);
+    });
+
+    it('should export AgentCapabilities interface', () => {
+      const capabilities: AgentCapabilities = {
+        supportsResume: true,
+        supportsReadOnlyMode: true,
+        supportsJsonOutput: true,
+        supportsSessionId: true,
+        supportsImageInput: true,
+        supportsSlashCommands: true,
+        supportsSessionStorage: true,
+        supportsCostTracking: true,
+        supportsUsageStats: true,
+        supportsBatchMode: true,
+        supportsStreaming: true,
+        supportsResultMessages: true,
+        supportsModelSelection: true,
+      };
+      expect(capabilities.supportsResume).toBe(true);
+      expect(capabilities.supportsModelSelection).toBe(true);
+      expect(capabilities.supportsImageInput).toBe(true);
     });
 
     it('should support select type with options in AgentConfigOption', () => {
@@ -104,6 +156,31 @@ describe('agent-detector', () => {
       };
       expect(option.argBuilder!(true)).toEqual(['--verbose']);
       expect(option.argBuilder!(false)).toEqual([]);
+    });
+
+    it('should support model config option with argBuilder for OpenCode', () => {
+      // Model config option that only adds args when value is non-empty
+      const option: AgentConfigOption = {
+        key: 'model',
+        type: 'text',
+        label: 'Model',
+        description: 'Model to use',
+        default: '',
+        argBuilder: (value: string) => {
+          if (value && value.trim()) {
+            return ['--model', value.trim()];
+          }
+          return [];
+        },
+      };
+      // When model is empty, no args should be added
+      expect(option.argBuilder!('')).toEqual([]);
+      expect(option.argBuilder!('  ')).toEqual([]);
+      // When model is specified, add --model arg
+      expect(option.argBuilder!('ollama/qwen3:8b')).toEqual(['--model', 'ollama/qwen3:8b']);
+      expect(option.argBuilder!('anthropic/claude-sonnet-4-20250514')).toEqual(['--model', 'anthropic/claude-sonnet-4-20250514']);
+      // Trim whitespace from value
+      expect(option.argBuilder!('  ollama/qwen3:8b  ')).toEqual(['--model', 'ollama/qwen3:8b']);
     });
   });
 
@@ -172,16 +249,17 @@ describe('agent-detector', () => {
 
       const agents = await detector.detectAgents();
 
-      // Should have all 6 agents (terminal, claude-code, openai-codex, gemini-cli, qwen3-coder, opencode)
-      expect(agents.length).toBe(6);
+      // Should have all 7 agents (terminal, claude-code, codex, gemini-cli, qwen3-coder, opencode, aider)
+      expect(agents.length).toBe(7);
 
       const agentIds = agents.map(a => a.id);
       expect(agentIds).toContain('terminal');
       expect(agentIds).toContain('claude-code');
-      expect(agentIds).toContain('openai-codex');
+      expect(agentIds).toContain('codex');
       expect(agentIds).toContain('gemini-cli');
       expect(agentIds).toContain('qwen3-coder');
       expect(agentIds).toContain('opencode');
+      expect(agentIds).toContain('aider');
     });
 
     it('should mark agents as available when binary is found', async () => {
@@ -198,7 +276,7 @@ describe('agent-detector', () => {
       mockExecFileNoThrow.mockResolvedValue({ stdout: '', stderr: 'not found', exitCode: 1 });
 
       const agents = await detector.detectAgents();
-      const codexAgent = agents.find(a => a.id === 'openai-codex');
+      const codexAgent = agents.find(a => a.id === 'codex');
 
       expect(codexAgent?.available).toBe(false);
       expect(codexAgent?.path).toBeUndefined();
@@ -217,7 +295,7 @@ describe('agent-detector', () => {
 
       expect(agents.find(a => a.id === 'terminal')?.available).toBe(true);
       expect(agents.find(a => a.id === 'claude-code')?.available).toBe(true);
-      expect(agents.find(a => a.id === 'openai-codex')?.available).toBe(false);
+      expect(agents.find(a => a.id === 'codex')?.available).toBe(false);
     });
 
     it('should use deduplication for parallel calls', async () => {
@@ -724,7 +802,7 @@ describe('agent-detector', () => {
 
       const result = await detectPromise;
       expect(result).toBeDefined();
-      expect(result.length).toBe(6);
+      expect(result.length).toBe(7);
     });
 
     it('should handle very long PATH', async () => {
@@ -767,6 +845,278 @@ describe('agent-detector', () => {
       expect(mockExecFileNoThrow).toHaveBeenCalled();
 
       process.env.PATH = originalPath;
+    });
+  });
+
+  describe('discoverModels', () => {
+    beforeEach(async () => {
+      // Setup: opencode is available
+      mockExecFileNoThrow.mockImplementation(async (cmd, args) => {
+        const binaryName = args[0];
+        if (binaryName === 'opencode') {
+          return { stdout: '/usr/bin/opencode\n', stderr: '', exitCode: 0 };
+        }
+        if (binaryName === 'bash') {
+          return { stdout: '/bin/bash\n', stderr: '', exitCode: 0 };
+        }
+        // For model discovery command
+        if (cmd === '/usr/bin/opencode' && args[0] === 'models') {
+          return {
+            stdout: 'opencode/gpt-5-nano\nopencode/grok-code\nollama/qwen3:8b\n',
+            stderr: '',
+            exitCode: 0
+          };
+        }
+        return { stdout: '', stderr: 'not found', exitCode: 1 };
+      });
+
+      // Pre-detect agents so they're cached
+      await detector.detectAgents();
+    });
+
+    it('should return empty array for agents that do not support model selection', async () => {
+      // Setup: claude-code is available but does not support model selection
+      mockExecFileNoThrow.mockImplementation(async (cmd, args) => {
+        const binaryName = args[0];
+        if (binaryName === 'claude') {
+          return { stdout: '/usr/bin/claude\n', stderr: '', exitCode: 0 };
+        }
+        if (binaryName === 'bash') {
+          return { stdout: '/bin/bash\n', stderr: '', exitCode: 0 };
+        }
+        return { stdout: '', stderr: 'not found', exitCode: 1 };
+      });
+
+      detector.clearCache();
+      await detector.detectAgents();
+
+      const models = await detector.discoverModels('claude-code');
+      expect(models).toEqual([]);
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining('does not support model selection'),
+        'AgentDetector'
+      );
+    });
+
+    it('should return empty array for unavailable agents', async () => {
+      const models = await detector.discoverModels('openai-codex');
+      expect(models).toEqual([]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('not available'),
+        'AgentDetector'
+      );
+    });
+
+    it('should return empty array for unknown agents', async () => {
+      const models = await detector.discoverModels('unknown-agent');
+      expect(models).toEqual([]);
+    });
+
+    it('should discover models for OpenCode', async () => {
+      const models = await detector.discoverModels('opencode');
+      expect(models).toEqual(['opencode/gpt-5-nano', 'opencode/grok-code', 'ollama/qwen3:8b']);
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Discovered 3 models'),
+        'AgentDetector',
+        expect.any(Object)
+      );
+    });
+
+    it('should cache model discovery results', async () => {
+      // First call
+      const models1 = await detector.discoverModels('opencode');
+
+      // Clear mocks to track new calls
+      mockExecFileNoThrow.mockClear();
+
+      // Second call should use cache
+      const models2 = await detector.discoverModels('opencode');
+
+      expect(models1).toEqual(models2);
+      // No new model discovery calls should have been made
+      expect(mockExecFileNoThrow).not.toHaveBeenCalledWith(
+        '/usr/bin/opencode',
+        ['models'],
+        undefined,
+        expect.any(Object)
+      );
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining('Returning cached models'),
+        'AgentDetector'
+      );
+    });
+
+    it('should bypass cache when forceRefresh is true', async () => {
+      // First call to populate cache
+      await detector.discoverModels('opencode');
+
+      // Clear mocks
+      mockExecFileNoThrow.mockClear();
+
+      // Force refresh
+      mockExecFileNoThrow.mockImplementation(async (cmd, args) => {
+        if (cmd === '/usr/bin/opencode' && args[0] === 'models') {
+          return {
+            stdout: 'new-model/fresh\n',
+            stderr: '',
+            exitCode: 0
+          };
+        }
+        return { stdout: '', stderr: '', exitCode: 1 };
+      });
+
+      const models = await detector.discoverModels('opencode', true);
+
+      expect(models).toEqual(['new-model/fresh']);
+      expect(mockExecFileNoThrow).toHaveBeenCalledWith(
+        '/usr/bin/opencode',
+        ['models'],
+        undefined,
+        expect.any(Object)
+      );
+    });
+
+    it('should handle model discovery command failure', async () => {
+      mockExecFileNoThrow.mockImplementation(async (cmd, args) => {
+        if (cmd === '/usr/bin/opencode' && args[0] === 'models') {
+          return { stdout: '', stderr: 'command failed', exitCode: 1 };
+        }
+        if (args[0] === 'opencode') {
+          return { stdout: '/usr/bin/opencode\n', stderr: '', exitCode: 0 };
+        }
+        return { stdout: '', stderr: '', exitCode: 1 };
+      });
+
+      detector.clearCache();
+      detector.clearModelCache();
+      await detector.detectAgents();
+
+      const models = await detector.discoverModels('opencode');
+
+      expect(models).toEqual([]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Model discovery failed'),
+        'AgentDetector',
+        expect.any(Object)
+      );
+    });
+
+    it('should handle empty model list', async () => {
+      mockExecFileNoThrow.mockImplementation(async (cmd, args) => {
+        if (cmd === '/usr/bin/opencode' && args[0] === 'models') {
+          return { stdout: '', stderr: '', exitCode: 0 };
+        }
+        if (args[0] === 'opencode') {
+          return { stdout: '/usr/bin/opencode\n', stderr: '', exitCode: 0 };
+        }
+        return { stdout: '', stderr: '', exitCode: 1 };
+      });
+
+      detector.clearCache();
+      detector.clearModelCache();
+      await detector.detectAgents();
+
+      const models = await detector.discoverModels('opencode');
+
+      expect(models).toEqual([]);
+    });
+
+    it('should filter out empty lines from model output', async () => {
+      mockExecFileNoThrow.mockImplementation(async (cmd, args) => {
+        if (cmd === '/usr/bin/opencode' && args[0] === 'models') {
+          return {
+            stdout: '\n  \nmodel1\n\nmodel2\n  \n',
+            stderr: '',
+            exitCode: 0
+          };
+        }
+        if (args[0] === 'opencode') {
+          return { stdout: '/usr/bin/opencode\n', stderr: '', exitCode: 0 };
+        }
+        return { stdout: '', stderr: '', exitCode: 1 };
+      });
+
+      detector.clearCache();
+      detector.clearModelCache();
+      await detector.detectAgents();
+
+      const models = await detector.discoverModels('opencode');
+
+      expect(models).toEqual(['model1', 'model2']);
+    });
+  });
+
+  describe('clearModelCache', () => {
+    beforeEach(async () => {
+      mockExecFileNoThrow.mockImplementation(async (cmd, args) => {
+        const binaryName = args[0];
+        if (binaryName === 'opencode') {
+          return { stdout: '/usr/bin/opencode\n', stderr: '', exitCode: 0 };
+        }
+        if (cmd === '/usr/bin/opencode' && args[0] === 'models') {
+          return {
+            stdout: 'model1\nmodel2\n',
+            stderr: '',
+            exitCode: 0
+          };
+        }
+        return { stdout: '', stderr: 'not found', exitCode: 1 };
+      });
+
+      await detector.detectAgents();
+    });
+
+    it('should clear cache for a specific agent', async () => {
+      // Populate cache
+      await detector.discoverModels('opencode');
+
+      // Clear cache for opencode
+      detector.clearModelCache('opencode');
+
+      // Clear mocks to track new calls
+      mockExecFileNoThrow.mockClear();
+
+      // Next call should re-fetch
+      mockExecFileNoThrow.mockImplementation(async (cmd, args) => {
+        if (cmd === '/usr/bin/opencode' && args[0] === 'models') {
+          return { stdout: 'new-model\n', stderr: '', exitCode: 0 };
+        }
+        return { stdout: '', stderr: '', exitCode: 1 };
+      });
+
+      const models = await detector.discoverModels('opencode');
+
+      expect(models).toEqual(['new-model']);
+      expect(mockExecFileNoThrow).toHaveBeenCalledWith(
+        '/usr/bin/opencode',
+        ['models'],
+        undefined,
+        expect.any(Object)
+      );
+    });
+
+    it('should clear all model caches when called without agentId', async () => {
+      // Populate cache
+      await detector.discoverModels('opencode');
+
+      // Clear all caches
+      detector.clearModelCache();
+
+      // Clear mocks
+      mockExecFileNoThrow.mockClear();
+
+      // Verify cache is empty (next call should re-fetch)
+      mockExecFileNoThrow.mockImplementation(async (cmd, args) => {
+        if (cmd === '/usr/bin/opencode' && args[0] === 'models') {
+          return { stdout: 'refreshed-model\n', stderr: '', exitCode: 0 };
+        }
+        return { stdout: '', stderr: '', exitCode: 1 };
+      });
+
+      const models = await detector.discoverModels('opencode');
+
+      expect(models).toEqual(['refreshed-model']);
+      expect(mockExecFileNoThrow).toHaveBeenCalled();
     });
   });
 });

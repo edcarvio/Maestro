@@ -51,7 +51,7 @@ export interface CustomAICommand {
  */
 export interface AITabData {
   id: string;
-  claudeSessionId: string | null;
+  agentSessionId: string | null;
   name: string | null;
   starred: boolean;
   inputValue: string;
@@ -293,11 +293,11 @@ export class BroadcastService {
    * Broadcast session live status change
    * Called when a session is marked as live (visible in web interface)
    */
-  broadcastSessionLive(sessionId: string, claudeSessionId?: string): void {
+  broadcastSessionLive(sessionId: string, agentSessionId?: string): void {
     this.broadcastToAll({
       type: 'session_live',
       sessionId,
-      claudeSessionId,
+      agentSessionId,
       timestamp: Date.now(),
     });
   }

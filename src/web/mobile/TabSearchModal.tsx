@@ -26,7 +26,7 @@ interface TabCardProps {
 
 function TabCard({ tab, isActive, colors, onSelect }: TabCardProps) {
   const displayName = tab.name
-    || (tab.claudeSessionId ? tab.claudeSessionId.split('-')[0].toUpperCase() : 'New Tab');
+    || (tab.agentSessionId ? tab.agentSessionId.split('-')[0].toUpperCase() : 'New Tab');
 
   // Get status color (state is 'idle' | 'busy')
   const getStatusColor = () => {
@@ -89,7 +89,7 @@ function TabCard({ tab, isActive, colors, onSelect }: TabCardProps) {
         </div>
 
         {/* Claude session ID */}
-        {tab.claudeSessionId && (
+        {tab.agentSessionId && (
           <span
             style={{
               fontSize: '11px',
@@ -97,7 +97,7 @@ function TabCard({ tab, isActive, colors, onSelect }: TabCardProps) {
               fontFamily: 'monospace',
             }}
           >
-            {tab.claudeSessionId}
+            {tab.agentSessionId}
           </span>
         )}
       </div>
@@ -140,7 +140,7 @@ export function TabSearchModal({
     const query = searchQuery.toLowerCase();
     return tabs.filter((tab) => {
       const name = tab.name || '';
-      const claudeId = tab.claudeSessionId || '';
+      const claudeId = tab.agentSessionId || '';
       return (
         name.toLowerCase().includes(query) ||
         claudeId.toLowerCase().includes(query)

@@ -742,7 +742,48 @@ describe('useWebSocket', () => {
       expect(onSessionOutput).toHaveBeenCalledWith(
         'session-1',
         'Hello, World!',
-        'ai'
+        'ai',
+        undefined // tabId is optional
+      );
+    });
+
+    it('handles session_output message with tabId', () => {
+      const onSessionOutput = vi.fn();
+      const { result } = renderHook(() =>
+        useWebSocket({ handlers: { onSessionOutput } })
+      );
+
+      act(() => {
+        result.current.connect();
+      });
+
+      const ws = MockWebSocket.getLastInstance();
+      act(() => {
+        ws.simulateOpen();
+        ws.simulateMessage({
+          type: 'connected',
+          clientId: 'client-123',
+          message: 'Connected',
+          authenticated: true,
+        } as ConnectedMessage);
+      });
+
+      act(() => {
+        ws.simulateMessage({
+          type: 'session_output',
+          sessionId: 'session-1',
+          tabId: 'tab-abc123',
+          data: 'Hello from tab!',
+          source: 'ai',
+          msgId: 'msg-002',
+        } as SessionOutputMessage);
+      });
+
+      expect(onSessionOutput).toHaveBeenCalledWith(
+        'session-1',
+        'Hello from tab!',
+        'ai',
+        'tab-abc123'
       );
     });
 
@@ -1064,7 +1105,7 @@ describe('useWebSocket', () => {
       const aiTabs: AITabData[] = [
         {
           id: 'tab-1',
-          claudeSessionId: 'claude-session-1',
+          agentSessionId: 'claude-session-1',
           name: 'Tab 1',
           starred: false,
           inputValue: '',
@@ -1073,7 +1114,7 @@ describe('useWebSocket', () => {
         },
         {
           id: 'tab-2',
-          claudeSessionId: 'claude-session-2',
+          agentSessionId: 'claude-session-2',
           name: 'Tab 2',
           starred: true,
           inputValue: 'test input',
@@ -2052,7 +2093,7 @@ describe('Type Exports', () => {
   it('exports AITabData interface correctly', () => {
     const tab: AITabData = {
       id: 'tab-1',
-      claudeSessionId: 'claude-123',
+      agentSessionId: 'claude-123',
       name: 'Test Tab',
       starred: true,
       inputValue: 'test input',

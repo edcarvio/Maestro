@@ -427,7 +427,7 @@ describe('processService', () => {
       expect(result2).toBe(cleanup2);
     });
 
-    test('handler receives sessionId and claudeSessionId', () => {
+    test('handler receives sessionId and agentSessionId', () => {
       const cleanup = vi.fn();
       mockProcess.onSessionId.mockImplementation((handler: ProcessSessionIdHandler) => {
         // Simulate calling the handler with test data
@@ -474,9 +474,9 @@ describe('processService', () => {
     });
 
     test('ProcessSessionIdHandler type signature', () => {
-      const handler: ProcessSessionIdHandler = (sessionId: string, claudeSessionId: string) => {
+      const handler: ProcessSessionIdHandler = (sessionId: string, agentSessionId: string) => {
         expect(typeof sessionId).toBe('string');
-        expect(typeof claudeSessionId).toBe('string');
+        expect(typeof agentSessionId).toBe('string');
       };
       handler('session', 'claude-id');
     });

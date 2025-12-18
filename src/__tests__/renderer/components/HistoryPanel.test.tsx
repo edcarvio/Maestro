@@ -622,7 +622,7 @@ describe('HistoryPanel', () => {
     it('should filter by claude session ID', async () => {
       const entry = createMockEntry({
         summary: 'Session task',
-        claudeSessionId: 'abc12345-xyz-789'
+        agentSessionId: 'abc12345-xyz-789'
       });
       mockHistoryGetAll.mockResolvedValue([entry]);
 
@@ -1163,7 +1163,7 @@ describe('HistoryPanel', () => {
     it('should render claude session ID badge', async () => {
       const onOpenSessionAsTab = vi.fn();
       const entry = createMockEntry({
-        claudeSessionId: 'abc12345-def-789',
+        agentSessionId: 'abc12345-def-789',
       });
       mockHistoryGetAll.mockResolvedValue([entry]);
 
@@ -1183,7 +1183,7 @@ describe('HistoryPanel', () => {
 
     it('should render session name instead of ID when available', async () => {
       const entry = createMockEntry({
-        claudeSessionId: 'abc12345-def-789',
+        agentSessionId: 'abc12345-def-789',
         sessionName: 'My Session',
       });
       mockHistoryGetAll.mockResolvedValue([entry]);
@@ -1204,7 +1204,7 @@ describe('HistoryPanel', () => {
     it('should call onOpenSessionAsTab when session badge is clicked', async () => {
       const onOpenSessionAsTab = vi.fn();
       const entry = createMockEntry({
-        claudeSessionId: 'abc12345-def-789',
+        agentSessionId: 'abc12345-def-789',
       });
       mockHistoryGetAll.mockResolvedValue([entry]);
 
@@ -1550,7 +1550,7 @@ describe('HistoryPanel', () => {
     it('should handle entries with unicode session names', async () => {
       const entry = createMockEntry({
         summary: 'Unicode session',
-        claudeSessionId: 'abc-123',
+        agentSessionId: 'abc-123',
         sessionName: '会議セッション',
       });
       mockHistoryGetAll.mockResolvedValue([entry]);
@@ -1620,7 +1620,7 @@ describe('HistoryPanel', () => {
       const entry = createMockEntry({
         type: 'USER',
         summary: 'Minimal entry summary',
-        claudeSessionId: undefined,
+        agentSessionId: undefined,
         usageStats: undefined,
         elapsedTimeMs: undefined,
       });
@@ -1644,10 +1644,10 @@ describe('HistoryPanel', () => {
 
   // ===== CALLBACKS =====
   describe('callbacks', () => {
-    it('should call onJumpToClaudeSession from detail modal', async () => {
-      const onJumpToClaudeSession = vi.fn();
+    it('should call onJumpToAgentSession from detail modal', async () => {
+      const onJumpToAgentSession = vi.fn();
       const entry = createMockEntry({
-        claudeSessionId: 'jump-session-id',
+        agentSessionId: 'jump-session-id',
       });
       mockHistoryGetAll.mockResolvedValue([entry]);
 
@@ -1655,7 +1655,7 @@ describe('HistoryPanel', () => {
         <HistoryPanel
           session={createMockSession()}
           theme={mockTheme}
-          onJumpToClaudeSession={onJumpToClaudeSession}
+          onJumpToAgentSession={onJumpToAgentSession}
         />
       );
 
@@ -1670,7 +1670,7 @@ describe('HistoryPanel', () => {
     it('should call onResumeSession from detail modal', async () => {
       const onResumeSession = vi.fn();
       const entry = createMockEntry({
-        claudeSessionId: 'resume-session-id',
+        agentSessionId: 'resume-session-id',
       });
       mockHistoryGetAll.mockResolvedValue([entry]);
 

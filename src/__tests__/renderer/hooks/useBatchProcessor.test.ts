@@ -609,7 +609,7 @@ describe('useBatchProcessor hook', () => {
   beforeEach(() => {
     // Reset mocks
     mockOnUpdateSession = vi.fn();
-    mockOnSpawnAgent = vi.fn().mockResolvedValue({ success: true, claudeSessionId: 'mock-claude-session', usageStats: { inputTokens: 100, outputTokens: 200, totalCostUsd: 0.01, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, contextWindow: 0 } });
+    mockOnSpawnAgent = vi.fn().mockResolvedValue({ success: true, agentSessionId: 'mock-claude-session', usageStats: { inputTokens: 100, outputTokens: 200, totalCostUsd: 0.01, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, contextWindow: 0 } });
     mockOnSpawnSynopsis = vi.fn().mockResolvedValue({ success: true, response: '**Summary:** Test task completed\n\n**Details:** Some details here.' });
     mockOnAddHistoryEntry = vi.fn();
     mockOnComplete = vi.fn();
@@ -648,8 +648,8 @@ describe('useBatchProcessor hook', () => {
         ...window.maestro.web,
         broadcastAutoRunState: mockBroadcastAutoRunState
       },
-      claude: {
-        ...window.maestro.claude,
+      agentSessions: {
+        ...window.maestro.agentSessions,
         registerSessionOrigin: mockRegisterSessionOrigin
       }
     };
@@ -970,8 +970,8 @@ describe('useBatchProcessor hook', () => {
       const groups = [createMockGroup()];
 
       // Create a deferred promise we can control
-      let resolveAgent: (value: { success: boolean; claudeSessionId?: string }) => void;
-      const agentPromise = new Promise<{ success: boolean; claudeSessionId?: string }>(resolve => {
+      let resolveAgent: (value: { success: boolean; agentSessionId?: string }) => void;
+      const agentPromise = new Promise<{ success: boolean; agentSessionId?: string }>(resolve => {
         resolveAgent = resolve;
       });
       mockOnSpawnAgent.mockReturnValue(agentPromise);
@@ -1012,7 +1012,7 @@ describe('useBatchProcessor hook', () => {
 
       // Clean up: resolve the agent promise to let the batch finish
       await act(async () => {
-        resolveAgent!({ success: true, claudeSessionId: 'test-session' });
+        resolveAgent!({ success: true, agentSessionId: 'test-session' });
       });
 
       // Wait for batch to finish
@@ -1327,7 +1327,7 @@ describe('useBatchProcessor hook', () => {
       let spawnCount = 0;
       mockOnSpawnAgent.mockImplementation(async () => {
         spawnCount++;
-        return { success: true, claudeSessionId: `session-${spawnCount}` };
+        return { success: true, agentSessionId: `session-${spawnCount}` };
       });
 
       const { result } = renderHook(() =>
@@ -2206,7 +2206,7 @@ describe('useBatchProcessor hook', () => {
       mockOnSpawnAgent.mockImplementation(async () => {
         spawnCount++;
         if (spawnCount === 1) throw new Error('Spawn failed');
-        return { success: true, claudeSessionId: 'session-2' };
+        return { success: true, agentSessionId: 'session-2' };
       });
 
       const { result } = renderHook(() =>
@@ -2252,7 +2252,7 @@ describe('useBatchProcessor hook', () => {
       let spawnCount = 0;
       mockOnSpawnAgent.mockImplementation(async () => {
         spawnCount++;
-        return { success: true, claudeSessionId: `claude-session-${spawnCount}` };
+        return { success: true, agentSessionId: `claude-session-${spawnCount}` };
       });
 
       const { result } = renderHook(() =>
@@ -2334,7 +2334,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session',
+        agentSessionId: 'test-session',
         usageStats: {
           inputTokens: 500,
           outputTokens: 1000,
@@ -2393,7 +2393,7 @@ describe('useBatchProcessor hook', () => {
       // Delay agent spawn to create elapsed time
       mockOnSpawnAgent.mockImplementation(async () => {
         await new Promise(resolve => setTimeout(resolve, 10));
-        return { success: true, claudeSessionId: 'test' };
+        return { success: true, agentSessionId: 'test' };
       });
 
       const { result } = renderHook(() =>
@@ -2641,7 +2641,7 @@ describe('useBatchProcessor hook', () => {
         return { success: true, content: '- [x] Task' };
       });
 
-      mockOnSpawnAgent.mockResolvedValue({ success: true, claudeSessionId: 'test' });
+      mockOnSpawnAgent.mockResolvedValue({ success: true, agentSessionId: 'test' });
 
       const { result } = renderHook(() =>
         useBatchProcessor({
@@ -2685,7 +2685,7 @@ describe('useBatchProcessor hook', () => {
         return { success: true, content: '- [x] Task' };
       });
 
-      mockOnSpawnAgent.mockResolvedValue({ success: true, claudeSessionId: 'test' });
+      mockOnSpawnAgent.mockResolvedValue({ success: true, agentSessionId: 'test' });
 
       const { result } = renderHook(() =>
         useBatchProcessor({
@@ -3081,7 +3081,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       mockOnSpawnSynopsis.mockResolvedValue({
@@ -3135,7 +3135,7 @@ describe('useBatchProcessor hook', () => {
       const mockWriteDoc = vi.fn().mockResolvedValue({ success: true });
       window.maestro.autorun.writeDoc = mockWriteDoc;
 
-      mockOnSpawnAgent.mockResolvedValue({ success: true, claudeSessionId: 'test' });
+      mockOnSpawnAgent.mockResolvedValue({ success: true, agentSessionId: 'test' });
 
       const { result } = renderHook(() =>
         useBatchProcessor({
@@ -3182,7 +3182,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       const { result } = renderHook(() =>
@@ -3237,7 +3237,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       const { result } = renderHook(() =>
@@ -3292,7 +3292,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       const { result } = renderHook(() =>
@@ -3345,7 +3345,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session',
+        agentSessionId: 'test-session',
         usageStats: {
           inputTokens: 500,
           outputTokens: 200,
@@ -3400,7 +3400,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       const { result } = renderHook(() =>
@@ -3442,7 +3442,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       const { result } = renderHook(() =>
@@ -3484,7 +3484,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       const { result } = renderHook(() =>
@@ -3657,7 +3657,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       const { result } = renderHook(() =>
@@ -3718,7 +3718,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       const { result } = renderHook(() =>
@@ -3774,7 +3774,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       const { result } = renderHook(() =>
@@ -3818,7 +3818,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       const { result } = renderHook(() =>
@@ -3863,7 +3863,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'new-claude-session-123'
+        agentSessionId: 'new-claude-session-123'
       });
 
       const { result } = renderHook(() =>
@@ -3909,7 +3909,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       const { result } = renderHook(() =>
@@ -4017,7 +4017,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       const { result } = renderHook(() =>
@@ -4060,7 +4060,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       mockOnSpawnSynopsis.mockResolvedValue({
@@ -4112,7 +4112,7 @@ describe('useBatchProcessor hook', () => {
 
       mockOnSpawnAgent.mockResolvedValue({
         success: true,
-        claudeSessionId: 'test-session'
+        agentSessionId: 'test-session'
       });
 
       const { result } = renderHook(() =>

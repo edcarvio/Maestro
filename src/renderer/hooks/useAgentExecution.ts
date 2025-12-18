@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import type { Session, SessionState, UsageStats, QueuedItem, LogEntry } from '../types';
+import type { Session, SessionState, UsageStats, QueuedItem, LogEntry, ToolType } from '../types';
 import { getActiveTab } from '../utils/tabHelpers';
 import { generateId } from '../utils/ids';
 
@@ -9,7 +9,7 @@ import { generateId } from '../utils/ids';
 export interface AgentSpawnResult {
   success: boolean;
   response?: string;
-  claudeSessionId?: string;
+  agentSessionId?: string;
   usageStats?: UsageStats;
 }
 
@@ -39,12 +39,13 @@ export interface UseAgentExecutionReturn {
   spawnAgentForSession: (sessionId: string, prompt: string, cwdOverride?: string) => Promise<AgentSpawnResult>;
   /** Spawn an agent with a prompt for the active session */
   spawnAgentWithPrompt: (prompt: string) => Promise<AgentSpawnResult>;
-  /** Spawn a background synopsis agent (resumes an old Claude session) */
+  /** Spawn a background synopsis agent (resumes an old agent session) */
   spawnBackgroundSynopsis: (
     sessionId: string,
     cwd: string,
-    resumeClaudeSessionId: string,
-    prompt: string
+    resumeAgentSessionId: string,
+    prompt: string,
+    toolType?: ToolType
   ) => Promise<AgentSpawnResult>;
   /** Ref to spawnBackgroundSynopsis for use in callbacks that need latest version */
   spawnBackgroundSynopsisRef: React.MutableRefObject<typeof useAgentExecution extends (...args: infer _) => { spawnBackgroundSynopsis: infer R } ? R : never>;
@@ -104,10 +105,14 @@ export function useAgentExecution(
     // Use override cwd if provided (worktree mode), otherwise use session's cwd
     const effectiveCwd = cwdOverride || session.cwd;
 
-    // This spawns a new Claude session and waits for completion
+    // This spawns a new agent session and waits for completion
+    // Use session's toolType for multi-provider support
     try {
-      const agent = await window.maestro.agents.get('claude-code');
-      if (!agent) return { success: false };
+      const agent = await window.maestro.agents.get(session.toolType);
+      if (!agent) {
+        console.error(`[spawnAgentForSession] Agent not found for toolType: ${session.toolType}`);
+        return { success: false };
+      }
 
       // For batch processing, use a unique session ID per task run to avoid contaminating the main AI terminal
       // This prevents batch output from appearing in the interactive AI terminal
@@ -119,7 +124,7 @@ export function useAgentExecution(
 
       // Create a promise that resolves when the agent completes
       return new Promise((resolve) => {
-        let claudeSessionId: string | undefined;
+        let agentSessionId: string | undefined;
         let responseText = '';
         let taskUsageStats: UsageStats | undefined;
 
@@ -145,7 +150,7 @@ export function useAgentExecution(
 
         cleanupSessionId = window.maestro.process.onSessionId((sid: string, capturedId: string) => {
           if (sid === targetSessionId) {
-            claudeSessionId = capturedId;
+            agentSessionId = capturedId;
           }
         });
 
@@ -276,7 +281,7 @@ export function useAgentExecution(
                 const checkSession = sessionsRef.current.find(s => s.id === sessionId);
                 if (!checkSession || checkSession.state === 'idle' || checkSession.executionQueue.length === 0) {
                   // Queue drained or session idle - safe to continue batch
-                  resolve({ success: true, response: responseText, claudeSessionId, usageStats: taskUsageStats });
+                  resolve({ success: true, response: responseText, agentSessionId, usageStats: taskUsageStats });
                 } else {
                   // Queue still processing - check again
                   setTimeout(waitForQueueDrain, 100);
@@ -286,18 +291,21 @@ export function useAgentExecution(
               setTimeout(waitForQueueDrain, 50);
             } else {
               // No queued items or worktree mode - resolve immediately
-              resolve({ success: true, response: responseText, claudeSessionId, usageStats: taskUsageStats });
+              resolve({ success: true, response: responseText, agentSessionId, usageStats: taskUsageStats });
             }
           }
         });
 
-        // Spawn the agent with permission-mode plan for batch processing
+        // Spawn the agent for batch processing
         // Use effectiveCwd which may be a worktree path for parallel execution
         const commandToUse = agent.path || agent.command;
-        const spawnArgs = [...(agent.args || []), '--permission-mode', 'plan'];
+        // Only add Claude-specific permission-mode flag for Claude Code
+        const spawnArgs = session.toolType === 'claude-code'
+          ? [...(agent.args || []), '--permission-mode', 'plan']
+          : [...(agent.args || [])];
         window.maestro.process.spawn({
           sessionId: targetSessionId,
-          toolType: 'claude-code',
+          toolType: session.toolType,
           cwd: effectiveCwd,
           command: commandToUse,
           args: spawnArgs,
@@ -323,29 +331,36 @@ export function useAgentExecution(
   }, [activeSession, spawnAgentForSession]);
 
   /**
-   * Spawn a background synopsis agent that resumes an old Claude session.
+   * Spawn a background synopsis agent that resumes an old agent session.
    * Used for generating summaries without affecting main session state.
    *
    * @param sessionId - The Maestro session ID (for logging/tracking)
    * @param cwd - Working directory for the agent
-   * @param resumeClaudeSessionId - The Claude session ID to resume
+   * @param resumeAgentSessionId - The agent session ID to resume
    * @param prompt - The prompt to send to the resumed session
+   * @param toolType - The agent type (defaults to claude-code for backwards compatibility)
    */
   const spawnBackgroundSynopsis = useCallback(async (
     sessionId: string,
     cwd: string,
-    resumeClaudeSessionId: string,
-    prompt: string
+    resumeAgentSessionId: string,
+    prompt: string,
+    toolType: ToolType = 'claude-code'
   ): Promise<AgentSpawnResult> => {
     try {
-      const agent = await window.maestro.agents.get('claude-code');
-      if (!agent) return { success: false };
+      console.log(`[spawnBackgroundSynopsis] Called with toolType: ${toolType}, resumeAgentSessionId: ${resumeAgentSessionId}`);
+      const agent = await window.maestro.agents.get(toolType);
+      if (!agent) {
+        console.error(`[spawnBackgroundSynopsis] Agent not found for toolType: ${toolType}`);
+        return { success: false };
+      }
+      console.log(`[spawnBackgroundSynopsis] Got agent: ${agent.id}, command: ${agent.command}, path: ${agent.path}`);
 
       // Use a unique target ID for background synopsis
       const targetSessionId = `${sessionId}-synopsis-${Date.now()}`;
 
       return new Promise((resolve) => {
-        let claudeSessionId: string | undefined;
+        let agentSessionId: string | undefined;
         let responseText = '';
         let synopsisUsageStats: UsageStats | undefined;
 
@@ -369,7 +384,7 @@ export function useAgentExecution(
 
         cleanupSessionId = window.maestro.process.onSessionId((sid: string, capturedId: string) => {
           if (sid === targetSessionId) {
-            claudeSessionId = capturedId;
+            agentSessionId = capturedId;
           }
         });
 
@@ -395,20 +410,21 @@ export function useAgentExecution(
         cleanupExit = window.maestro.process.onExit((sid: string) => {
           if (sid === targetSessionId) {
             cleanup();
-            resolve({ success: true, response: responseText, claudeSessionId, usageStats: synopsisUsageStats });
+            resolve({ success: true, response: responseText, agentSessionId, usageStats: synopsisUsageStats });
           }
         });
 
-        // Spawn with --resume to continue the old session
+        // Spawn with session resume - the IPC handler will use the agent's resumeArgs builder
         const commandToUse = agent.path || agent.command;
-        const spawnArgs = [...(agent.args || []), '--resume', resumeClaudeSessionId];
+        console.log(`[spawnBackgroundSynopsis] Spawning synopsis: command=${commandToUse}, toolType=${toolType}, agentSessionId=${resumeAgentSessionId}`);
         window.maestro.process.spawn({
           sessionId: targetSessionId,
-          toolType: 'claude-code',
+          toolType,
           cwd,
           command: commandToUse,
-          args: spawnArgs,
-          prompt
+          args: agent.args || [],
+          prompt,
+          agentSessionId: resumeAgentSessionId, // This triggers the agent's resume mechanism
         }).catch(() => {
           cleanup();
           resolve({ success: false });

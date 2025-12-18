@@ -69,7 +69,7 @@ export function getActiveTab(session: Session): AITab | undefined {
  * Options for creating a new AI tab.
  */
 export interface CreateTabOptions {
-  claudeSessionId?: string | null;  // Claude Code session UUID (null for new tabs)
+  agentSessionId?: string | null;  // Claude Code session UUID (null for new tabs)
   logs?: LogEntry[];                // Initial conversation history
   name?: string | null;             // User-defined name (null = show UUID octet)
   starred?: boolean;                // Whether session is starred
@@ -90,7 +90,7 @@ export interface CreateTabResult {
  * The new tab is appended to the session's aiTabs array and set as the active tab.
  *
  * @param session - The Maestro session to add the tab to
- * @param options - Optional tab configuration (claudeSessionId, logs, name, starred)
+ * @param options - Optional tab configuration (agentSessionId, logs, name, starred)
  * @returns Object containing the new tab and updated session
  *
  * @example
@@ -100,7 +100,7 @@ export interface CreateTabResult {
  * @example
  * // Create a tab for an existing Claude session
  * const { tab, session: updatedSession } = createTab(session, {
- *   claudeSessionId: 'abc123',
+ *   agentSessionId: 'abc123',
  *   name: 'My Feature',
  *   starred: true,
  *   logs: existingLogs
@@ -108,7 +108,7 @@ export interface CreateTabResult {
  */
 export function createTab(session: Session, options: CreateTabOptions = {}): CreateTabResult {
   const {
-    claudeSessionId = null,
+    agentSessionId = null,
     logs = [],
     name = null,
     starred = false,
@@ -119,7 +119,7 @@ export function createTab(session: Session, options: CreateTabOptions = {}): Cre
   // Create the new tab with default values
   const newTab: AITab = {
     id: generateId(),
-    claudeSessionId,
+    agentSessionId,
     name,
     starred,
     logs,
@@ -197,7 +197,7 @@ export function closeTab(session: Session, tabId: string): CloseTabResult | null
   if (updatedTabs.length === 0) {
     const freshTab: AITab = {
       id: generateId(),
-      claudeSessionId: null,
+      agentSessionId: null,
       name: null,
       starred: false,
       logs: [],
@@ -242,7 +242,7 @@ export interface ReopenTabResult {
 
 /**
  * Reopen the most recently closed tab from the closed tab history.
- * Includes duplicate detection: if a tab with the same claudeSessionId already exists,
+ * Includes duplicate detection: if a tab with the same agentSessionId already exists,
  * switch to that existing tab instead of creating a duplicate.
  *
  * The tab is restored at its original index position if possible, otherwise appended to the end.
@@ -272,11 +272,11 @@ export function reopenClosedTab(session: Session): ReopenTabResult | null {
   const [closedTabEntry, ...remainingHistory] = session.closedTabHistory;
   const tabToRestore = closedTabEntry.tab;
 
-  // Check for duplicate: does a tab with the same claudeSessionId already exist?
-  // Note: null claudeSessionId (new/empty tabs) are never considered duplicates
-  if (tabToRestore.claudeSessionId !== null) {
+  // Check for duplicate: does a tab with the same agentSessionId already exist?
+  // Note: null agentSessionId (new/empty tabs) are never considered duplicates
+  if (tabToRestore.agentSessionId !== null) {
     const existingTab = session.aiTabs.find(
-      tab => tab.claudeSessionId === tabToRestore.claudeSessionId
+      tab => tab.agentSessionId === tabToRestore.agentSessionId
     );
 
     if (existingTab) {
@@ -341,7 +341,7 @@ export interface SetActiveTabResult {
  * const result = setActiveTab(session, 'tab-456');
  * if (result) {
  *   const { tab, session: updatedSession } = result;
- *   console.log(`Now viewing tab: ${tab.name || tab.claudeSessionId}`);
+ *   console.log(`Now viewing tab: ${tab.name || tab.agentSessionId}`);
  * }
  */
 export function setActiveTab(session: Session, tabId: string): SetActiveTabResult | null {
@@ -383,7 +383,7 @@ export function setActiveTab(session: Session, tabId: string): SetActiveTabResul
  * @example
  * const busyTab = getWriteModeTab(session);
  * if (busyTab) {
- *   console.log(`Tab ${busyTab.name || busyTab.claudeSessionId} is currently writing`);
+ *   console.log(`Tab ${busyTab.name || busyTab.agentSessionId} is currently writing`);
  *   // Disable input for other tabs
  * }
  */
@@ -411,7 +411,7 @@ export function getWriteModeTab(session: Session): AITab | undefined {
  * if (busyTabs.length > 0) {
  *   // Show busy indicator with pills for each busy tab
  *   busyTabs.forEach(tab => {
- *     console.log(`Tab ${tab.name || tab.claudeSessionId} is busy`);
+ *     console.log(`Tab ${tab.name || tab.agentSessionId} is busy`);
  *   });
  * }
  */

@@ -784,7 +784,7 @@ Some text with [x] in it that's not a checkbox
       const result = await resultPromise;
 
       expect(result.success).toBe(true);
-      expect(result.claudeSessionId).toBe('abc-123');
+      expect(result.agentSessionId).toBe('abc-123');
     });
 
     it('should parse usage statistics from modelUsage', async () => {
@@ -995,7 +995,7 @@ Some text with [x] in it that's not a checkbox
 
       const result = await resultPromise;
 
-      expect(result.claudeSessionId).toBe('first-id');
+      expect(result.agentSessionId).toBe('first-id');
     });
 
     it('should preserve session_id and usageStats on error', async () => {
@@ -1012,7 +1012,7 @@ Some text with [x] in it that's not a checkbox
       const result = await resultPromise;
 
       expect(result.success).toBe(false);
-      expect(result.claudeSessionId).toBe('error-session');
+      expect(result.agentSessionId).toBe('error-session');
       expect(result.usageStats?.totalCostUsd).toBe(0.01);
     });
 

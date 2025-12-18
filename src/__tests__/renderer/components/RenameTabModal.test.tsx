@@ -135,7 +135,7 @@ describe('RenameTabModal', () => {
   });
 
   describe('Placeholder', () => {
-    it('shows default placeholder when no claudeSessionId', () => {
+    it('shows default placeholder when no agentSessionId', () => {
       render(
         <TestWrapper>
           <RenameTabModal
@@ -151,13 +151,13 @@ describe('RenameTabModal', () => {
       expect(input).toHaveAttribute('placeholder', 'Enter tab name...');
     });
 
-    it('shows UUID-based placeholder when claudeSessionId is provided', () => {
+    it('shows UUID-based placeholder when agentSessionId is provided', () => {
       render(
         <TestWrapper>
           <RenameTabModal
             theme={mockTheme}
             initialName=""
-            claudeSessionId="abc123-def456-ghi789"
+            agentSessionId="abc123-def456-ghi789"
             onClose={mockOnClose}
             onRename={mockOnRename}
           />
@@ -168,13 +168,13 @@ describe('RenameTabModal', () => {
       expect(input).toHaveAttribute('placeholder', 'Rename ABC123...');
     });
 
-    it('handles null claudeSessionId', () => {
+    it('handles null agentSessionId', () => {
       render(
         <TestWrapper>
           <RenameTabModal
             theme={mockTheme}
             initialName=""
-            claudeSessionId={null}
+            agentSessionId={null}
             onClose={mockOnClose}
             onRename={mockOnRename}
           />

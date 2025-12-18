@@ -494,12 +494,12 @@ export async function* runPlaybook(
         let shortSummary = `[${docEntry.filename}] Task completed`;
         let fullSynopsis = shortSummary;
 
-        if (result.success && result.claudeSessionId) {
+        if (result.success && result.agentSessionId) {
           // Request synopsis from the agent
           const synopsisResult = await spawnAgent(
             session.cwd,
             BATCH_SYNOPSIS_PROMPT,
-            result.claudeSessionId
+            result.agentSessionId
           );
 
           if (synopsisResult.success && synopsisResult.response) {
@@ -523,7 +523,7 @@ export async function* runPlaybook(
           fullResponse: fullSynopsis,
           elapsedMs,
           usageStats: result.usageStats,
-          claudeSessionId: result.claudeSessionId,
+          agentSessionId: result.agentSessionId,
         };
 
         // Add history entry if enabled
@@ -534,7 +534,7 @@ export async function* runPlaybook(
             timestamp: Date.now(),
             summary: shortSummary,
             fullResponse: fullSynopsis,
-            claudeSessionId: result.claudeSessionId,
+            agentSessionId: result.agentSessionId,
             projectPath: session.cwd,
             sessionId: session.id,
             success: result.success,

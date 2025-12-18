@@ -240,7 +240,7 @@ When images are attached:
 processManager.on('data', (sessionId, data) => { ... });
 processManager.on('exit', (sessionId, code) => { ... });
 processManager.on('usage', (sessionId, usageStats) => { ... });
-processManager.on('session-id', (sessionId, claudeSessionId) => { ... });
+processManager.on('session-id', (sessionId, agentSessionId) => { ... });
 processManager.on('stderr', (sessionId, data) => { ... });
 processManager.on('command-exit', (sessionId, code) => { ... });
 ```
@@ -968,7 +968,7 @@ Multi-tab support within each session, allowing parallel conversations with sepa
 interface AITab {
   id: string;
   name: string;
-  claudeSessionId?: string;    // Separate Claude session per tab
+  agentSessionId?: string;    // Separate Claude session per tab
   aiLogs: LogEntry[];          // Tab-specific conversation history
   isStarred: boolean;
   readOnlyMode: boolean;

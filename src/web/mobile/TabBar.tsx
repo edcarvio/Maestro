@@ -31,7 +31,7 @@ function Tab({ tab, isActive, canClose, colors, onSelect, onClose }: TabProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   const displayName = tab.name
-    || (tab.claudeSessionId ? tab.claudeSessionId.split('-')[0].toUpperCase() : 'New');
+    || (tab.agentSessionId ? tab.agentSessionId.split('-')[0].toUpperCase() : 'New');
 
   return (
     <button

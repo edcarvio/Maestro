@@ -34,14 +34,14 @@ describe('TabBar', () => {
   const defaultTab: AITabData = {
     id: 'tab-1',
     name: 'Main',
-    claudeSessionId: 'abc12345-6789-0def-ghij-klmnopqrstuv',
+    agentSessionId: 'abc12345-6789-0def-ghij-klmnopqrstuv',
     state: 'idle',
     starred: false,
   };
 
   const createTab = (overrides: Partial<AITabData> & { id: string }): AITabData => ({
     name: '',
-    claudeSessionId: '',
+    agentSessionId: '',
     state: 'idle',
     starred: false,
     ...overrides,
@@ -147,9 +147,9 @@ describe('TabBar', () => {
       expect(screen.getByText('MyCustomName')).toBeInTheDocument();
     });
 
-    it('displays claudeSessionId first segment in uppercase when name is empty', () => {
+    it('displays agentSessionId first segment in uppercase when name is empty', () => {
       const tabs = [
-        createTab({ id: 'tab-1', name: '', claudeSessionId: 'abc12345-6789-0def' }),
+        createTab({ id: 'tab-1', name: '', agentSessionId: 'abc12345-6789-0def' }),
         createTab({ id: 'tab-2', name: 'Other' }),
       ];
       render(
@@ -164,9 +164,9 @@ describe('TabBar', () => {
       expect(screen.getByText('ABC12345')).toBeInTheDocument();
     });
 
-    it('displays "New" when both name and claudeSessionId are empty', () => {
+    it('displays "New" when both name and agentSessionId are empty', () => {
       const tabs = [
-        createTab({ id: 'tab-1', name: '', claudeSessionId: '' }),
+        createTab({ id: 'tab-1', name: '', agentSessionId: '' }),
         createTab({ id: 'tab-2', name: 'Other' }),
       ];
       render(
@@ -181,7 +181,7 @@ describe('TabBar', () => {
       expect(screen.getByText('New')).toBeInTheDocument();
     });
 
-    it('displays "New" when name is empty and claudeSessionId is undefined', () => {
+    it('displays "New" when name is empty and agentSessionId is undefined', () => {
       const tabs = [
         { id: 'tab-1', name: '', state: 'idle' as const, starred: false },
         createTab({ id: 'tab-2', name: 'Other' }),
@@ -198,9 +198,9 @@ describe('TabBar', () => {
       expect(screen.getByText('New')).toBeInTheDocument();
     });
 
-    it('handles claudeSessionId without dashes', () => {
+    it('handles agentSessionId without dashes', () => {
       const tabs = [
-        createTab({ id: 'tab-1', name: '', claudeSessionId: 'simpleId' }),
+        createTab({ id: 'tab-1', name: '', agentSessionId: 'simpleId' }),
         createTab({ id: 'tab-2', name: 'Other' }),
       ];
       render(
@@ -929,9 +929,9 @@ describe('TabBar', () => {
   });
 
   describe('Edge cases', () => {
-    it('handles empty tab name with special characters in claudeSessionId', () => {
+    it('handles empty tab name with special characters in agentSessionId', () => {
       const tabs = [
-        createTab({ id: 'tab-1', name: '', claudeSessionId: 'αβγ-δεζ' }),
+        createTab({ id: 'tab-1', name: '', agentSessionId: 'αβγ-δεζ' }),
         createTab({ id: 'tab-2', name: 'Other' }),
       ];
       render(

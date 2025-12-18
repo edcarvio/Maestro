@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
-import { Wand2, ExternalLink, Columns, Copy, Loader2, GitBranch, ArrowUp, ArrowDown, FileEdit, List } from 'lucide-react';
+import { Wand2, ExternalLink, Columns, Copy, Loader2, GitBranch, ArrowUp, ArrowDown, FileEdit, List, AlertCircle, X } from 'lucide-react';
 import { LogViewer } from './LogViewer';
 import { TerminalOutput } from './TerminalOutput';
 import { InputArea } from './InputArea';
@@ -12,6 +12,7 @@ import { gitService } from '../services/git';
 import { useGitStatus } from '../contexts/GitStatusContext';
 import { getActiveTab, getBusyTabs } from '../utils/tabHelpers';
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
+import { useAgentCapabilities } from '../hooks/useAgentCapabilities';
 import type { Session, Theme, Shortcut, FocusArea, BatchRunState } from '../types';
 
 interface SlashCommand {
@@ -31,7 +32,7 @@ interface MainPanelProps {
   // State
   logViewerOpen: boolean;
   agentSessionsOpen: boolean;
-  activeClaudeSessionId: string | null;
+  activeAgentSessionId: string | null;
   activeSession: Session | null;
   sessions: Session[]; // All sessions for InputArea's ThinkingStatusPill
   theme: Theme;
@@ -76,9 +77,9 @@ interface MainPanelProps {
   setGitDiffPreview: (preview: string | null) => void;
   setLogViewerOpen: (open: boolean) => void;
   setAgentSessionsOpen: (open: boolean) => void;
-  setActiveClaudeSessionId: (id: string | null) => void;
-  onResumeClaudeSession: (claudeSessionId: string, messages: import('../types').LogEntry[], sessionName?: string, starred?: boolean) => void;
-  onNewClaudeSession: () => void;
+  setActiveAgentSessionId: (id: string | null) => void;
+  onResumeAgentSession: (agentSessionId: string, messages: import('../types').LogEntry[], sessionName?: string, starred?: boolean) => void;
+  onNewAgentSession: () => void;
   setActiveFocus: (focus: FocusArea) => void;
   setOutputSearchOpen: (open: boolean) => void;
   setOutputSearchQuery: (query: string) => void;
@@ -146,7 +147,7 @@ interface MainPanelProps {
   onCloseOtherTabs?: (tabId: string) => void;
   onTabStar?: (tabId: string, starred: boolean) => void;
   onTabMarkUnread?: (tabId: string) => void;
-  onUpdateTabByClaudeSessionId?: (claudeSessionId: string, updates: { name?: string | null; starred?: boolean }) => void;
+  onUpdateTabByClaudeSessionId?: (agentSessionId: string, updates: { name?: string | null; starred?: boolean }) => void;
   onToggleTabReadOnlyMode?: () => void;
   onToggleTabSaveToHistory?: () => void;
   showUnreadOnly?: boolean;
@@ -175,11 +176,15 @@ interface MainPanelProps {
   forwardHistory?: {name: string; content: string; path: string}[];
   currentHistoryIndex?: number;
   onNavigateToIndex?: (index: number) => void;
+
+  // Agent error handling
+  onClearAgentError?: () => void;
+  onShowAgentErrorModal?: () => void;
 }
 
 export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function MainPanel(props, ref) {
   const {
-    logViewerOpen, agentSessionsOpen, activeClaudeSessionId, activeSession, sessions, theme, activeFocus, outputSearchOpen, outputSearchQuery,
+    logViewerOpen, agentSessionsOpen, activeAgentSessionId, activeSession, sessions, theme, activeFocus, outputSearchOpen, outputSearchQuery,
     inputValue, enterToSendAI, enterToSendTerminal, stagedImages, commandHistoryOpen, commandHistoryFilter,
     commandHistorySelectedIndex, slashCommandOpen, slashCommands, selectedSlashCommandIndex,
     tabCompletionOpen, tabCompletionSuggestions, selectedTabCompletionIndex, tabCompletionFilter,
@@ -187,8 +192,8 @@ export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function Ma
     atMentionOpen, atMentionFilter, atMentionStartIndex, atMentionSuggestions, selectedAtMentionIndex,
     setAtMentionOpen, setAtMentionFilter, setAtMentionStartIndex, setSelectedAtMentionIndex,
     previewFile, markdownEditMode, shortcuts, rightPanelOpen, maxOutputLines, gitDiffPreview,
-    fileTreeFilterOpen, logLevel, setGitDiffPreview, setLogViewerOpen, setAgentSessionsOpen, setActiveClaudeSessionId,
-    onResumeClaudeSession, onNewClaudeSession, setActiveFocus, setOutputSearchOpen, setOutputSearchQuery,
+    fileTreeFilterOpen, logLevel, setGitDiffPreview, setLogViewerOpen, setAgentSessionsOpen, setActiveAgentSessionId,
+    onResumeAgentSession, onNewAgentSession, setActiveFocus, setOutputSearchOpen, setOutputSearchQuery,
     setInputValue, setEnterToSendAI, setEnterToSendTerminal, setStagedImages, setLightboxImage, setCommandHistoryOpen,
     setCommandHistoryFilter, setCommandHistorySelectedIndex, setSlashCommandOpen,
     setSelectedSlashCommandIndex, setPreviewFile, setMarkdownEditMode,
@@ -288,6 +293,9 @@ export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function Ma
   // Copy notification state (centered flash notice)
   const [copyNotification, setCopyNotification] = useState<string | null>(null);
 
+  // Get agent capabilities for conditional feature rendering
+  const { hasCapability } = useAgentCapabilities(activeSession?.toolType);
+
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
     refreshGitInfo: refreshGitStatus
@@ -362,17 +370,17 @@ export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function Ma
     );
   }
 
-  // Show agent sessions browser
-  if (agentSessionsOpen) {
+  // Show agent sessions browser (only if agent supports session storage)
+  if (agentSessionsOpen && hasCapability('supportsSessionStorage')) {
     return (
       <div className="flex-1 flex flex-col min-w-0 relative" style={{ backgroundColor: theme.colors.bgMain }}>
         <AgentSessionsBrowser
           theme={theme}
           activeSession={activeSession || undefined}
-          activeClaudeSessionId={activeClaudeSessionId}
+          activeAgentSessionId={activeAgentSessionId}
           onClose={() => setAgentSessionsOpen(false)}
-          onResumeSession={onResumeClaudeSession}
-          onNewSession={onNewClaudeSession}
+          onResumeSession={onResumeAgentSession}
+          onNewSession={onNewAgentSession}
           onUpdateTab={props.onUpdateTabByClaudeSessionId}
         />
       </div>
@@ -610,30 +618,30 @@ export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function Ma
 
             <div className="flex items-center gap-3 min-w-[200px] justify-end">
               {/* Session UUID Pill - click to copy full UUID, left-most of session stats */}
-              {activeSession.inputMode === 'ai' && activeTab?.claudeSessionId && (
+              {activeSession.inputMode === 'ai' && activeTab?.agentSessionId && hasCapability('supportsSessionId') && (
                 <button
                   className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border transition-colors hover:opacity-80"
                   style={{ backgroundColor: theme.colors.accent + '20', color: theme.colors.accent, borderColor: theme.colors.accent + '30' }}
-                  title={activeTab.name ? `${activeTab.name}\nClick to copy: ${activeTab.claudeSessionId}` : `Click to copy: ${activeTab.claudeSessionId}`}
+                  title={activeTab.name ? `${activeTab.name}\nClick to copy: ${activeTab.agentSessionId}` : `Click to copy: ${activeTab.agentSessionId}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    copyToClipboard(activeTab.claudeSessionId!, 'Session ID Copied to Clipboard');
+                    copyToClipboard(activeTab.agentSessionId!, 'Session ID Copied to Clipboard');
                   }}
                 >
-                  {activeTab.claudeSessionId.split('-')[0].toUpperCase()}
+                  {activeTab.agentSessionId.split('-')[0].toUpperCase()}
                 </button>
               )}
 
 
-              {/* Cost Tracker - styled as pill (hidden when panel is narrow) - shows active tab's cost */}
-              {showCostWidget && activeSession.inputMode === 'ai' && activeTab?.claudeSessionId && (
+              {/* Cost Tracker - styled as pill (hidden when panel is narrow or agent doesn't support cost tracking) - shows active tab's cost */}
+              {showCostWidget && activeSession.inputMode === 'ai' && (activeTab?.agentSessionId || activeTab?.usageStats) && hasCapability('supportsCostTracking') && (
                 <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full border border-green-500/30 text-green-500 bg-green-500/10">
                   ${(activeTab?.usageStats?.totalCostUsd ?? 0).toFixed(2)}
                 </span>
               )}
 
-              {/* Context Window Widget with Tooltip - only show for tabs with Claude session */}
-              {activeSession.inputMode === 'ai' && activeTab?.claudeSessionId && (
+              {/* Context Window Widget with Tooltip - only show when context window is configured and agent supports usage stats */}
+              {activeSession.inputMode === 'ai' && (activeTab?.agentSessionId || activeTab?.usageStats) && hasCapability('supportsUsageStats') && (activeTab?.usageStats?.contextWindow ?? 0) > 0 && (
               <div
                 className="flex flex-col items-end mr-2 relative cursor-pointer"
                 onMouseEnter={() => {
@@ -711,6 +719,18 @@ export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function Ma
                             {(activeTab?.usageStats?.outputTokens ?? 0).toLocaleString()}
                           </span>
                         </div>
+                        {/* Reasoning tokens - only shown for agents that report them (e.g., Codex o3/o4-mini) */}
+                        {(activeTab?.usageStats?.reasoningTokens ?? 0) > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs" style={{ color: theme.colors.textDim }}>
+                              Reasoning Tokens
+                              <span className="ml-1 text-[10px] opacity-60">(in output)</span>
+                            </span>
+                            <span className="text-xs font-mono" style={{ color: theme.colors.textMain }}>
+                              {(activeTab?.usageStats?.reasoningTokens ?? 0).toLocaleString()}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex justify-between items-center">
                           <span className="text-xs" style={{ color: theme.colors.textDim }}>Cache Read</span>
                           <span className="text-xs font-mono" style={{ color: theme.colors.textMain }}>
@@ -724,32 +744,35 @@ export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function Ma
                           </span>
                         </div>
 
-                        <div className="border-t pt-2 mt-2" style={{ borderColor: theme.colors.border }}>
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs font-bold" style={{ color: theme.colors.textDim }}>Context Tokens</span>
-                            <span className="text-xs font-mono font-bold" style={{ color: theme.colors.accent }}>
-                              {(
-                                (activeTab?.usageStats?.inputTokens ?? 0) +
-                                (activeTab?.usageStats?.outputTokens ?? 0)
-                              ).toLocaleString()}
-                            </span>
+                        {/* Context usage section - only shown when contextWindow is configured */}
+                        {(activeTab?.usageStats?.contextWindow ?? 0) > 0 && (
+                          <div className="border-t pt-2 mt-2" style={{ borderColor: theme.colors.border }}>
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-bold" style={{ color: theme.colors.textDim }}>Context Tokens</span>
+                              <span className="text-xs font-mono font-bold" style={{ color: theme.colors.accent }}>
+                                {(
+                                  (activeTab?.usageStats?.inputTokens ?? 0) +
+                                  (activeTab?.usageStats?.outputTokens ?? 0)
+                                ).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center mt-1">
+                              <span className="text-xs font-bold" style={{ color: theme.colors.textDim }}>Context Size</span>
+                              <span className="text-xs font-mono font-bold" style={{ color: theme.colors.textMain }}>
+                                {activeTab.usageStats.contextWindow.toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center mt-1">
+                              <span className="text-xs font-bold" style={{ color: theme.colors.textDim }}>Usage</span>
+                              <span
+                                className="text-xs font-mono font-bold"
+                                style={{ color: getContextColor(activeTabContextUsage, theme) }}
+                              >
+                                {activeTabContextUsage}%
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex justify-between items-center mt-1">
-                            <span className="text-xs font-bold" style={{ color: theme.colors.textDim }}>Context Size</span>
-                            <span className="text-xs font-mono font-bold" style={{ color: theme.colors.textMain }}>
-                              {(activeTab?.usageStats?.contextWindow ?? 200000).toLocaleString()}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center mt-1">
-                            <span className="text-xs font-bold" style={{ color: theme.colors.textDim }}>Usage</span>
-                            <span
-                              className="text-xs font-mono font-bold"
-                              style={{ color: getContextColor(activeTabContextUsage, theme) }}
-                            >
-                              {activeTabContextUsage}%
-                            </span>
-                          </div>
-                        </div>
+                        )}
                       </div>
                       </div>
                     </div>
@@ -758,17 +781,19 @@ export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function Ma
               </div>
               )}
 
-              {/* Agent Sessions Button */}
-              <button
-                onClick={() => {
-                  setActiveClaudeSessionId(null);
-                  setAgentSessionsOpen(true);
-                }}
-                className="p-2 rounded hover:bg-white/5"
-                title={`Agent Sessions (${shortcuts.agentSessions?.keys?.join('+').replace('Meta', 'Cmd').replace('Shift', '⇧') || 'Cmd+⇧+L'})`}
-              >
-                <List className="w-4 h-4" style={{ color: theme.colors.textDim }} />
-              </button>
+              {/* Agent Sessions Button - only show if agent supports session storage */}
+              {hasCapability('supportsSessionStorage') && (
+                <button
+                  onClick={() => {
+                    setActiveAgentSessionId(null);
+                    setAgentSessionsOpen(true);
+                  }}
+                  className="p-2 rounded hover:bg-white/5"
+                  title={`Agent Sessions (${shortcuts.agentSessions?.keys?.join('+').replace('Meta', 'Cmd').replace('Shift', '⇧') || 'Cmd+⇧+L'})`}
+                >
+                  <List className="w-4 h-4" style={{ color: theme.colors.textDim }} />
+                </button>
+              )}
 
               {!rightPanelOpen && (
                 <button onClick={() => setRightPanelOpen(true)} className="p-2 rounded hover:bg-white/5" title={`Show right panel (${formatShortcutKeys(shortcuts.toggleRightPanel.keys)})`}>
@@ -798,6 +823,47 @@ export const MainPanel = forwardRef<MainPanelHandle, MainPanelProps>(function Ma
               onToggleUnreadFilter={onToggleUnreadFilter}
               onOpenTabSearch={onOpenTabSearch}
             />
+          )}
+
+          {/* Agent Error Banner */}
+          {activeSession.agentError && (
+            <div
+              className="flex items-center gap-3 px-4 py-2 border-b shrink-0"
+              style={{
+                backgroundColor: theme.colors.error + '15',
+                borderColor: theme.colors.error + '40',
+              }}
+            >
+              <AlertCircle className="w-4 h-4 shrink-0" style={{ color: theme.colors.error }} />
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium" style={{ color: theme.colors.error }}>
+                  {activeSession.agentError.message}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {props.onShowAgentErrorModal && (
+                  <button
+                    onClick={props.onShowAgentErrorModal}
+                    className="px-2 py-1 text-xs font-medium rounded hover:opacity-80 transition-opacity"
+                    style={{
+                      backgroundColor: theme.colors.error,
+                      color: '#ffffff',
+                    }}
+                  >
+                    View Details
+                  </button>
+                )}
+                {props.onClearAgentError && activeSession.agentError.recoverable && (
+                  <button
+                    onClick={props.onClearAgentError}
+                    className="p-1 rounded hover:bg-white/10 transition-colors"
+                    title="Dismiss error"
+                  >
+                    <X className="w-4 h-4" style={{ color: theme.colors.error }} />
+                  </button>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Show File Preview in main area when open, otherwise show terminal output and input */}

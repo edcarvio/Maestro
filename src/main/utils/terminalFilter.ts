@@ -128,6 +128,25 @@ export function stripControlSequences(text: string, lastCommand?: string, isTerm
 }
 
 /**
+ * Strip ALL ANSI escape codes from text (including color codes).
+ * This is more aggressive than stripControlSequences and removes everything.
+ * Use this for stderr from AI agents where we don't want any formatting.
+ */
+export function stripAllAnsiCodes(text: string): string {
+  // Remove all ANSI escape sequences including color codes
+  // Format: ESC [ ... m (SGR sequences for colors/styles)
+  // Format: ESC [ ... other letters (cursor, scrolling, etc.)
+  // Format: ESC ] ... BEL/ST (OSC sequences)
+  return text
+    .replace(/\x1b\[[0-9;]*m/g, '')           // SGR color/style codes
+    .replace(/\x1b\[[\d;]*[A-Za-z]/g, '')     // Other CSI sequences
+    .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, '') // OSC sequences
+    .replace(/\x1b[()][AB012]/g, '')          // Character set selection
+    .replace(/\x07/g, '')                     // BEL character
+    .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1A\x1C-\x1F]/g, ''); // Other control chars
+}
+
+/**
  * Detect if a line is likely a command echo in terminal output
  * This helps identify when the terminal is echoing back the command the user typed
  */

@@ -9,7 +9,7 @@ Maestro is a cross-platform desktop app for orchestrating your fleet of AI agent
 
 Collaborate with AI to create detailed specification documents, then let Auto Run execute them automatically, each task in a fresh session with clean context. Allowing for long running unattended sessions, my current record is nearly 24 hours of continuos runtime.
 
-Run multiple agents in parallel with a Linear/Superhuman-level responsive interface. Currently supporting Claude Code with plans for additional agentic coding tools (OpenAI Codex, Gemini CLI, Qwen3 Coder) based on user demand.
+Run multiple agents in parallel with a Linear/Superhuman-level responsive interface. Currently supporting **Claude Code**, **OpenAI Codex**, and **OpenCode** with plans for additional agentic coding tools (Aider, Gemini CLI, Qwen3 Coder) based on user demand.
 
 <div align="center">
   <a href="https://youtu.be/fmwwTOg7cyA?si=dJ89K54tGflKa5G4">
@@ -38,7 +38,10 @@ Download the latest release for your platform from the [Releases](https://github
 
 ### Requirements
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
+- At least one supported AI coding agent installed and authenticated:
+  - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) - Anthropic's AI coding assistant
+  - [OpenAI Codex](https://github.com/openai/codex) - OpenAI's coding agent
+  - [OpenCode](https://github.com/opencode-ai/opencode) - Open-source AI coding assistant
 - Git (optional, for git-aware features)
 
 ## Features
@@ -66,7 +69,7 @@ Download the latest release for your platform from the [Releases](https://github
 - 💰 **Cost Tracking** - Real-time token usage and cost tracking per session and globally.
 - 🏆 **[Achievements](#achievements)** - Level up from Apprentice to Titan of the Baton based on cumulative Auto Run time. 11 conductor-themed ranks to unlock.
 
-> **Note**: Maestro currently supports Claude Code only. Support for other agentic coding tools may be added in future releases based on community demand.
+> **Note**: Maestro supports Claude Code, OpenAI Codex, and OpenCode. Support for additional agents (Aider, Gemini CLI, Qwen3 Coder) may be added in future releases based on community demand.
 
 ### Spec-Driven Workflow
 
@@ -104,9 +107,9 @@ This approach mirrors methodologies like [Spec-Kit](https://github.com/github/sp
 
 | Concept | Description |
 |---------|-------------|
-| **Agent** | A workspace tied to a project directory. Contains one Command Terminal and one AI Terminal with full conversation history. |
+| **Agent** | A workspace tied to a project directory and AI provider (Claude Code, Codex, or OpenCode). Contains one Command Terminal and one AI Terminal with full conversation history. |
 | **Group** | Organizational container for agents. Group by project, client, or workflow. |
-| **AI Terminal** | The conversation interface with Claude Code. Supports `@` file mentions, slash commands, and image attachments. |
+| **AI Terminal** | The conversation interface with your AI agent. Supports `@` file mentions, slash commands, and image attachments. |
 | **Command Terminal** | A PTY shell session for running commands directly. Tab completion for files, git branches, and command history. |
 | **Session Explorer** | Browse all past conversations for an agent. Star, rename, search, and resume any previous session. |
 | **Auto Run** | Automated task runner that processes markdown checklists. Spawns fresh AI sessions per task. |
@@ -121,7 +124,7 @@ Maestro features a three-panel layout:
 
 - **Left Panel** - Agent list with grouping, filtering, search, bookmarks, and drag-and-drop organization
 - **Main Panel** - Center workspace with two modes per agent:
-  - **AI Terminal** - Converse with Claude Code. Supports multiple tabs/sessions, `@` file mentions, image attachments, slash commands, and draft auto-save.
+  - **AI Terminal** - Converse with your AI agent (Claude Code, Codex, or OpenCode). Supports multiple tabs/sessions, `@` file mentions, image attachments, slash commands, and draft auto-save.
   - **Command Terminal** - PTY shell with tab completion for files, branches, tags, and command history.
   - **Views**: Session Explorer, File Preview, Git Diffs, Git Logs
 - **Right Panel** - Three tabs: File Explorer, History Viewer, and Auto Run
@@ -302,7 +305,7 @@ Commands support **template variables** that are automatically substituted at ru
 | `{{AGENT_GROUP}}` | Agent's group name (if grouped) |
 | `{{AGENT_SESSION_ID}}` | Agent session ID (for conversation continuity) |
 | `{{TAB_NAME}}` | Custom tab name (alias: `SESSION_NAME`) |
-| `{{TOOL_TYPE}}` | Agent type (claude-code, aider, etc.) |
+| `{{TOOL_TYPE}}` | Agent type (claude-code, codex, opencode) |
 
 #### Path Variables
 | Variable | Description |
@@ -595,7 +598,7 @@ maestro-cli playbook <playbook-id> --json
 
 ### Requirements
 
-- Claude Code CLI must be installed and in PATH
+- At least one AI agent CLI must be installed and in PATH (Claude Code, Codex, or OpenCode)
 - Maestro config files must exist (created automatically when you use the GUI)
 
 ## Configuration

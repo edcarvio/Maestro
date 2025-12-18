@@ -10,6 +10,30 @@ interface ProcessConfig {
   prompt?: string;
   shell?: string;
   images?: string[]; // Base64 data URLs for images
+  // Agent-specific spawn options (used to build args via agent config)
+  agentSessionId?: string;  // For session resume (uses agent's resumeArgs builder)
+  readOnlyMode?: boolean;   // For read-only/plan mode (uses agent's readOnlyArgs)
+  modelId?: string;         // For model selection (uses agent's modelArgs builder)
+  yoloMode?: boolean;       // For YOLO/full-access mode (uses agent's yoloModeArgs)
+}
+
+/**
+ * Capability flags that determine what features are available for each agent.
+ * This is a simplified version for the renderer - full definition in agent-capabilities.ts
+ */
+interface AgentCapabilities {
+  supportsResume: boolean;
+  supportsReadOnlyMode: boolean;
+  supportsJsonOutput: boolean;
+  supportsSessionId: boolean;
+  supportsImageInput: boolean;
+  supportsSlashCommands: boolean;
+  supportsSessionStorage: boolean;
+  supportsCostTracking: boolean;
+  supportsUsageStats: boolean;
+  supportsBatchMode: boolean;
+  supportsStreaming: boolean;
+  supportsResultMessages: boolean;
 }
 
 interface AgentConfig {
@@ -17,6 +41,7 @@ interface AgentConfig {
   name: string;
   available: boolean;
   path?: string;
+  capabilities?: AgentCapabilities;
 }
 
 interface DirectoryEntry {
@@ -31,6 +56,14 @@ interface ShellInfo {
   available: boolean;
   path?: string;
 }
+
+// Helper to log deprecation warnings
+const logDeprecationWarning = (method: string, replacement?: string) => {
+  const message = replacement
+    ? `[Deprecation Warning] window.maestro.claude.${method}() is deprecated. Use window.maestro.agentSessions.${replacement}() instead.`
+    : `[Deprecation Warning] window.maestro.claude.${method}() is deprecated. Use the agentSessions API instead.`;
+  console.warn(message);
+};
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -81,8 +114,8 @@ contextBridge.exposeInMainWorld('maestro', {
       ipcRenderer.on('process:exit', handler);
       return () => ipcRenderer.removeListener('process:exit', handler);
     },
-    onSessionId: (callback: (sessionId: string, claudeSessionId: string) => void) => {
-      const handler = (_: any, sessionId: string, claudeSessionId: string) => callback(sessionId, claudeSessionId);
+    onSessionId: (callback: (sessionId: string, agentSessionId: string) => void) => {
+      const handler = (_: any, sessionId: string, agentSessionId: string) => callback(sessionId, agentSessionId);
       ipcRenderer.on('process:session-id', handler);
       return () => ipcRenderer.removeListener('process:session-id', handler);
     },
@@ -152,6 +185,12 @@ contextBridge.exposeInMainWorld('maestro', {
       ipcRenderer.on('remote:closeTab', handler);
       return () => ipcRenderer.removeListener('remote:closeTab', handler);
     },
+    // Remote rename tab from web interface
+    onRemoteRenameTab: (callback: (sessionId: string, tabId: string, newName: string) => void) => {
+      const handler = (_: any, sessionId: string, tabId: string, newName: string) => callback(sessionId, tabId, newName);
+      ipcRenderer.on('remote:renameTab', handler);
+      return () => ipcRenderer.removeListener('remote:renameTab', handler);
+    },
     // Stderr listener for runCommand (separate stream)
     onStderr: (callback: (sessionId: string, data: string) => void) => {
       const handler = (_: any, sessionId: string, data: string) => callback(sessionId, data);
@@ -172,11 +211,44 @@ contextBridge.exposeInMainWorld('maestro', {
       cacheCreationInputTokens: number;
       totalCostUsd: number;
       contextWindow: number;
+      reasoningTokens?: number;  // Separate reasoning tokens (Codex o3/o4-mini)
     }) => void) => {
       const handler = (_: any, sessionId: string, usageStats: any) => callback(sessionId, usageStats);
       ipcRenderer.on('process:usage', handler);
       return () => ipcRenderer.removeListener('process:usage', handler);
     },
+    // Agent error event listener (auth expired, token exhaustion, rate limits, etc.)
+    onAgentError: (callback: (sessionId: string, error: {
+      type: string;
+      message: string;
+      recoverable: boolean;
+      agentId: string;
+      sessionId?: string;
+      timestamp: number;
+      raw?: {
+        exitCode?: number;
+        stderr?: string;
+        stdout?: string;
+        errorLine?: string;
+      };
+    }) => void) => {
+      const handler = (_: any, sessionId: string, error: any) => callback(sessionId, error);
+      ipcRenderer.on('agent:error', handler);
+      return () => ipcRenderer.removeListener('agent:error', handler);
+    },
+  },
+
+  // Agent Error Handling API
+  agentError: {
+    // Clear an error state for a session (called after recovery action)
+    clearError: (sessionId: string) =>
+      ipcRenderer.invoke('agent:clearError', sessionId),
+    // Retry the last operation after an error
+    retryAfterError: (sessionId: string, options?: {
+      prompt?: string;
+      newSession?: boolean;
+    }) =>
+      ipcRenderer.invoke('agent:retryAfterError', sessionId, options),
   },
 
   // Web interface API
@@ -196,7 +268,7 @@ contextBridge.exposeInMainWorld('maestro', {
     // Broadcast tab changes to web clients (for tab sync)
     broadcastTabsChange: (sessionId: string, aiTabs: Array<{
       id: string;
-      claudeSessionId: string | null;
+      agentSessionId: string | null;
       name: string | null;
       starred: boolean;
       inputValue: string;
@@ -292,8 +364,8 @@ contextBridge.exposeInMainWorld('maestro', {
 
   // Live Session API - toggle sessions as live/offline in web interface
   live: {
-    toggle: (sessionId: string, claudeSessionId?: string) =>
-      ipcRenderer.invoke('live:toggle', sessionId, claudeSessionId),
+    toggle: (sessionId: string, agentSessionId?: string) =>
+      ipcRenderer.invoke('live:toggle', sessionId, agentSessionId),
     getStatus: (sessionId: string) => ipcRenderer.invoke('live:getStatus', sessionId),
     getDashboardUrl: () => ipcRenderer.invoke('live:getDashboardUrl'),
     getLiveSessions: () => ipcRenderer.invoke('live:getLiveSessions'),
@@ -309,6 +381,7 @@ contextBridge.exposeInMainWorld('maestro', {
     detect: () => ipcRenderer.invoke('agents:detect'),
     refresh: (agentId?: string) => ipcRenderer.invoke('agents:refresh', agentId),
     get: (agentId: string) => ipcRenderer.invoke('agents:get', agentId),
+    getCapabilities: (agentId: string) => ipcRenderer.invoke('agents:getCapabilities', agentId),
     getConfig: (agentId: string) => ipcRenderer.invoke('agents:getConfig', agentId),
     setConfig: (agentId: string, config: Record<string, any>) =>
       ipcRenderer.invoke('agents:setConfig', agentId, config),
@@ -321,6 +394,16 @@ contextBridge.exposeInMainWorld('maestro', {
     getCustomPath: (agentId: string) =>
       ipcRenderer.invoke('agents:getCustomPath', agentId),
     getAllCustomPaths: () => ipcRenderer.invoke('agents:getAllCustomPaths'),
+    // Custom CLI arguments that are appended to all agent invocations
+    setCustomArgs: (agentId: string, customArgs: string | null) =>
+      ipcRenderer.invoke('agents:setCustomArgs', agentId, customArgs),
+    getCustomArgs: (agentId: string) =>
+      ipcRenderer.invoke('agents:getCustomArgs', agentId) as Promise<string | null>,
+    getAllCustomArgs: () =>
+      ipcRenderer.invoke('agents:getAllCustomArgs') as Promise<Record<string, string>>,
+    // Discover available models for agents that support model selection (e.g., OpenCode with Ollama)
+    getModels: (agentId: string, forceRefresh?: boolean) =>
+      ipcRenderer.invoke('agents:getModels', agentId, forceRefresh) as Promise<string[]>,
   },
 
   // Dialog API
@@ -423,18 +506,27 @@ contextBridge.exposeInMainWorld('maestro', {
   },
 
   // Claude Code sessions API
+  // DEPRECATED: Use agentSessions API instead for new code
   claude: {
-    listSessions: (projectPath: string) =>
-      ipcRenderer.invoke('claude:listSessions', projectPath),
+    listSessions: (projectPath: string) => {
+      logDeprecationWarning('listSessions', 'list');
+      return ipcRenderer.invoke('claude:listSessions', projectPath);
+    },
     // Paginated version for better performance with many sessions
-    listSessionsPaginated: (projectPath: string, options?: { cursor?: string; limit?: number }) =>
-      ipcRenderer.invoke('claude:listSessionsPaginated', projectPath, options),
+    listSessionsPaginated: (projectPath: string, options?: { cursor?: string; limit?: number }) => {
+      logDeprecationWarning('listSessionsPaginated', 'listPaginated');
+      return ipcRenderer.invoke('claude:listSessionsPaginated', projectPath, options);
+    },
     // Get aggregate stats for all sessions in a project (streams progressive updates)
-    getProjectStats: (projectPath: string) =>
-      ipcRenderer.invoke('claude:getProjectStats', projectPath),
+    getProjectStats: (projectPath: string) => {
+      logDeprecationWarning('getProjectStats');
+      return ipcRenderer.invoke('claude:getProjectStats', projectPath);
+    },
     // Get all session timestamps for activity graph (lightweight)
-    getSessionTimestamps: (projectPath: string) =>
-      ipcRenderer.invoke('claude:getSessionTimestamps', projectPath) as Promise<{ timestamps: string[] }>,
+    getSessionTimestamps: (projectPath: string) => {
+      logDeprecationWarning('getSessionTimestamps');
+      return ipcRenderer.invoke('claude:getSessionTimestamps', projectPath) as Promise<{ timestamps: string[] }>;
+    },
     onProjectStatsUpdate: (callback: (stats: {
       projectPath: string;
       totalSessions: number;
@@ -445,12 +537,15 @@ contextBridge.exposeInMainWorld('maestro', {
       processedCount: number;
       isComplete: boolean;
     }) => void) => {
+      logDeprecationWarning('onProjectStatsUpdate');
       const handler = (_: any, stats: any) => callback(stats);
       ipcRenderer.on('claude:projectStatsUpdate', handler);
       return () => ipcRenderer.removeListener('claude:projectStatsUpdate', handler);
     },
-    getGlobalStats: () =>
-      ipcRenderer.invoke('claude:getGlobalStats'),
+    getGlobalStats: () => {
+      logDeprecationWarning('getGlobalStats');
+      return ipcRenderer.invoke('claude:getGlobalStats');
+    },
     onGlobalStatsUpdate: (callback: (stats: {
       totalSessions: number;
       totalMessages: number;
@@ -462,35 +557,118 @@ contextBridge.exposeInMainWorld('maestro', {
       totalSizeBytes: number;
       isComplete: boolean;
     }) => void) => {
+      logDeprecationWarning('onGlobalStatsUpdate');
       const handler = (_: any, stats: any) => callback(stats);
       ipcRenderer.on('claude:globalStatsUpdate', handler);
       return () => ipcRenderer.removeListener('claude:globalStatsUpdate', handler);
     },
-    readSessionMessages: (projectPath: string, sessionId: string, options?: { offset?: number; limit?: number }) =>
-      ipcRenderer.invoke('claude:readSessionMessages', projectPath, sessionId, options),
-    searchSessions: (projectPath: string, query: string, searchMode: 'title' | 'user' | 'assistant' | 'all') =>
-      ipcRenderer.invoke('claude:searchSessions', projectPath, query, searchMode),
-    getCommands: (projectPath: string) =>
-      ipcRenderer.invoke('claude:getCommands', projectPath),
+    readSessionMessages: (projectPath: string, sessionId: string, options?: { offset?: number; limit?: number }) => {
+      logDeprecationWarning('readSessionMessages', 'read');
+      return ipcRenderer.invoke('claude:readSessionMessages', projectPath, sessionId, options);
+    },
+    searchSessions: (projectPath: string, query: string, searchMode: 'title' | 'user' | 'assistant' | 'all') => {
+      logDeprecationWarning('searchSessions', 'search');
+      return ipcRenderer.invoke('claude:searchSessions', projectPath, query, searchMode);
+    },
+    getCommands: (projectPath: string) => {
+      logDeprecationWarning('getCommands');
+      return ipcRenderer.invoke('claude:getCommands', projectPath);
+    },
     // Session origin tracking (distinguishes Maestro sessions from CLI sessions)
-    registerSessionOrigin: (projectPath: string, claudeSessionId: string, origin: 'user' | 'auto', sessionName?: string) =>
-      ipcRenderer.invoke('claude:registerSessionOrigin', projectPath, claudeSessionId, origin, sessionName),
-    updateSessionName: (projectPath: string, claudeSessionId: string, sessionName: string) =>
-      ipcRenderer.invoke('claude:updateSessionName', projectPath, claudeSessionId, sessionName),
-    updateSessionStarred: (projectPath: string, claudeSessionId: string, starred: boolean) =>
-      ipcRenderer.invoke('claude:updateSessionStarred', projectPath, claudeSessionId, starred),
-    getSessionOrigins: (projectPath: string) =>
-      ipcRenderer.invoke('claude:getSessionOrigins', projectPath),
-    getAllNamedSessions: () =>
-      ipcRenderer.invoke('claude:getAllNamedSessions') as Promise<Array<{
-        claudeSessionId: string;
+    registerSessionOrigin: (projectPath: string, agentSessionId: string, origin: 'user' | 'auto', sessionName?: string) => {
+      logDeprecationWarning('registerSessionOrigin');
+      return ipcRenderer.invoke('claude:registerSessionOrigin', projectPath, agentSessionId, origin, sessionName);
+    },
+    updateSessionName: (projectPath: string, agentSessionId: string, sessionName: string) => {
+      logDeprecationWarning('updateSessionName');
+      return ipcRenderer.invoke('claude:updateSessionName', projectPath, agentSessionId, sessionName);
+    },
+    updateSessionStarred: (projectPath: string, agentSessionId: string, starred: boolean) => {
+      logDeprecationWarning('updateSessionStarred');
+      return ipcRenderer.invoke('claude:updateSessionStarred', projectPath, agentSessionId, starred);
+    },
+    getSessionOrigins: (projectPath: string) => {
+      logDeprecationWarning('getSessionOrigins');
+      return ipcRenderer.invoke('claude:getSessionOrigins', projectPath);
+    },
+    getAllNamedSessions: () => {
+      logDeprecationWarning('getAllNamedSessions');
+      return ipcRenderer.invoke('claude:getAllNamedSessions') as Promise<Array<{
+        agentSessionId: string;
         projectPath: string;
         sessionName: string;
         starred?: boolean;
         lastActivityAt?: number;
-      }>>,
-    deleteMessagePair: (projectPath: string, sessionId: string, userMessageUuid: string, fallbackContent?: string) =>
-      ipcRenderer.invoke('claude:deleteMessagePair', projectPath, sessionId, userMessageUuid, fallbackContent),
+      }>>;
+    },
+    deleteMessagePair: (projectPath: string, sessionId: string, userMessageUuid: string, fallbackContent?: string) => {
+      logDeprecationWarning('deleteMessagePair', 'deleteMessagePair');
+      return ipcRenderer.invoke('claude:deleteMessagePair', projectPath, sessionId, userMessageUuid, fallbackContent);
+    },
+  },
+
+  // Agent Sessions API (generic multi-agent session storage)
+  // This is the preferred API for new code. The claude.* API is deprecated.
+  agentSessions: {
+    // List all sessions for an agent
+    list: (agentId: string, projectPath: string) =>
+      ipcRenderer.invoke('agentSessions:list', agentId, projectPath),
+    // List sessions with pagination
+    listPaginated: (agentId: string, projectPath: string, options?: { cursor?: string; limit?: number }) =>
+      ipcRenderer.invoke('agentSessions:listPaginated', agentId, projectPath, options),
+    // Read session messages
+    read: (agentId: string, projectPath: string, sessionId: string, options?: { offset?: number; limit?: number }) =>
+      ipcRenderer.invoke('agentSessions:read', agentId, projectPath, sessionId, options),
+    // Search sessions
+    search: (agentId: string, projectPath: string, query: string, searchMode: 'title' | 'user' | 'assistant' | 'all') =>
+      ipcRenderer.invoke('agentSessions:search', agentId, projectPath, query, searchMode),
+    // Get session file path
+    getPath: (agentId: string, projectPath: string, sessionId: string) =>
+      ipcRenderer.invoke('agentSessions:getPath', agentId, projectPath, sessionId),
+    // Delete a message pair from a session
+    deleteMessagePair: (agentId: string, projectPath: string, sessionId: string, userMessageUuid: string, fallbackContent?: string) =>
+      ipcRenderer.invoke('agentSessions:deleteMessagePair', agentId, projectPath, sessionId, userMessageUuid, fallbackContent),
+    // Check if an agent has session storage support
+    hasStorage: (agentId: string) =>
+      ipcRenderer.invoke('agentSessions:hasStorage', agentId),
+    // Get list of agent IDs that have session storage
+    getAvailableStorages: () =>
+      ipcRenderer.invoke('agentSessions:getAvailableStorages'),
+    // Get global stats aggregated from all providers
+    getGlobalStats: () =>
+      ipcRenderer.invoke('agentSessions:getGlobalStats'),
+    // Subscribe to global stats updates (streaming)
+    onGlobalStatsUpdate: (callback: (stats: {
+      totalSessions: number;
+      totalMessages: number;
+      totalInputTokens: number;
+      totalOutputTokens: number;
+      totalCacheReadTokens: number;
+      totalCacheCreationTokens: number;
+      totalCostUsd: number;
+      hasCostData: boolean;
+      totalSizeBytes: number;
+      isComplete: boolean;
+      byProvider: Record<string, {
+        sessions: number;
+        messages: number;
+        inputTokens: number;
+        outputTokens: number;
+        costUsd: number;
+        hasCostData: boolean;
+      }>;
+    }) => void) => {
+      const handler = (_: unknown, stats: Parameters<typeof callback>[0]) => callback(stats);
+      ipcRenderer.on('agentSessions:globalStatsUpdate', handler);
+      return () => ipcRenderer.removeListener('agentSessions:globalStatsUpdate', handler);
+    },
+    // Register a session's origin (user-initiated vs auto/batch)
+    // Currently delegates to claude: handlers for backwards compatibility
+    registerSessionOrigin: (projectPath: string, agentSessionId: string, origin: 'user' | 'auto', sessionName?: string) =>
+      ipcRenderer.invoke('claude:registerSessionOrigin', projectPath, agentSessionId, origin, sessionName),
+    // Update a session's display name
+    updateSessionName: (projectPath: string, agentSessionId: string, sessionName: string) =>
+      ipcRenderer.invoke('claude:updateSessionName', projectPath, agentSessionId, sessionName),
   },
 
   // Temp file API (for batch processing)
@@ -519,7 +697,7 @@ contextBridge.exposeInMainWorld('maestro', {
       timestamp: number;
       summary: string;
       fullResponse?: string;
-      claudeSessionId?: string;
+      agentSessionId?: string;
       projectPath: string;
       sessionId?: string;
       sessionName?: string;
@@ -543,9 +721,9 @@ contextBridge.exposeInMainWorld('maestro', {
       ipcRenderer.invoke('history:delete', entryId, sessionId),
     update: (entryId: string, updates: { validated?: boolean }, sessionId?: string) =>
       ipcRenderer.invoke('history:update', entryId, updates, sessionId),
-    // Update sessionName for all entries matching a claudeSessionId (used when renaming tabs)
-    updateSessionName: (claudeSessionId: string, sessionName: string) =>
-      ipcRenderer.invoke('history:updateSessionName', claudeSessionId, sessionName),
+    // Update sessionName for all entries matching a agentSessionId (used when renaming tabs)
+    updateSessionName: (agentSessionId: string, sessionName: string) =>
+      ipcRenderer.invoke('history:updateSessionName', agentSessionId, sessionName),
     // NEW: Get history file path for AI context integration
     getFilePath: (sessionId: string) =>
       ipcRenderer.invoke('history:getFilePath', sessionId),
@@ -737,7 +915,7 @@ export interface MaestroAPI {
     }>>;
     onData: (callback: (sessionId: string, data: string) => void) => () => void;
     onExit: (callback: (sessionId: string, code: number) => void) => () => void;
-    onSessionId: (callback: (sessionId: string, claudeSessionId: string) => void) => () => void;
+    onSessionId: (callback: (sessionId: string, agentSessionId: string) => void) => () => void;
     onSlashCommands: (callback: (sessionId: string, slashCommands: string[]) => void) => () => void;
     onRemoteCommand: (callback: (sessionId: string, command: string) => void) => () => void;
     onRemoteSwitchMode: (callback: (sessionId: string, mode: 'ai' | 'terminal') => void) => () => void;
@@ -752,7 +930,29 @@ export interface MaestroAPI {
       cacheCreationInputTokens: number;
       totalCostUsd: number;
       contextWindow: number;
+      reasoningTokens?: number;
     }) => void) => () => void;
+    onAgentError: (callback: (sessionId: string, error: {
+      type: string;
+      message: string;
+      recoverable: boolean;
+      agentId: string;
+      sessionId?: string;
+      timestamp: number;
+      raw?: {
+        exitCode?: number;
+        stderr?: string;
+        stdout?: string;
+        errorLine?: string;
+      };
+    }) => void) => () => void;
+  };
+  agentError: {
+    clearError: (sessionId: string) => Promise<{ success: boolean }>;
+    retryAfterError: (sessionId: string, options?: {
+      prompt?: string;
+      newSession?: boolean;
+    }) => Promise<{ success: boolean }>;
   };
   git: {
     status: (cwd: string) => Promise<string>;
@@ -840,10 +1040,10 @@ export interface MaestroAPI {
     getConnectedClients: () => Promise<number>;
   };
   live: {
-    toggle: (sessionId: string, claudeSessionId?: string) => Promise<{ live: boolean; url: string | null }>;
+    toggle: (sessionId: string, agentSessionId?: string) => Promise<{ live: boolean; url: string | null }>;
     getStatus: (sessionId: string) => Promise<{ live: boolean; url: string | null }>;
     getDashboardUrl: () => Promise<string | null>;
-    getLiveSessions: () => Promise<Array<{ sessionId: string; claudeSessionId?: string; enabledAt: number }>>;
+    getLiveSessions: () => Promise<Array<{ sessionId: string; agentSessionId?: string; enabledAt: number }>>;
     broadcastActiveSession: (sessionId: string) => Promise<void>;
     disableAll: () => Promise<{ success: boolean; count: number }>;
     startServer: () => Promise<{ success: boolean; url?: string; error?: string }>;
@@ -852,6 +1052,7 @@ export interface MaestroAPI {
   agents: {
     detect: () => Promise<AgentConfig[]>;
     get: (agentId: string) => Promise<AgentConfig | null>;
+    getCapabilities: (agentId: string) => Promise<AgentCapabilities>;
     getConfig: (agentId: string) => Promise<Record<string, any>>;
     setConfig: (agentId: string, config: Record<string, any>) => Promise<boolean>;
     getConfigValue: (agentId: string, key: string) => Promise<any>;
@@ -859,6 +1060,10 @@ export interface MaestroAPI {
     setCustomPath: (agentId: string, customPath: string | null) => Promise<boolean>;
     getCustomPath: (agentId: string) => Promise<string | null>;
     getAllCustomPaths: () => Promise<Record<string, string>>;
+    setCustomArgs: (agentId: string, customArgs: string | null) => Promise<boolean>;
+    getCustomArgs: (agentId: string) => Promise<string | null>;
+    getAllCustomArgs: () => Promise<Record<string, string>>;
+    getModels: (agentId: string, forceRefresh?: boolean) => Promise<string[]>;
   };
   dialog: {
     selectFolder: () => Promise<string | null>;
@@ -1022,11 +1227,78 @@ export interface MaestroAPI {
       command: string;
       description: string;
     }>>;
-    registerSessionOrigin: (projectPath: string, claudeSessionId: string, origin: 'user' | 'auto', sessionName?: string) => Promise<boolean>;
-    updateSessionName: (projectPath: string, claudeSessionId: string, sessionName: string) => Promise<boolean>;
-    updateSessionStarred: (projectPath: string, claudeSessionId: string, starred: boolean) => Promise<boolean>;
+    registerSessionOrigin: (projectPath: string, agentSessionId: string, origin: 'user' | 'auto', sessionName?: string) => Promise<boolean>;
+    updateSessionName: (projectPath: string, agentSessionId: string, sessionName: string) => Promise<boolean>;
+    updateSessionStarred: (projectPath: string, agentSessionId: string, starred: boolean) => Promise<boolean>;
     getSessionOrigins: (projectPath: string) => Promise<Record<string, 'user' | 'auto' | { origin: 'user' | 'auto'; sessionName?: string; starred?: boolean }>>;
     deleteMessagePair: (projectPath: string, sessionId: string, userMessageUuid: string, fallbackContent?: string) => Promise<{ success: boolean; linesRemoved?: number; error?: string }>;
+  };
+  agentSessions: {
+    list: (agentId: string, projectPath: string) => Promise<Array<{
+      sessionId: string;
+      projectPath: string;
+      timestamp: string;
+      modifiedAt: string;
+      firstMessage: string;
+      messageCount: number;
+      sizeBytes: number;
+      costUsd: number;
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadTokens: number;
+      cacheCreationTokens: number;
+      durationSeconds: number;
+      origin?: 'user' | 'auto';
+      sessionName?: string;
+      starred?: boolean;
+    }>>;
+    listPaginated: (agentId: string, projectPath: string, options?: { cursor?: string; limit?: number }) => Promise<{
+      sessions: Array<{
+        sessionId: string;
+        projectPath: string;
+        timestamp: string;
+        modifiedAt: string;
+        firstMessage: string;
+        messageCount: number;
+        sizeBytes: number;
+        costUsd: number;
+        inputTokens: number;
+        outputTokens: number;
+        cacheReadTokens: number;
+        cacheCreationTokens: number;
+        durationSeconds: number;
+        origin?: 'user' | 'auto';
+        sessionName?: string;
+        starred?: boolean;
+      }>;
+      hasMore: boolean;
+      totalCount: number;
+      nextCursor: string | null;
+    }>;
+    read: (agentId: string, projectPath: string, sessionId: string, options?: { offset?: number; limit?: number }) => Promise<{
+      messages: Array<{
+        type: string;
+        role?: string;
+        content: string;
+        timestamp: string;
+        uuid: string;
+        toolUse?: any;
+      }>;
+      total: number;
+      hasMore: boolean;
+    }>;
+    search: (agentId: string, projectPath: string, query: string, searchMode: 'title' | 'user' | 'assistant' | 'all') => Promise<Array<{
+      sessionId: string;
+      matchType: 'title' | 'user' | 'assistant';
+      matchPreview: string;
+      matchCount: number;
+    }>>;
+    getPath: (agentId: string, projectPath: string, sessionId: string) => Promise<string | null>;
+    deleteMessagePair: (agentId: string, projectPath: string, sessionId: string, userMessageUuid: string, fallbackContent?: string) => Promise<{ success: boolean; linesRemoved?: number; error?: string }>;
+    hasStorage: (agentId: string) => Promise<boolean>;
+    getAvailableStorages: () => Promise<string[]>;
+    registerSessionOrigin: (projectPath: string, agentSessionId: string, origin: 'user' | 'auto', sessionName?: string) => Promise<boolean>;
+    updateSessionName: (projectPath: string, agentSessionId: string, sessionName: string) => Promise<boolean>;
   };
   tempfile: {
     write: (content: string, filename?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
@@ -1040,7 +1312,7 @@ export interface MaestroAPI {
       timestamp: number;
       summary: string;
       fullResponse?: string;
-      claudeSessionId?: string;
+      agentSessionId?: string;
       projectPath: string;
       sessionId?: string;
       sessionName?: string;
@@ -1068,7 +1340,7 @@ export interface MaestroAPI {
         timestamp: number;
         summary: string;
         fullResponse?: string;
-        claudeSessionId?: string;
+        agentSessionId?: string;
         projectPath: string;
         sessionId?: string;
         sessionName?: string;
@@ -1096,7 +1368,7 @@ export interface MaestroAPI {
       timestamp: number;
       summary: string;
       fullResponse?: string;
-      claudeSessionId?: string;
+      agentSessionId?: string;
       projectPath: string;
       sessionId?: string;
       sessionName?: string;
@@ -1116,8 +1388,8 @@ export interface MaestroAPI {
     clear: (projectPath?: string) => Promise<boolean>;
     delete: (entryId: string, sessionId?: string) => Promise<boolean>;
     update: (entryId: string, updates: { validated?: boolean }, sessionId?: string) => Promise<boolean>;
-    // Update sessionName for all entries matching a claudeSessionId (used when renaming tabs)
-    updateSessionName: (claudeSessionId: string, sessionName: string) => Promise<number>;
+    // Update sessionName for all entries matching a agentSessionId (used when renaming tabs)
+    updateSessionName: (agentSessionId: string, sessionName: string) => Promise<number>;
     onExternalChange: (handler: () => void) => () => void;
     reload: () => Promise<boolean>;
     // NEW: Get history file path for AI context integration

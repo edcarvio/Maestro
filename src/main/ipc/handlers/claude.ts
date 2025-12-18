@@ -1277,58 +1277,58 @@ export function registerClaudeHandlers(deps: ClaudeHandlerDependencies): void {
 
   ipcMain.handle('claude:registerSessionOrigin', withIpcErrorLogging(
     handlerOpts('registerSessionOrigin', ORIGINS_LOG_CONTEXT),
-    async (projectPath: string, claudeSessionId: string, origin: 'user' | 'auto', sessionName?: string) => {
+    async (projectPath: string, agentSessionId: string, origin: 'user' | 'auto', sessionName?: string) => {
       const origins = claudeSessionOriginsStore.get('origins', {});
       if (!origins[projectPath]) {
         origins[projectPath] = {};
       }
-      origins[projectPath][claudeSessionId] = sessionName
+      origins[projectPath][agentSessionId] = sessionName
         ? { origin, sessionName }
         : origin;
       claudeSessionOriginsStore.set('origins', origins);
-      logger.debug(`Registered Claude session origin: ${claudeSessionId} = ${origin}${sessionName ? ` (name: ${sessionName})` : ''}`, ORIGINS_LOG_CONTEXT, { projectPath });
+      logger.debug(`Registered Claude session origin: ${agentSessionId} = ${origin}${sessionName ? ` (name: ${sessionName})` : ''}`, ORIGINS_LOG_CONTEXT, { projectPath });
       return true;
     }
   ));
 
   ipcMain.handle('claude:updateSessionName', withIpcErrorLogging(
     handlerOpts('updateSessionName', ORIGINS_LOG_CONTEXT),
-    async (projectPath: string, claudeSessionId: string, sessionName: string) => {
+    async (projectPath: string, agentSessionId: string, sessionName: string) => {
       const origins = claudeSessionOriginsStore.get('origins', {});
       if (!origins[projectPath]) {
         origins[projectPath] = {};
       }
-      const existing = origins[projectPath][claudeSessionId];
+      const existing = origins[projectPath][agentSessionId];
       if (typeof existing === 'string') {
-        origins[projectPath][claudeSessionId] = { origin: existing, sessionName };
+        origins[projectPath][agentSessionId] = { origin: existing, sessionName };
       } else if (existing) {
-        origins[projectPath][claudeSessionId] = { ...existing, sessionName };
+        origins[projectPath][agentSessionId] = { ...existing, sessionName };
       } else {
-        origins[projectPath][claudeSessionId] = { origin: 'user', sessionName };
+        origins[projectPath][agentSessionId] = { origin: 'user', sessionName };
       }
       claudeSessionOriginsStore.set('origins', origins);
-      logger.debug(`Updated Claude session name: ${claudeSessionId} = ${sessionName}`, ORIGINS_LOG_CONTEXT, { projectPath });
+      logger.debug(`Updated Claude session name: ${agentSessionId} = ${sessionName}`, ORIGINS_LOG_CONTEXT, { projectPath });
       return true;
     }
   ));
 
   ipcMain.handle('claude:updateSessionStarred', withIpcErrorLogging(
     handlerOpts('updateSessionStarred', ORIGINS_LOG_CONTEXT),
-    async (projectPath: string, claudeSessionId: string, starred: boolean) => {
+    async (projectPath: string, agentSessionId: string, starred: boolean) => {
       const origins = claudeSessionOriginsStore.get('origins', {});
       if (!origins[projectPath]) {
         origins[projectPath] = {};
       }
-      const existing = origins[projectPath][claudeSessionId];
+      const existing = origins[projectPath][agentSessionId];
       if (typeof existing === 'string') {
-        origins[projectPath][claudeSessionId] = { origin: existing, starred };
+        origins[projectPath][agentSessionId] = { origin: existing, starred };
       } else if (existing) {
-        origins[projectPath][claudeSessionId] = { ...existing, starred };
+        origins[projectPath][agentSessionId] = { ...existing, starred };
       } else {
-        origins[projectPath][claudeSessionId] = { origin: 'user', starred };
+        origins[projectPath][agentSessionId] = { origin: 'user', starred };
       }
       claudeSessionOriginsStore.set('origins', origins);
-      logger.debug(`Updated Claude session starred: ${claudeSessionId} = ${starred}`, ORIGINS_LOG_CONTEXT, { projectPath });
+      logger.debug(`Updated Claude session starred: ${agentSessionId} = ${starred}`, ORIGINS_LOG_CONTEXT, { projectPath });
       return true;
     }
   ));
@@ -1349,7 +1349,7 @@ export function registerClaudeHandlers(deps: ClaudeHandlerDependencies): void {
 
       const allOrigins = claudeSessionOriginsStore.get('origins', {});
       const namedSessions: Array<{
-        claudeSessionId: string;
+        agentSessionId: string;
         projectPath: string;
         sessionName: string;
         starred?: boolean;
@@ -1357,12 +1357,12 @@ export function registerClaudeHandlers(deps: ClaudeHandlerDependencies): void {
       }> = [];
 
       for (const [projectPath, sessions] of Object.entries(allOrigins)) {
-        for (const [claudeSessionId, info] of Object.entries(sessions)) {
+        for (const [agentSessionId, info] of Object.entries(sessions)) {
           if (typeof info === 'object' && info.sessionName) {
             let lastActivityAt: number | undefined;
             try {
               const encodedPath = encodeClaudeProjectPath(projectPath);
-              const sessionFile = path.join(claudeProjectsDir, encodedPath, `${claudeSessionId}.jsonl`);
+              const sessionFile = path.join(claudeProjectsDir, encodedPath, `${agentSessionId}.jsonl`);
               const stats = await fs.stat(sessionFile);
               lastActivityAt = stats.mtime.getTime();
             } catch {
@@ -1370,7 +1370,7 @@ export function registerClaudeHandlers(deps: ClaudeHandlerDependencies): void {
             }
 
             namedSessions.push({
-              claudeSessionId,
+              agentSessionId,
               projectPath,
               sessionName: info.sessionName,
               starred: info.starred,

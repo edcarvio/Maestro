@@ -24,8 +24,10 @@ vi.mock('../../main/utils/logger', () => ({
 
 import {
   aggregateModelUsage,
+  ProcessManager,
   type UsageStats,
   type ModelStats,
+  type AgentError,
 } from '../../main/process-manager';
 
 describe('process-manager.ts', () => {
@@ -336,6 +338,85 @@ describe('process-manager.ts', () => {
         expect(result.cacheReadInputTokens).toBe(15000);
         expect(result.cacheCreationInputTokens).toBe(2000);
         expect(result.totalCostUsd).toBe(0.25);
+      });
+    });
+  });
+
+  describe('ProcessManager', () => {
+    let processManager: ProcessManager;
+
+    beforeEach(() => {
+      processManager = new ProcessManager();
+    });
+
+    describe('error detection exports', () => {
+      it('should export AgentError type', () => {
+        // This test verifies the type is exportable
+        const error: AgentError = {
+          type: 'auth_expired',
+          message: 'Test error',
+          recoverable: true,
+          agentId: 'claude-code',
+          timestamp: Date.now(),
+        };
+        expect(error.type).toBe('auth_expired');
+      });
+    });
+
+    describe('agent-error event emission', () => {
+      it('should be an EventEmitter that supports agent-error events', () => {
+        let emittedError: AgentError | null = null;
+        processManager.on('agent-error', (sessionId: string, error: AgentError) => {
+          emittedError = error;
+        });
+
+        // Manually emit an error event to verify the event system works
+        const testError: AgentError = {
+          type: 'rate_limited',
+          message: 'Rate limit exceeded',
+          recoverable: true,
+          agentId: 'claude-code',
+          sessionId: 'test-session',
+          timestamp: Date.now(),
+        };
+        processManager.emit('agent-error', 'test-session', testError);
+
+        expect(emittedError).not.toBeNull();
+        expect(emittedError!.type).toBe('rate_limited');
+        expect(emittedError!.message).toBe('Rate limit exceeded');
+        expect(emittedError!.agentId).toBe('claude-code');
+      });
+
+      it('should include sessionId in emitted error', () => {
+        let capturedSessionId: string | null = null;
+        processManager.on('agent-error', (sessionId: string) => {
+          capturedSessionId = sessionId;
+        });
+
+        const testError: AgentError = {
+          type: 'network_error',
+          message: 'Connection failed',
+          recoverable: true,
+          agentId: 'claude-code',
+          timestamp: Date.now(),
+        };
+        processManager.emit('agent-error', 'session-123', testError);
+
+        expect(capturedSessionId).toBe('session-123');
+      });
+    });
+
+    describe('getParser method', () => {
+      it('should return null for unknown session', () => {
+        const parser = processManager.getParser('non-existent-session');
+        expect(parser).toBeNull();
+      });
+    });
+
+    describe('parseLine method', () => {
+      it('should return null for unknown session', () => {
+        const event = processManager.parseLine('non-existent-session', '{"type":"test"}');
+        expect(event).toBeNull();
       });
     });
   });

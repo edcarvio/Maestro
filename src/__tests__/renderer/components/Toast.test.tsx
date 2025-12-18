@@ -164,11 +164,11 @@ describe('Toast', () => {
       expect(screen.getByText('Tab 1')).toBeInTheDocument();
     });
 
-    it('shows claudeSessionId as title attribute on tab name', () => {
+    it('shows agentSessionId as title attribute on tab name', () => {
       mockUseToast.mockReturnValue({
         toasts: [createMockToast({
           tabName: 'Tab 1',
-          claudeSessionId: 'abc-123',
+          agentSessionId: 'abc-123',
         })],
         addToast: vi.fn(),
         removeToast: mockRemoveToast,

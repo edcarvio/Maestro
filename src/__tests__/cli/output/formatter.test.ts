@@ -754,7 +754,7 @@ describe('formatter', () => {
         success: true,
         elapsedMs: 2000,
         fullResponse: 'First line of response\nSecond line',
-        claudeSessionId: 'claude-session-12345678',
+        agentSessionId: 'claude-session-12345678',
       };
 
       const result = formatRunEvent(event, { debug: true });

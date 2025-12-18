@@ -13,9 +13,9 @@ export interface SessionMessage {
 }
 
 /**
- * Claude session metadata
+ * Agent session metadata (used for session browser)
  */
-export interface ClaudeSession {
+export interface AgentSession {
   sessionId: string;
   projectPath: string;
   timestamp: string;
@@ -34,11 +34,18 @@ export interface ClaudeSession {
 }
 
 /**
+ * @deprecated Use AgentSession instead
+ */
+export type ClaudeSession = AgentSession;
+
+/**
  * Dependencies for useSessionViewer hook
  */
 export interface UseSessionViewerDeps {
   /** Current working directory for the active session */
   cwd: string | undefined;
+  /** Agent ID for the session (e.g., 'claude-code', 'opencode') */
+  agentId?: string;
 }
 
 /**
@@ -46,7 +53,7 @@ export interface UseSessionViewerDeps {
  */
 export interface UseSessionViewerReturn {
   /** Currently viewed session (null when showing list view) */
-  viewingSession: ClaudeSession | null;
+  viewingSession: AgentSession | null;
   /** Messages loaded for the current session */
   messages: SessionMessage[];
   /** Whether messages are currently loading */
@@ -60,9 +67,9 @@ export interface UseSessionViewerReturn {
   /** Ref to the messages container for scroll handling */
   messagesContainerRef: React.RefObject<HTMLDivElement>;
   /** Load messages for a session (with optional offset for pagination) */
-  loadMessages: (session: ClaudeSession, offset?: number) => Promise<void>;
+  loadMessages: (session: AgentSession, offset?: number) => Promise<void>;
   /** Start viewing a session (loads messages and sets viewingSession) */
-  handleViewSession: (session: ClaudeSession) => void;
+  handleViewSession: (session: AgentSession) => void;
   /** Load more messages (older messages) */
   handleLoadMore: () => void;
   /** Handle scroll event for lazy loading */
@@ -70,7 +77,7 @@ export interface UseSessionViewerReturn {
   /** Clear the viewing session and return to list */
   clearViewingSession: () => void;
   /** Setter for viewingSession (for updates like rename) */
-  setViewingSession: React.Dispatch<React.SetStateAction<ClaudeSession | null>>;
+  setViewingSession: React.Dispatch<React.SetStateAction<AgentSession | null>>;
 }
 
 /**
@@ -99,8 +106,8 @@ export interface UseSessionViewerReturn {
  * clearViewingSession();
  * ```
  */
-export function useSessionViewer({ cwd }: UseSessionViewerDeps): UseSessionViewerReturn {
-  const [viewingSession, setViewingSession] = useState<ClaudeSession | null>(null);
+export function useSessionViewer({ cwd, agentId = 'claude-code' }: UseSessionViewerDeps): UseSessionViewerReturn {
+  const [viewingSession, setViewingSession] = useState<AgentSession | null>(null);
   const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
@@ -114,12 +121,14 @@ export function useSessionViewer({ cwd }: UseSessionViewerDeps): UseSessionViewe
    * @param session - The session to load messages for
    * @param offset - Offset for pagination (0 for initial load)
    */
-  const loadMessages = useCallback(async (session: ClaudeSession, offset: number = 0) => {
+  const loadMessages = useCallback(async (session: AgentSession, offset: number = 0) => {
     if (!cwd) return;
 
     setMessagesLoading(true);
     try {
-      const result = await window.maestro.claude.readSessionMessages(
+      // Use the generic agentSessions API with agentId parameter
+      const result = await window.maestro.agentSessions.read(
+        agentId,
         cwd,
         session.sessionId,
         { offset, limit: 20 }
@@ -146,12 +155,12 @@ export function useSessionViewer({ cwd }: UseSessionViewerDeps): UseSessionViewe
     } finally {
       setMessagesLoading(false);
     }
-  }, [cwd]);
+  }, [cwd, agentId]);
 
   /**
    * Start viewing a session - resets state and loads messages
    */
-  const handleViewSession = useCallback((session: ClaudeSession) => {
+  const handleViewSession = useCallback((session: AgentSession) => {
     setViewingSession(session);
     setMessages([]);
     setMessagesOffset(0);

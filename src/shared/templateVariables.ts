@@ -51,7 +51,7 @@ export interface TemplateSessionInfo {
   projectRoot?: string;
   fullPath?: string;
   autoRunFolderPath?: string;
-  claudeSessionId?: string;
+  agentSessionId?: string;
   isGitRepo?: boolean;
   contextUsage?: number;
 }
@@ -115,7 +115,7 @@ export function substituteTemplateVariables(
     'AGENT_NAME': session.name,
     'AGENT_PATH': session.fullPath || session.projectRoot || session.cwd,
     'AGENT_GROUP': groupName || '',
-    'AGENT_SESSION_ID': session.claudeSessionId || '',
+    'AGENT_SESSION_ID': session.agentSessionId || '',
     'TAB_NAME': session.name,
     'TOOL_TYPE': session.toolType,
 

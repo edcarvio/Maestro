@@ -2,6 +2,35 @@
 
 This guide explains how to add support for a new AI coding agent (provider) in Maestro. It covers the architecture, required implementations, and step-by-step instructions.
 
+## Multi-Provider Architecture Status
+
+**Status:** ✅ Foundation Complete (2025-12-16)
+
+The multi-provider refactoring has established the pluggable architecture for supporting multiple AI agents:
+
+| Component | Status | Description |
+|-----------|--------|-------------|
+| Capability System | ✅ Complete | `AgentCapabilities` interface, capability gating in UI |
+| Generic Identifiers | ✅ Complete | `claudeSessionId` → `agentSessionId` across 47+ files |
+| Session Storage | ✅ Complete | `AgentSessionStorage` interface, Claude + OpenCode implementations |
+| Output Parsers | ✅ Complete | `AgentOutputParser` interface, Claude + OpenCode parsers |
+| Error Handling | ✅ Complete | `AgentError` types, detection patterns, recovery UI |
+| IPC API | ✅ Complete | `window.maestro.agentSessions.*` replaces `claude.*` |
+| UI Capability Gates | ✅ Complete | Features hidden/shown based on agent capabilities |
+
+### Adding a New Agent
+
+To add support for a new agent (e.g., Gemini CLI, Codex), follow these steps:
+
+1. Add agent definition to `src/main/agent-detector.ts`
+2. Define capabilities in `src/main/agent-capabilities.ts`
+3. Create output parser in `src/main/parsers/{agent}-output-parser.ts`
+4. Register parser in `src/main/parsers/index.ts`
+5. (Optional) Create session storage in `src/main/storage/{agent}-session-storage.ts`
+6. (Optional) Add error patterns to `src/main/parsers/error-patterns.ts`
+
+See detailed instructions below.
+
 ## Table of Contents
 
 - [Vernacular](#vernacular)
@@ -113,6 +142,42 @@ interface AgentCapabilities {
 | `supportsSlashCommands` | Slash command autocomplete | Autocomplete disabled |
 | `supportsSessionId` | Session ID pill | Pill hidden |
 | `supportsResultMessages` | Show only final result | Shows all messages |
+
+### Context Window Configuration
+
+For agents where context window size varies by model (like OpenCode or Codex), Maestro provides a user-configurable setting:
+
+**Configuration Location:** Settings → Agent Configuration → Context Window Size
+
+**How It Works:**
+1. **Parser-reported value:** If the agent reports `contextWindow` in JSON output, that value takes priority
+2. **User configuration:** If the parser doesn't report context window, the user-configured value is used
+3. **Hidden when zero:** If no value is configured (0), the context usage widget is hidden entirely
+
+**Agent-Specific Behavior:**
+
+| Agent | Default Context Window | Notes |
+|-------|----------------------|-------|
+| Claude Code | 200,000 | Always reported in JSON output |
+| Codex | 200,000 | Default for GPT-5.x models; user can override in settings |
+| OpenCode | 128,000 | Default for common models (GPT-4, etc.); user can override in settings |
+
+**Adding Context Window Config to an Agent:**
+
+```typescript
+// In agent-detector.ts, add to configOptions:
+configOptions: [
+  {
+    key: 'contextWindow',
+    type: 'number',
+    label: 'Context Window Size',
+    description: 'Maximum context window size in tokens. Required for context usage display.',
+    default: 128000,  // Set a sane default for the agent's typical model
+  },
+],
+```
+
+The value is passed to `ProcessManager.spawn()` and used when emitting usage stats if the parser doesn't provide a context window value.
 
 ### Starting Point: All False
 
@@ -511,7 +576,7 @@ describe('YourAgentOutputParser', () => {
 
 ## Supported Agents Reference
 
-### Claude Code
+### Claude Code ✅ Fully Implemented
 
 | Aspect | Value |
 |--------|-------|
@@ -522,6 +587,12 @@ describe('YourAgentOutputParser', () => {
 | Session ID Field | `session_id` (snake_case) |
 | Session Storage | `~/.claude/projects/<encoded-path>/` |
 
+**Implementation Status:**
+- ✅ Output Parser: `src/main/parsers/claude-output-parser.ts`
+- ✅ Session Storage: `src/main/storage/claude-session-storage.ts`
+- ✅ Error Patterns: `src/main/parsers/error-patterns.ts`
+- ✅ All capabilities enabled
+
 **JSON Event Types:**
 - `system` (init) → session_id, slash_commands
 - `assistant` → streaming content
@@ -529,7 +600,7 @@ describe('YourAgentOutputParser', () => {
 
 ---
 
-### OpenCode
+### OpenCode 🔄 Stub Ready
 
 | Aspect | Value |
 |--------|-------|
@@ -538,28 +609,232 @@ describe('YourAgentOutputParser', () => {
 | Resume | `--session <session-id>` |
 | Read-only | `--agent plan` |
 | Session ID Field | `sessionID` (camelCase) |
-| Session Storage | Server-managed |
+| Session Storage | ✅ File-based (see below) |
+| YOLO Mode | ✅ Auto-enabled in batch mode |
+| Model Selection | `--model provider/model` |
+| Config File | `~/.config/opencode/opencode.json` or project `opencode.json` |
+
+**YOLO Mode (Auto-Approval) Details:**
+
+OpenCode automatically approves all tool operations in batch mode (`opencode run`). Per [official documentation](https://opencode.ai/docs/permissions/):
+
+- **Batch mode behavior:** "All permissions are auto-approved for the session" when running non-interactively
+- **No explicit flag needed:** Unlike Claude Code's `--dangerously-skip-permissions`, OpenCode's `run` subcommand inherently auto-approves
+- **Permission defaults:** Most tools run without approval by default; only `doom_loop` and `external_directory` require explicit approval in interactive mode
+- **Configurable permissions:** Advanced users can customize via `opencode.json` with granular tool-level controls (`allow`, `ask`, `deny`)
+- **Read-only operations:** Tools like `view`, `glob`, `grep`, `ls`, and `diagnostics` never require approval
+
+This makes OpenCode suitable for Maestro's batch processing use case without additional configuration.
+
+**Session Storage Details:**
+
+OpenCode stores session data in `~/.local/share/opencode/storage/` with the following structure:
+
+```
+~/.local/share/opencode/
+├── log/                          # Log files
+├── snapshot/                     # Git-style snapshots
+└── storage/
+    ├── project/                  # Project metadata (JSON per project)
+    │   └── {projectID}.json      # Contains: id, worktree path, vcs info, timestamps
+    ├── session/                  # Session metadata (organized by project)
+    │   ├── global/               # Sessions not tied to a specific project
+    │   │   └── {sessionID}.json  # Session info: id, version, projectID, title, timestamps
+    │   └── {projectID}/          # Project-specific sessions
+    │       └── {sessionID}.json
+    ├── message/                  # Message metadata (organized by session)
+    │   └── {sessionID}/          # One folder per session
+    │       └── {messageID}.json  # Message info: role, time, model, tokens, etc.
+    └── part/                     # Message parts (content chunks)
+        └── {messageID}/          # One folder per message
+            └── {partID}.json     # Part content: type (text/tool/reasoning), text, etc.
+```
+
+**Key findings:**
+- **CLI Commands:** `opencode session list`, `opencode export <sessionID>`, `opencode import <file>`
+- **Project IDs:** SHA1 hash of project path (e.g., `ca85ff7c488724e85fc5b4be14ba44a0f6ce5b40`)
+- **Session IDs:** Format `ses_{base62-ish}` (e.g., `ses_4d585107dffeO9bO3HvMdvLYyC`)
+- **Message IDs:** Format `msg_{base62-ish}` (e.g., `msg_b2a7aef8d001MjwADMqsUcIj3k`)
+- **Export format:** `opencode export <sessionID>` outputs complete session JSON with all messages and parts
+- **Message parts include:** `text`, `reasoning`, `tool`, `step-start`, etc.
+- **Token tracking:** Available in message metadata with `input`, `output`, `reasoning`, and cache fields
+
+**Implementation Status:**
+- ✅ Output Parser: `src/main/parsers/opencode-output-parser.ts` (based on expected format)
+- ⏳ Session Storage: `src/main/storage/opencode-session-storage.ts` (stub, needs implementation using storage paths above)
+- ⏳ Error Patterns: Placeholder, needs real-world testing
+- ⏳ Capabilities: Set to minimal defaults; `supportsSessionStorage` can be enabled once storage is implemented
 
 **JSON Event Types:**
-- `step_start` → session start
+- `step_start` → session start (includes snapshot reference)
 - `text` → streaming content
-- `tool_use` → tool invocations
+- `reasoning` → model thinking/chain-of-thought
+- `tool` → tool invocations with state (running/complete)
 - `step_finish` → tokens, completion
 
+**Provider & Model Configuration:**
+
+OpenCode supports 75+ LLM providers including local models via Ollama, LM Studio, and llama.cpp. Configuration is stored in:
+- **Global config:** `~/.config/opencode/opencode.json`
+- **Per-project config:** `opencode.json` in project root
+- **Custom path:** Via `OPENCODE_CONFIG` environment variable
+
+Configuration files are merged, with project config overriding global config for conflicting keys.
+
+**Ollama Setup Example:**
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "ollama/qwen3:8b-16k",
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "qwen3:8b-16k": {
+          "name": "Qwen3 8B",
+          "tools": true
+        }
+      }
+    }
+  }
+}
+```
+
+**Key Configuration Options:**
+- `npm`: Provider package (use `@ai-sdk/openai-compatible` for OpenAI-compatible APIs)
+- `options.baseURL`: API endpoint URL
+- `models.<id>.tools`: Enable tool calling support (critical for agentic use)
+- `models.<id>.limit.context`: Max input tokens
+- `models.<id>.limit.output`: Max output tokens
+
+**Context Window Configuration (Ollama):**
+
+Ollama defaults to 4096 context regardless of model capability. To increase context:
+
+```bash
+# Create a model variant with larger context
+ollama run qwen3:8b
+/set parameter num_ctx 16384
+/save qwen3:8b-16k
+```
+
+Then reference the custom model name in OpenCode config.
+
+**Other Local Provider Examples:**
+
+```json
+// LM Studio
+"lmstudio": {
+  "npm": "@ai-sdk/openai-compatible",
+  "options": { "baseURL": "http://127.0.0.1:1234/v1" }
+}
+
+// llama.cpp
+"llamacpp": {
+  "npm": "@ai-sdk/openai-compatible",
+  "options": { "baseURL": "http://127.0.0.1:8080/v1" }
+}
+```
+
+**Model Selection Methods:**
+1. **Command-line:** `opencode run --model ollama/qwen3:8b-16k "prompt"`
+2. **Config file:** Set `"model": "provider/model"` in opencode.json
+3. **Interactive:** Use `/models` command in interactive mode
+
+Model ID format: `provider_id/model_id` (e.g., `ollama/llama2`, `anthropic/claude-sonnet-4-5`)
+
+**Maestro Integration Considerations:**
+
+Since OpenCode supports multiple providers/models, Maestro should consider:
+1. **Model selection UI:** Add model dropdown when OpenCode is selected, populated from config or `opencode models` command
+2. **Default config generation:** Optionally generate `~/.config/opencode/opencode.json` for Ollama on first use
+3. **Per-session model:** Pass `--model` flag based on user selection
+4. **Provider status:** Detect which providers are configured and available
+
+**Documentation Sources:**
+- [OpenCode Config Docs](https://opencode.ai/docs/config/)
+- [OpenCode Providers Docs](https://opencode.ai/docs/providers/)
+- [OpenCode Models Docs](https://opencode.ai/docs/models/)
+
 ---
 
-### Gemini CLI (Planned)
+### Gemini CLI 📋 Planned
 
-Status: Not yet implemented
+**Status:** Not yet implemented
+
+**To Add:**
+1. Agent definition in `agent-detector.ts`
+2. Capabilities in `agent-capabilities.ts`
+3. Output parser for Gemini JSON format
+4. Error patterns for Google API errors
 
 ---
 
-### Codex (Planned)
+### Codex ✅ Fully Implemented
 
-Status: Not yet implemented
+| Aspect | Value |
+|--------|-------|
+| Binary | `codex` |
+| JSON Output | `--json` |
+| Batch Mode | `exec` subcommand |
+| Resume | `resume <thread_id>` (v0.30.0+) |
+| Read-only | `--sandbox read-only` |
+| YOLO Mode | `--dangerously-bypass-approvals-and-sandbox` (enabled by default) |
+| Session ID Field | `thread_id` (from `thread.started` event) |
+| Session Storage | `~/.codex/sessions/YYYY/MM/DD/*.jsonl` |
+| Context Window | 128K tokens |
+| Pricing | o4-mini: $1.10/$4.40 per million tokens (input/output) |
+
+**Implementation Status:**
+- ✅ Output Parser: `src/main/parsers/codex-output-parser.ts` (42 tests)
+- ✅ Session Storage: `src/main/storage/codex-session-storage.ts` (8 tests)
+- ✅ Error Patterns: `src/main/parsers/error-patterns.ts` (25 tests)
+- ✅ All capabilities enabled
+
+**JSON Event Types:**
+- `thread.started` → session_id (`thread_id`), initialization
+- `turn.started` → processing indicator
+- `item.completed (agent_message)` → final text response
+- `item.completed (reasoning)` → model thinking (partial text)
+- `item.completed (tool_call)` → tool invocation
+- `item.completed (tool_result)` → tool output
+- `turn.completed` → token usage (`input_tokens`, `output_tokens`, `reasoning_output_tokens`, `cached_input_tokens`)
+
+**Unique Features:**
+- **Reasoning Tokens:** Reports `reasoning_output_tokens` separately from `output_tokens`, displayed in UI
+- **Three Sandbox Levels:** `read-only`, `workspace-write`, `danger-full-access`
+- **Cached Input Discount:** 75% discount on cached input tokens ($0.275/million)
+- **YOLO Mode Default:** Full system access enabled by default in Maestro
+
+**Command Line Pattern:**
+```bash
+# Basic execution
+codex exec --json -C /path/to/project "prompt"
+
+# With YOLO mode (default in Maestro)
+codex exec --json --dangerously-bypass-approvals-and-sandbox -C /path/to/project "prompt"
+
+# Resume session
+codex exec --json resume <thread_id> "continue"
+```
+
+**Documentation Sources:**
+- [Codex CLI GitHub](https://github.com/openai/codex)
+- [OpenAI API Pricing](https://openai.com/api/pricing/)
 
 ---
 
-### Qwen3 Coder (Planned)
+### Qwen3 Coder 📋 Planned
 
-Status: Not yet implemented
+**Status:** Not yet implemented
+
+**To Add:**
+1. Agent definition in `agent-detector.ts`
+2. Capabilities in `agent-capabilities.ts` (likely local model, no cost tracking)
+3. Output parser for Qwen JSON format
+4. Error patterns (likely minimal for local models)

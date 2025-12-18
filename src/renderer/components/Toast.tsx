@@ -159,7 +159,7 @@ function ToastItem({ toast, theme, onRemove, onSessionClick }: { toast: ToastTyp
                     color: theme.colors.accent,
                     border: `1px solid ${theme.colors.accent}50`,
                   }}
-                  title={toast.claudeSessionId ? `Claude Session: ${toast.claudeSessionId}` : undefined}
+                  title={toast.agentSessionId ? `Claude Session: ${toast.agentSessionId}` : undefined}
                 >
                   {toast.tabName}
                 </span>

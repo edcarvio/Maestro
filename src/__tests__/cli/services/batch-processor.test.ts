@@ -128,7 +128,7 @@ describe('batch-processor', () => {
     vi.mocked(spawnAgent).mockResolvedValue({
       success: true,
       response: 'Task completed',
-      claudeSessionId: 'claude-session-123',
+      agentSessionId: 'claude-session-123',
     });
     vi.mocked(uncheckAllTasks).mockImplementation((content) => content.replace(/\[x\]/gi, '[ ]'));
   });
@@ -438,7 +438,7 @@ describe('batch-processor', () => {
         .mockResolvedValueOnce({
           success: true,
           response: 'Task done',
-          claudeSessionId: 'session-123',
+          agentSessionId: 'session-123',
         })
         .mockResolvedValueOnce({
           success: true,
@@ -471,7 +471,7 @@ describe('batch-processor', () => {
         .mockResolvedValueOnce({
           success: true,
           response: 'Task done',
-          claudeSessionId: 'session-123',
+          agentSessionId: 'session-123',
         })
         .mockResolvedValueOnce({
           success: true,
@@ -499,7 +499,7 @@ describe('batch-processor', () => {
         .mockResolvedValueOnce({
           success: true,
           response: 'Done',
-          claudeSessionId: 'session-123',
+          agentSessionId: 'session-123',
         })
         .mockResolvedValueOnce({
           success: true,
@@ -987,7 +987,7 @@ describe('batch-processor', () => {
       expect(errorEvent?.code).toBe('NO_TASKS');
     });
 
-    it('should handle spawnAgent returning no claudeSessionId', async () => {
+    it('should handle spawnAgent returning no agentSessionId', async () => {
       let callCount = 0;
       vi.mocked(readDocAndCountTasks).mockImplementation(() => {
         callCount++;
@@ -998,7 +998,7 @@ describe('batch-processor', () => {
       vi.mocked(spawnAgent).mockResolvedValue({
         success: true,
         response: 'Done',
-        // No claudeSessionId - synopsis won't be requested
+        // No agentSessionId - synopsis won't be requested
       });
 
       const session = mockSession();

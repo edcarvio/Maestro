@@ -244,7 +244,7 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
       else if (ctx.isShortcut(e, 'agentSessions')) {
         e.preventDefault();
         if (ctx.activeSession?.toolType === 'claude-code') {
-          ctx.setActiveClaudeSessionId(null);
+          ctx.setActiveAgentSessionId(null);
           ctx.setAgentSessionsOpen(true);
         }
       }
@@ -339,7 +339,7 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
           e.preventDefault();
           const activeTab = ctx.getActiveTab(ctx.activeSession);
           // Only allow rename if tab has an active Claude session
-          if (activeTab?.claudeSessionId) {
+          if (activeTab?.agentSessionId) {
             ctx.setRenameTabId(activeTab.id);
             ctx.setRenameTabInitialName(activeTab.name || '');
             ctx.setRenameTabModalOpen(true);

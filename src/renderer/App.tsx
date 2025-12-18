@@ -34,6 +34,7 @@ import { MaestroWizard, useWizard, WizardResumeModal, SerializableWizardState, A
 import { TourOverlay } from './components/Wizard/tour';
 import { CONDUCTOR_BADGES, getBadgeForTime } from './constants/conductorBadges';
 import { EmptyStateView } from './components/EmptyStateView';
+import { AgentErrorModal } from './components/AgentErrorModal';
 
 // Import custom hooks
 import { useBatchProcessor } from './hooks/useBatchProcessor';
@@ -45,7 +46,7 @@ import { useKeyboardShortcutHelpers } from './hooks/useKeyboardShortcutHelpers';
 import { useKeyboardNavigation } from './hooks/useKeyboardNavigation';
 import { useMainKeyboardHandler } from './hooks/useMainKeyboardHandler';
 import { useRemoteIntegration } from './hooks/useRemoteIntegration';
-import { useClaudeSessionManagement } from './hooks/useClaudeSessionManagement';
+import { useAgentSessionManagement } from './hooks/useAgentSessionManagement';
 import { useAgentExecution } from './hooks/useAgentExecution';
 import { useFileTreeManagement } from './hooks/useFileTreeManagement';
 import { useGroupManagement } from './hooks/useGroupManagement';
@@ -54,6 +55,8 @@ import { useCliActivityMonitoring } from './hooks/useCliActivityMonitoring';
 import { useThemeStyles } from './hooks/useThemeStyles';
 import { useSortedSessions, compareNamesIgnoringEmojis } from './hooks/useSortedSessions';
 import { useInputProcessing, DEFAULT_IMAGE_ONLY_PROMPT } from './hooks/useInputProcessing';
+import { useAgentErrorRecovery } from './hooks/useAgentErrorRecovery';
+import { useAgentCapabilities } from './hooks/useAgentCapabilities';
 
 // Import contexts
 import { useLayerStack } from './contexts/LayerStackContext';
@@ -67,7 +70,8 @@ import { gitService } from './services/git';
 // Import types and constants
 import type {
   ToolType, SessionState, RightPanelTab,
-  FocusArea, LogEntry, Session, Group, AITab, UsageStats, QueuedItem, BatchRunConfig
+  FocusArea, LogEntry, Session, Group, AITab, UsageStats, QueuedItem, BatchRunConfig,
+  AgentError, BatchRunState
 } from './types';
 import { THEMES } from './constants/themes';
 import { generateId } from './utils/ids';
@@ -311,7 +315,7 @@ export default function MaestroConsole() {
 
   // Agent Sessions Browser State (main panel view)
   const [agentSessionsOpen, setAgentSessionsOpen] = useState(false);
-  const [activeClaudeSessionId, setActiveClaudeSessionId] = useState<string | null>(null);
+  const [activeAgentSessionId, setActiveAgentSessionId] = useState<string | null>(null);
 
   // NOTE: showSessionJumpNumbers state is now provided by useMainKeyboardHandler hook
 
@@ -327,6 +331,9 @@ export default function MaestroConsole() {
   // Wizard Resume Modal State
   const [wizardResumeModalOpen, setWizardResumeModalOpen] = useState(false);
   const [wizardResumeState, setWizardResumeState] = useState<SerializableWizardState | null>(null);
+
+  // Agent Error Modal State - tracks which session has an active error being shown
+  const [agentErrorModalSessionId, setAgentErrorModalSessionId] = useState<string | null>(null);
 
   // Tab Switcher Modal State
   const [tabSwitcherOpen, setTabSwitcherOpen] = useState(false);
@@ -491,11 +498,12 @@ export default function MaestroConsole() {
       }
 
       // Spawn AI process (terminal uses runCommand which spawns fresh shells per command)
-      const isClaudeBatchMode = aiAgentType === 'claude' || aiAgentType === 'claude-code';
-      let aiSpawnResult = { pid: 0, success: true }; // Default for batch mode
+      // Check if agent requires a prompt to start (Codex, OpenCode) - skip eager spawn for those
+      const capabilities = await window.maestro.agents.getCapabilities(aiAgentType);
+      let aiSpawnResult = { pid: 0, success: true }; // Default for agents that don't need eager spawn
 
-      if (!isClaudeBatchMode) {
-        // Only spawn for non-batch-mode agents (Codex, Gemini, Qwen, etc.)
+      if (!capabilities.requiresPromptToStart) {
+        // Spawn for agents that support interactive mode (Claude Code)
         // Include active tab ID in session ID to match batch mode format
         const activeTabId = correctedSession.activeTabId || correctedSession.aiTabs?.[0]?.id || 'default';
         // Use agent.path (full path) if available for better cross-environment compatibility
@@ -509,8 +517,8 @@ export default function MaestroConsole() {
         });
       }
 
-      // For batch mode (Claude), aiPid can be 0 since we don't spawn until first message
-      const aiSuccess = aiSpawnResult.success && (isClaudeBatchMode || aiSpawnResult.pid > 0);
+      // For agents that requiresPromptToStart, aiPid can be 0 since we don't spawn until first message
+      const aiSuccess = aiSpawnResult.success && (capabilities.requiresPromptToStart || aiSpawnResult.pid > 0);
 
       if (aiSuccess) {
         // Check if the working directory is a Git repository
@@ -836,7 +844,7 @@ export default function MaestroConsole() {
         groupName: string;
         projectName: string;
         duration: number;
-        claudeSessionId?: string;
+        agentSessionId?: string;
         tabName?: string;
         usageStats?: UsageStats;
         prompt?: string;
@@ -847,7 +855,7 @@ export default function MaestroConsole() {
       } | null = null;
       let queuedItemToProcess: { sessionId: string; item: QueuedItem } | null = null;
       // Track if we need to run synopsis after completion (for /commit and other AI commands)
-      let synopsisData: { sessionId: string; cwd: string; claudeSessionId: string; command: string; groupName: string; projectName: string; tabName?: string; tabId?: string } | null = null;
+      let synopsisData: { sessionId: string; cwd: string; agentSessionId: string; command: string; groupName: string; projectName: string; tabName?: string; tabId?: string; toolType?: ToolType } | null = null;
 
       if (isFromAi) {
         const currentSession = sessionsRef.current.find(s => s.id === actualSessionId);
@@ -908,10 +916,10 @@ export default function MaestroConsole() {
             summary = 'Completed successfully';
           }
 
-          // Get the completed tab's claudeSessionId for traceability
-          const claudeSessionId = completedTab?.claudeSessionId || currentSession.claudeSessionId;
-          // Get tab name: prefer tab's name, fallback to short UUID from claudeSessionId
-          const tabName = completedTab?.name || (claudeSessionId ? claudeSessionId.substring(0, 8).toUpperCase() : undefined);
+          // Get the completed tab's agentSessionId for traceability
+          const agentSessionId = completedTab?.agentSessionId || currentSession.agentSessionId;
+          // Get tab name: prefer tab's name, fallback to short UUID from agentSessionId
+          const tabName = completedTab?.name || (agentSessionId ? agentSessionId.substring(0, 8).toUpperCase() : undefined);
 
           toastData = {
             title,
@@ -919,7 +927,7 @@ export default function MaestroConsole() {
             groupName,
             projectName,
             duration,
-            claudeSessionId: claudeSessionId || undefined,
+            agentSessionId: agentSessionId || undefined,
             tabName,
             usageStats: currentSession.usageStats,
             prompt: lastUserLog?.text,
@@ -932,21 +940,22 @@ export default function MaestroConsole() {
           // Check if synopsis should be triggered:
           // 1. Tab has saveToHistory enabled, OR
           // 2. This was a custom AI command (pendingAICommandForSynopsis)
-          // Only trigger when queue is empty (final task complete) and we have a claudeSessionId
+          // Only trigger when queue is empty (final task complete) and we have a agentSessionId
           const shouldSynopsis = currentSession.executionQueue.length === 0 &&
-            (completedTab?.claudeSessionId || currentSession.claudeSessionId) &&
+            (completedTab?.agentSessionId || currentSession.agentSessionId) &&
             (completedTab?.saveToHistory || currentSession.pendingAICommandForSynopsis);
 
           if (shouldSynopsis) {
             synopsisData = {
               sessionId: actualSessionId,
               cwd: currentSession.cwd,
-              claudeSessionId: completedTab?.claudeSessionId || currentSession.claudeSessionId!,
+              agentSessionId: completedTab?.agentSessionId || currentSession.agentSessionId!,
               command: currentSession.pendingAICommandForSynopsis || 'Save to History',
               groupName,
               projectName,
               tabName,
-              tabId: completedTab?.id
+              tabId: completedTab?.id,
+              toolType: currentSession.toolType // Pass tool type for multi-provider support
             };
           }
         }
@@ -1126,7 +1135,7 @@ export default function MaestroConsole() {
         setTimeout(() => {
           // Log agent completion for debugging and traceability
           window.maestro.logger.log('info', 'Agent process completed', 'App', {
-            claudeSessionId: toastData!.claudeSessionId,
+            agentSessionId: toastData!.agentSessionId,
             group: toastData!.groupName,
             project: toastData!.projectName,
             durationMs: toastData!.duration,
@@ -1153,7 +1162,7 @@ export default function MaestroConsole() {
               group: toastData!.groupName,
               project: toastData!.projectName,
               taskDuration: toastData!.duration,
-              claudeSessionId: toastData!.claudeSessionId,
+              agentSessionId: toastData!.agentSessionId,
               tabName: toastData!.tabName,
               sessionId: toastData!.sessionId,
               tabId: toastData!.tabId,
@@ -1171,8 +1180,9 @@ export default function MaestroConsole() {
         spawnBackgroundSynopsisRef.current(
           synopsisData.sessionId,
           synopsisData.cwd,
-          synopsisData.claudeSessionId,
-          SYNOPSIS_PROMPT
+          synopsisData.agentSessionId,
+          SYNOPSIS_PROMPT,
+          synopsisData.toolType // Pass tool type for multi-provider support
         ).then(result => {
           const duration = Date.now() - startTime;
           if (result.success && result.response && addHistoryEntryRef.current) {
@@ -1181,7 +1191,7 @@ export default function MaestroConsole() {
             addHistoryEntryRef.current({
               type: 'USER',
               summary: result.response,
-              claudeSessionId: synopsisData!.claudeSessionId,
+              agentSessionId: synopsisData!.agentSessionId,
               usageStats: result.usageStats,
               sessionId: synopsisData!.sessionId,
               projectPath: synopsisData!.cwd,
@@ -1213,9 +1223,9 @@ export default function MaestroConsole() {
     });
 
     // Handle Claude session ID capture for interactive sessions only
-    const unsubscribeSessionId = window.maestro.process.onSessionId(async (sessionId: string, claudeSessionId: string) => {
+    const unsubscribeSessionId = window.maestro.process.onSessionId(async (sessionId: string, agentSessionId: string) => {
       // Ignore batch sessions - they have their own isolated session IDs that should NOT
-      // contaminate the interactive session's claudeSessionId
+      // contaminate the interactive session's agentSessionId
       if (sessionId.includes('-batch-')) {
         return;
       }
@@ -1241,7 +1251,7 @@ export default function MaestroConsole() {
 
         // Register this as a user-initiated Maestro session (batch sessions are filtered above)
         // Do NOT pass session name - names should only be set when user explicitly renames
-        window.maestro.claude.registerSessionOrigin(session.cwd, claudeSessionId, 'user')
+        window.maestro.agentSessions.registerSessionOrigin(session.cwd, agentSessionId, 'user')
           .catch(err => console.error('[onSessionId] Failed to register session origin:', err));
 
         return prev.map(s => {
@@ -1257,7 +1267,7 @@ export default function MaestroConsole() {
 
           // Fallback: find awaiting tab or active tab (for legacy format)
           if (!targetTab) {
-            const awaitingTab = s.aiTabs?.find(tab => tab.awaitingSessionId && !tab.claudeSessionId);
+            const awaitingTab = s.aiTabs?.find(tab => tab.awaitingSessionId && !tab.agentSessionId);
             targetTab = awaitingTab || getActiveTab(s);
           }
 
@@ -1265,25 +1275,25 @@ export default function MaestroConsole() {
             // No tabs exist - this is a bug, sessions must have aiTabs
             // Still store at session-level for web API compatibility
             console.error('[onSessionId] No target tab found - session has no aiTabs, storing at session level only');
-            return { ...s, claudeSessionId };
+            return { ...s, agentSessionId };
           }
 
-          // Skip if this tab already has a claudeSessionId (prevent overwriting)
-          if (targetTab.claudeSessionId && targetTab.claudeSessionId !== claudeSessionId) {
+          // Skip if this tab already has a agentSessionId (prevent overwriting)
+          if (targetTab.agentSessionId && targetTab.agentSessionId !== agentSessionId) {
             return s;
           }
 
-          // Update the target tab's claudeSessionId, name (if not already set), and clear awaitingSessionId flag
+          // Update the target tab's agentSessionId, name (if not already set), and clear awaitingSessionId flag
           // Generate short UUID for display (first 8 chars, uppercase)
-          const shortUuid = claudeSessionId.substring(0, 8).toUpperCase();
+          const shortUuid = agentSessionId.substring(0, 8).toUpperCase();
           const updatedAiTabs = s.aiTabs.map(tab => {
             if (tab.id !== targetTab.id) return tab;
             // Only set name if it's still the default "New Session"
             const newName = (!tab.name || tab.name === 'New Session') ? shortUuid : tab.name;
-            return { ...tab, claudeSessionId, awaitingSessionId: false, name: newName };
+            return { ...tab, agentSessionId, awaitingSessionId: false, name: newName };
           });
 
-          return { ...s, aiTabs: updatedAiTabs, claudeSessionId }; // Also keep session-level for backwards compatibility
+          return { ...s, aiTabs: updatedAiTabs, agentSessionId }; // Also keep session-level for backwards compatibility
         });
       });
     });
@@ -1304,20 +1314,42 @@ export default function MaestroConsole() {
 
       setSessions(prev => prev.map(s => {
         if (s.id !== actualSessionId) return s;
-        return { ...s, claudeCommands: commands };
+        return { ...s, agentCommands: commands };
       }));
     });
 
-    // Handle stderr from runCommand (BATCHED - separate from stdout)
+    // Handle stderr from processes (BATCHED - separate from stdout)
+    // Supports both AI processes (sessionId format: {id}-ai-{tabId}) and terminal commands (plain sessionId)
     const unsubscribeStderr = window.maestro.process.onStderr((sessionId: string, data: string) => {
-      // runCommand uses plain session ID (no suffix)
-      const actualSessionId = sessionId;
-
       // Filter out empty stderr (only whitespace)
       if (!data.trim()) return;
 
-      // Use batched append for stderr (isStderr = true)
-      batchedUpdater.appendLog(actualSessionId, null, false, data, true);
+      // Parse sessionId to determine which process this is from
+      // Same logic as onData handler
+      let actualSessionId: string;
+      let tabIdFromSession: string | undefined;
+      let isFromAi = false;
+
+      const aiTabMatch = sessionId.match(/^(.+)-ai-(.+)$/);
+      if (aiTabMatch) {
+        actualSessionId = aiTabMatch[1];
+        tabIdFromSession = aiTabMatch[2];
+        isFromAi = true;
+      } else if (sessionId.includes('-batch-')) {
+        // Ignore batch task stderr
+        return;
+      } else {
+        // Plain session ID = runCommand (terminal commands)
+        actualSessionId = sessionId;
+      }
+
+      if (isFromAi && tabIdFromSession) {
+        // AI process stderr - route to the correct tab as a system log entry
+        batchedUpdater.appendLog(actualSessionId, tabIdFromSession, true, `[stderr] ${data}`, false);
+      } else {
+        // Terminal command stderr - route to shell logs
+        batchedUpdater.appendLog(actualSessionId, null, false, data, true);
+      }
     });
 
     // Handle command exit from runCommand
@@ -1396,9 +1428,72 @@ export default function MaestroConsole() {
         totalInputTokens: usageStats.inputTokens,
         totalOutputTokens: usageStats.outputTokens,
         totalCacheReadTokens: usageStats.cacheReadInputTokens,
-        totalCacheCreationTokens: usageStats.cacheCreationInputTokens,
+        totalCacheCreationInputTokens: usageStats.cacheCreationInputTokens,
         totalCostUsd: usageStats.totalCostUsd,
       });
+    });
+
+    // Handle agent errors (auth expired, token exhaustion, rate limits, crashes)
+    const unsubscribeAgentError = window.maestro.process.onAgentError((sessionId: string, error) => {
+      // Parse sessionId to get actual session ID (strip -ai-tabId or -ai suffix)
+      let actualSessionId: string;
+      const aiTabMatch = sessionId.match(/^(.+)-ai(?:-(.+))?$/);
+      if (aiTabMatch) {
+        actualSessionId = aiTabMatch[1];
+      } else if (sessionId.endsWith('-batch')) {
+        // Batch process errors - strip -batch suffix
+        actualSessionId = sessionId.replace(/-batch.*$/, '');
+      } else {
+        actualSessionId = sessionId;
+      }
+
+      console.log('[onAgentError] Agent error received:', {
+        rawSessionId: sessionId,
+        actualSessionId,
+        errorType: error.type,
+        message: error.message,
+        recoverable: error.recoverable,
+      });
+
+      // Cast error to AgentError type (IPC uses plain object)
+      const agentError: AgentError = {
+        type: error.type as AgentError['type'],
+        message: error.message,
+        recoverable: error.recoverable,
+        agentId: error.agentId,
+        sessionId: error.sessionId,
+        timestamp: error.timestamp,
+        raw: error.raw,
+      };
+
+      // Update session with error state
+      setSessions(prev => prev.map(s => {
+        if (s.id !== actualSessionId) return s;
+        return {
+          ...s,
+          agentError,
+          agentErrorPaused: true, // Block new operations until resolved
+          state: 'error' as SessionState,
+        };
+      }));
+
+      // Phase 5.10: Check if there's an active batch run for this session and pause it
+      if (getBatchStateRef.current && pauseBatchOnErrorRef.current) {
+        const batchState = getBatchStateRef.current(actualSessionId);
+        if (batchState.isRunning && !batchState.errorPaused) {
+          console.log('[onAgentError] Pausing active batch run due to error:', actualSessionId);
+          const currentDoc = batchState.documents[batchState.currentDocumentIndex];
+          pauseBatchOnErrorRef.current(
+            actualSessionId,
+            agentError,
+            batchState.currentDocumentIndex,
+            currentDoc ? `Processing ${currentDoc}` : undefined
+          );
+        }
+      }
+
+      // Show the error modal for this session
+      setAgentErrorModalSessionId(actualSessionId);
     });
 
     // Cleanup listeners on unmount
@@ -1410,6 +1505,7 @@ export default function MaestroConsole() {
       unsubscribeStderr();
       unsubscribeCommandExit();
       unsubscribeUsage();
+      unsubscribeAgentError();
     };
   }, []);
 
@@ -1439,13 +1535,18 @@ export default function MaestroConsole() {
   activeSessionIdRef.current = activeSessionId;
 
   // Note: spawnBackgroundSynopsisRef and spawnAgentWithPromptRef are now provided by useAgentExecution hook
-  // Note: addHistoryEntryRef and startNewClaudeSessionRef are now provided by useClaudeSessionManagement hook
+  // Note: addHistoryEntryRef and startNewAgentSessionRef are now provided by useAgentSessionManagement hook
   // Ref for processQueuedMessage - allows batch exit handler to process queued messages
   const processQueuedItemRef = useRef<((sessionId: string, item: QueuedItem) => Promise<void>) | null>(null);
 
   // Ref for handling remote commands from web interface
   // This allows web commands to go through the exact same code path as desktop commands
   const pendingRemoteCommandRef = useRef<{ sessionId: string; command: string } | null>(null);
+
+  // Refs for batch processor error handling (Phase 5.10)
+  // These are populated after useBatchProcessor is called and used in the agent error handler
+  const pauseBatchOnErrorRef = useRef<((sessionId: string, error: AgentError, documentIndex: number, taskDescription?: string) => void) | null>(null);
+  const getBatchStateRef = useRef<((sessionId: string) => BatchRunState) | null>(null);
 
   // Expose addToast to window for debugging/testing
   useEffect(() => {
@@ -1535,6 +1636,95 @@ export default function MaestroConsole() {
   // PERF: Memoize hasNoAgents check for SettingsModal (only depends on session count)
   const hasNoAgents = useMemo(() => sessions.length === 0, [sessions.length]);
 
+  // Get the session with the active error (for AgentErrorModal)
+  const errorSession = useMemo(() =>
+    agentErrorModalSessionId ? sessions.find(s => s.id === agentErrorModalSessionId) : null,
+    [agentErrorModalSessionId, sessions]
+  );
+
+  // Handler to clear agent error and resume operations
+  const handleClearAgentError = useCallback((sessionId: string) => {
+    setSessions(prev => prev.map(s => {
+      if (s.id !== sessionId) return s;
+      return {
+        ...s,
+        agentError: undefined,
+        agentErrorPaused: false,
+        state: 'idle' as SessionState,
+      };
+    }));
+    setAgentErrorModalSessionId(null);
+    // Notify main process to clear error state
+    window.maestro.agentError.clearError(sessionId).catch(err => {
+      console.error('Failed to clear agent error:', err);
+    });
+  }, []);
+
+  // Handler to start a new session (recovery action)
+  const handleStartNewSessionAfterError = useCallback((sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) return;
+
+    // Clear the error state
+    handleClearAgentError(sessionId);
+
+    // Create a new tab in the session to start fresh
+    setSessions(prev => prev.map(s => {
+      if (s.id !== sessionId) return s;
+      const newTab = createTab();
+      return {
+        ...s,
+        aiTabs: [...s.aiTabs, newTab],
+        activeTabId: newTab.id,
+      };
+    }));
+
+    // Focus the input after creating new tab
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, [sessions, handleClearAgentError]);
+
+  // Handler to retry after error (recovery action)
+  const handleRetryAfterError = useCallback((sessionId: string) => {
+    // Clear the error state and let user retry manually
+    handleClearAgentError(sessionId);
+
+    // Focus the input for retry
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, [handleClearAgentError]);
+
+  // Handler to restart the agent (recovery action for crashes)
+  const handleRestartAgentAfterError = useCallback(async (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) return;
+
+    // Clear the error state
+    handleClearAgentError(sessionId);
+
+    // Kill any existing processes and respawn
+    try {
+      await window.maestro.process.kill(`${sessionId}-ai`);
+    } catch {
+      // Process may not exist
+    }
+
+    // The agent will be respawned when user sends next message
+    // Focus the input
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, [sessions, handleClearAgentError]);
+
+  // Use the agent error recovery hook to get recovery actions
+  const { recoveryActions } = useAgentErrorRecovery({
+    error: errorSession?.agentError,
+    agentId: errorSession?.toolType || 'claude-code',
+    sessionId: errorSession?.id || '',
+    onNewSession: errorSession ? () => handleStartNewSessionAfterError(errorSession.id) : undefined,
+    onRetry: errorSession ? () => handleRetryAfterError(errorSession.id) : undefined,
+    onClearError: errorSession ? () => handleClearAgentError(errorSession.id) : undefined,
+    onRestartAgent: errorSession ? () => handleRestartAgentAfterError(errorSession.id) : undefined,
+    // Note: onAuthenticate is handled by the default action in useAgentErrorRecovery which
+    // adds a "Use Terminal" option that guides users to run "claude login"
+  });
+
   // Tab completion hook for terminal mode
   const { getSuggestions: getTabCompletionSuggestions } = useTabCompletion(activeSession);
 
@@ -1567,7 +1757,10 @@ export default function MaestroConsole() {
     themeColors: theme.colors,
   });
 
-  // Combine built-in slash commands with custom AI commands AND Claude Code commands for autocomplete
+  // Get capabilities for the active session's agent type
+  const { hasCapability: hasActiveSessionCapability } = useAgentCapabilities(activeSession?.toolType);
+
+  // Combine built-in slash commands with custom AI commands AND agent-specific commands for autocomplete
   const allSlashCommands = useMemo(() => {
     const customCommandsAsSlash = customAICommands
       .map(cmd => ({
@@ -1576,14 +1769,17 @@ export default function MaestroConsole() {
         aiOnly: true, // Custom AI commands are only available in AI mode
         prompt: cmd.prompt, // Include prompt for execution
       }));
-    // Include Claude Code commands from the active session
-    const claudeCommands = (activeSession?.claudeCommands || []).map(cmd => ({
-      command: cmd.command,
-      description: cmd.description,
-      aiOnly: true, // Claude commands are only available in AI mode
-    }));
-    return [...slashCommands, ...customCommandsAsSlash, ...claudeCommands];
-  }, [customAICommands, activeSession?.claudeCommands]);
+    // Only include agent-specific commands if the agent supports slash commands
+    // This allows built-in and custom commands to be shown for all agents (Codex, OpenCode, etc.)
+    const agentCommands = hasActiveSessionCapability('supportsSlashCommands')
+      ? (activeSession?.agentCommands || []).map(cmd => ({
+          command: cmd.command,
+          description: cmd.description,
+          aiOnly: true, // Agent commands are only available in AI mode
+        }))
+      : [];
+    return [...slashCommands, ...customCommandsAsSlash, ...agentCommands];
+  }, [customAICommands, activeSession?.agentCommands, hasActiveSessionCapability]);
 
   // Derive current input value and setter based on active session mode
   // For AI mode: use active tab's inputValue (stored per-tab)
@@ -1815,19 +2011,19 @@ export default function MaestroConsole() {
     setSuccessFlashNotification,
   });
 
-  // --- CLAUDE SESSION MANAGEMENT ---
-  // Extracted hook for Claude-specific session operations (history, session clear, resume)
+  // --- AGENT SESSION MANAGEMENT ---
+  // Extracted hook for agent-specific session operations (history, session clear, resume)
   const {
     addHistoryEntry,
     addHistoryEntryRef,
-    startNewClaudeSession,
-    startNewClaudeSessionRef,
-    handleJumpToClaudeSession,
+    startNewAgentSession,
+    startNewAgentSessionRef,
+    handleJumpToAgentSession,
     handleResumeSession,
-  } = useClaudeSessionManagement({
+  } = useAgentSessionManagement({
     activeSession,
     setSessions,
-    setActiveClaudeSessionId,
+    setActiveAgentSessionId,
     setAgentSessionsOpen,
     addLogToActiveTab,
     rightPanelRef,
@@ -1843,6 +2039,11 @@ export default function MaestroConsole() {
     activeBatchSessionIds,
     startBatchRun,
     stopBatchRun,
+    // Error handling (Phase 5.10)
+    pauseBatchOnError,
+    skipCurrentDocument,
+    resumeAfterError,
+    abortBatchOnError,
   } = useBatchProcessor({
     sessions,
     groups,
@@ -2048,6 +2249,11 @@ export default function MaestroConsole() {
     }
   });
 
+  // Update refs for batch processor error handling (Phase 5.10)
+  // These are used by the agent error handler which runs in a useEffect with empty deps
+  pauseBatchOnErrorRef.current = pauseBatchOnError;
+  getBatchStateRef.current = getBatchState;
+
   // Get batch state for the current session - used for locking the AutoRun editor
   // This is session-specific so users can edit docs in other sessions while one runs
   const currentSessionBatchState = activeSession ? getBatchState(activeSession.id) : null;
@@ -2191,6 +2397,46 @@ export default function MaestroConsole() {
     setConfirmModalOnConfirm(() => () => stopBatchRun(sessionId));
     setConfirmModalOpen(true);
   }, [activeBatchSessionIds, activeSession, stopBatchRun]);
+
+  // Error handling callbacks for Auto Run (Phase 5.10)
+  const handleSkipCurrentDocument = useCallback(() => {
+    const sessionId = activeBatchSessionIds.length > 0
+      ? activeBatchSessionIds[0]
+      : activeSession?.id;
+    if (!sessionId) return;
+    skipCurrentDocument(sessionId);
+    // Clear the session error state as well
+    setSessions(prev => prev.map(s =>
+      s.id === sessionId ? { ...s, agentError: undefined, agentErrorPaused: false, state: 'idle' as SessionState } : s
+    ));
+    setAgentErrorModalSessionId(null);
+  }, [activeBatchSessionIds, activeSession, skipCurrentDocument]);
+
+  const handleResumeAfterError = useCallback(() => {
+    const sessionId = activeBatchSessionIds.length > 0
+      ? activeBatchSessionIds[0]
+      : activeSession?.id;
+    if (!sessionId) return;
+    resumeAfterError(sessionId);
+    // Clear the session error state as well
+    setSessions(prev => prev.map(s =>
+      s.id === sessionId ? { ...s, agentError: undefined, agentErrorPaused: false, state: 'idle' as SessionState } : s
+    ));
+    setAgentErrorModalSessionId(null);
+  }, [activeBatchSessionIds, activeSession, resumeAfterError]);
+
+  const handleAbortBatchOnError = useCallback(() => {
+    const sessionId = activeBatchSessionIds.length > 0
+      ? activeBatchSessionIds[0]
+      : activeSession?.id;
+    if (!sessionId) return;
+    abortBatchOnError(sessionId);
+    // Clear the session error state as well
+    setSessions(prev => prev.map(s =>
+      s.id === sessionId ? { ...s, agentError: undefined, agentErrorPaused: false, state: 'idle' as SessionState } : s
+    ));
+    setAgentErrorModalSessionId(null);
+  }, [activeBatchSessionIds, activeSession, abortBatchOnError]);
 
   // Handler for toast navigation - switches to session and optionally to a specific tab
   const handleToastSessionClick = useCallback((sessionId: string, tabId?: string) => {
@@ -2580,18 +2826,27 @@ export default function MaestroConsole() {
 
     // Spawn AI process (terminal uses runCommand which spawns fresh shells per command)
     try {
-      // Spawn AI agent process
-      // Use agent.path (full path) if available for better cross-environment compatibility
-      const aiSpawnResult = await window.maestro.process.spawn({
-        sessionId: `${newId}-ai`,
-        toolType: agentId,
-        cwd: workingDir,
-        command: agent.path || agent.command,
-        args: agent.args || []
-      });
+      // Get agent capabilities to check if eager spawn is supported
+      const capabilities = await window.maestro.agents.getCapabilities(agentId);
 
-      if (!aiSpawnResult.success || aiSpawnResult.pid <= 0) {
-        throw new Error('Failed to spawn AI agent process');
+      // For agents that require a prompt to start (Codex, OpenCode), skip eager spawn
+      // They will be spawned on first message instead
+      let aiPid = 0;
+      if (!capabilities.requiresPromptToStart) {
+        // Spawn AI agent process
+        // Use agent.path (full path) if available for better cross-environment compatibility
+        const aiSpawnResult = await window.maestro.process.spawn({
+          sessionId: `${newId}-ai`,
+          toolType: agentId,
+          cwd: workingDir,
+          command: agent.path || agent.command,
+          args: agent.args || []
+        });
+
+        if (!aiSpawnResult.success || aiSpawnResult.pid <= 0) {
+          throw new Error('Failed to spawn AI agent process');
+        }
+        aiPid = aiSpawnResult.pid;
       }
 
       // Terminal processes are spawned lazily when needed (not eagerly)
@@ -2616,7 +2871,7 @@ export default function MaestroConsole() {
       const initialTabId = generateId();
       const initialTab: AITab = {
         id: initialTabId,
-        claudeSessionId: null,
+        agentSessionId: null,
         name: null,
         starred: false,
         logs: [],
@@ -2645,7 +2900,8 @@ export default function MaestroConsole() {
         contextUsage: 0,
         inputMode: agentId === 'terminal' ? 'terminal' : 'ai',
         // AI process PID (terminal uses runCommand which spawns fresh shells)
-        aiPid: aiSpawnResult.pid,
+        // For agents that requiresPromptToStart, this starts as 0 and gets set on first message
+        aiPid,
         terminalPid: 0,
         port: 3000 + Math.floor(Math.random() * 100),
         isLive: false,
@@ -2705,23 +2961,30 @@ export default function MaestroConsole() {
       throw new Error(validation.error || 'Session validation failed');
     }
 
-    // Get agent definition
+    // Get agent definition and capabilities
     const agent = await window.maestro.agents.get(selectedAgent);
     if (!agent) {
       throw new Error(`Agent not found: ${selectedAgent}`);
     }
+    const capabilities = await window.maestro.agents.getCapabilities(selectedAgent);
 
-    // Spawn AI process
-    const aiSpawnResult = await window.maestro.process.spawn({
-      sessionId: `${newId}-ai`,
-      toolType: selectedAgent,
-      cwd: directoryPath,
-      command: agent.path || agent.command,
-      args: agent.args || []
-    });
+    // For agents that require a prompt to start (Codex, OpenCode), skip eager spawn
+    // They will be spawned on first message instead
+    let aiPid = 0;
+    if (!capabilities.requiresPromptToStart) {
+      // Spawn AI process for agents that support interactive mode (Claude Code)
+      const aiSpawnResult = await window.maestro.process.spawn({
+        sessionId: `${newId}-ai`,
+        toolType: selectedAgent,
+        cwd: directoryPath,
+        command: agent.path || agent.command,
+        args: agent.args || []
+      });
 
-    if (!aiSpawnResult.success || aiSpawnResult.pid <= 0) {
-      throw new Error('Failed to spawn AI agent process');
+      if (!aiSpawnResult.success || aiSpawnResult.pid <= 0) {
+        throw new Error('Failed to spawn AI agent process');
+      }
+      aiPid = aiSpawnResult.pid;
     }
 
     // Check git repo status
@@ -2741,7 +3004,7 @@ export default function MaestroConsole() {
     const initialTabId = generateId();
     const initialTab: AITab = {
       id: initialTabId,
-      claudeSessionId: null,
+      agentSessionId: null,
       name: null,
       starred: false,
       logs: [],
@@ -2775,7 +3038,7 @@ export default function MaestroConsole() {
       workLog: [],
       contextUsage: 0,
       inputMode: 'ai',
-      aiPid: aiSpawnResult.pid,
+      aiPid,
       terminalPid: 0,
       port: 3000 + Math.floor(Math.random() * 100),
       isLive: false,
@@ -2901,10 +3164,10 @@ export default function MaestroConsole() {
     setSessions(prev => prev.map(s => {
       if (s.id !== activeSession.id) return s;
       // Persist starred status to Claude session metadata (async, fire and forget)
-      if (tab.claudeSessionId) {
+      if (tab.agentSessionId) {
         window.maestro.claude.updateSessionStarred(
           s.cwd,
-          tab.claudeSessionId,
+          tab.agentSessionId,
           newStarred
         ).catch(err => console.error('Failed to persist tab starred:', err));
       }
@@ -2999,10 +3262,10 @@ export default function MaestroConsole() {
   const finishRenamingSession = (sessId: string, newName: string) => {
     setSessions(prev => {
       const updated = prev.map(s => s.id === sessId ? { ...s, name: newName } : s);
-      // Sync the session name to Claude session storage for searchability
+      // Sync the session name to agent session storage for searchability
       const session = updated.find(s => s.id === sessId);
-      if (session?.claudeSessionId && session.cwd) {
-        window.maestro.claude.updateSessionName(session.cwd, session.claudeSessionId, newName)
+      if (session?.agentSessionId && session.cwd) {
+        window.maestro.agentSessions.updateSessionName(session.cwd, session.agentSessionId, newName)
           .catch(err => console.warn('[finishRenamingSession] Failed to sync session name:', err));
       }
       return updated;
@@ -3042,7 +3305,7 @@ export default function MaestroConsole() {
 
       console.log('[Remote] Found session:', {
         id: session.id,
-        claudeSessionId: session.claudeSessionId || 'none',
+        agentSessionId: session.agentSessionId || 'none',
         state: session.state,
         sessionInputMode: session.inputMode,
         effectiveInputMode,
@@ -3100,9 +3363,10 @@ export default function MaestroConsole() {
         return;
       }
 
-      // Handle AI mode for Claude Code
-      if (session.toolType !== 'claude' && session.toolType !== 'claude-code') {
-        console.log('[Remote] Not Claude Code, skipping');
+      // Handle AI mode for batch-mode agents (Claude Code, Codex, OpenCode)
+      const supportedBatchAgents: ToolType[] = ['claude', 'claude-code', 'codex', 'opencode'];
+      if (!supportedBatchAgents.includes(session.toolType)) {
+        console.log('[Remote] Not a batch-mode agent, skipping');
         return;
       }
 
@@ -3163,27 +3427,32 @@ export default function MaestroConsole() {
       }
 
       try {
-        // Get agent configuration
-        const agent = await window.maestro.agents.get('claude-code');
+        // Get agent configuration for this session's tool type
+        const agent = await window.maestro.agents.get(session.toolType);
         if (!agent) {
-          console.log('[Remote] ERROR: Claude Code agent not found');
+          console.log(`[Remote] ERROR: Agent not found for toolType: ${session.toolType}`);
           return;
         }
 
-        // Build spawn args with resume if we have a Claude session ID
-        // Use the ACTIVE TAB's claudeSessionId (not the deprecated session-level one)
+        // Build spawn args with resume if we have an agent session ID
+        // Use the ACTIVE TAB's agentSessionId (not the deprecated session-level one)
         const activeTab = getActiveTab(session);
-        const tabClaudeSessionId = activeTab?.claudeSessionId;
+        const tabAgentSessionId = activeTab?.agentSessionId;
         const isReadOnly = activeTab?.readOnlyMode;
 
-        // Filter out --dangerously-skip-permissions when read-only mode is active
-        // (it would override --permission-mode plan)
+        // Filter out YOLO/skip-permissions flags when read-only mode is active
+        // (they would override the read-only mode we're requesting)
+        // - Claude Code: --dangerously-skip-permissions
+        // - Codex: --dangerously-bypass-approvals-and-sandbox
         const spawnArgs = isReadOnly
-          ? agent.args.filter(arg => arg !== '--dangerously-skip-permissions')
+          ? agent.args.filter(arg =>
+              arg !== '--dangerously-skip-permissions' &&
+              arg !== '--dangerously-bypass-approvals-and-sandbox'
+            )
           : [...agent.args];
 
-        if (tabClaudeSessionId) {
-          spawnArgs.push('--resume', tabClaudeSessionId);
+        if (tabAgentSessionId) {
+          spawnArgs.push('--resume', tabAgentSessionId);
         }
 
         // Add read-only/plan mode if the active tab has readOnlyMode enabled
@@ -3195,12 +3464,12 @@ export default function MaestroConsole() {
         const targetSessionId = `${sessionId}-ai-${activeTab?.id || 'default'}`;
         const commandToUse = agent.path || agent.command;
 
-        console.log('[Remote] Spawning Claude directly:', {
+        console.log('[Remote] Spawning agent:', {
           maestroSessionId: sessionId,
           targetSessionId,
           activeTabId: activeTab?.id,
-          tabClaudeSessionId: tabClaudeSessionId || 'NEW SESSION',
-          isResume: !!tabClaudeSessionId,
+          tabAgentSessionId: tabAgentSessionId || 'NEW SESSION',
+          isResume: !!tabAgentSessionId,
           command: commandToUse,
           args: spawnArgs,
           prompt: promptToSend.substring(0, 100)
@@ -3250,17 +3519,17 @@ export default function MaestroConsole() {
           };
         }));
 
-        // Spawn Claude with the prompt (original or substituted)
+        // Spawn agent with the prompt (original or substituted)
         await window.maestro.process.spawn({
           sessionId: targetSessionId,
-          toolType: 'claude-code',
+          toolType: session.toolType,
           cwd: session.cwd,
           command: commandToUse,
           args: spawnArgs,
           prompt: promptToSend
         });
 
-        console.log('[Remote] Claude spawn initiated successfully');
+        console.log(`[Remote] ${session.toolType} spawn initiated successfully`);
       } catch (error) {
         console.error('[Remote] Failed to spawn Claude:', error);
         const errorLogEntry: LogEntry = {
@@ -3345,23 +3614,28 @@ export default function MaestroConsole() {
     const targetSessionId = `${sessionId}-ai-${targetTab?.id || 'default'}`;
 
     try {
-      // Get agent configuration
-      const agent = await window.maestro.agents.get('claude-code');
-      if (!agent) throw new Error('Claude Code agent not found');
+      // Get agent configuration for this session's tool type
+      const agent = await window.maestro.agents.get(session.toolType);
+      if (!agent) throw new Error(`Agent not found for toolType: ${session.toolType}`);
 
       // Build spawn args with resume if we have a session ID
-      // Use the TARGET TAB's claudeSessionId (not the active tab or deprecated session-level one)
-      const tabClaudeSessionId = targetTab?.claudeSessionId;
+      // Use the TARGET TAB's agentSessionId (not the active tab or deprecated session-level one)
+      const tabAgentSessionId = targetTab?.agentSessionId;
       const isReadOnly = item.readOnlyMode || targetTab?.readOnlyMode;
 
-      // Filter out --dangerously-skip-permissions when read-only mode is active
-      // (it would override --permission-mode plan)
+      // Filter out YOLO/skip-permissions flags when read-only mode is active
+      // (they would override the read-only mode we're requesting)
+      // - Claude Code: --dangerously-skip-permissions
+      // - Codex: --dangerously-bypass-approvals-and-sandbox
       const spawnArgs = isReadOnly
-        ? (agent.args || []).filter(arg => arg !== '--dangerously-skip-permissions')
+        ? (agent.args || []).filter(arg =>
+            arg !== '--dangerously-skip-permissions' &&
+            arg !== '--dangerously-bypass-approvals-and-sandbox'
+          )
         : [...(agent.args || [])];
 
-      if (tabClaudeSessionId) {
-        spawnArgs.push('--resume', tabClaudeSessionId);
+      if (tabAgentSessionId) {
+        spawnArgs.push('--resume', tabAgentSessionId);
       }
 
       // Add read-only/plan mode if the queued item was from a read-only tab
@@ -3378,13 +3652,13 @@ export default function MaestroConsole() {
       const isImageOnlyMessage = item.type === 'message' && hasImages && !hasText;
 
       if (item.type === 'message' && (hasText || isImageOnlyMessage)) {
-        // Process a message - spawn Claude with the message text
+        // Process a message - spawn agent with the message text
         // If user sends only an image without text, inject the default image-only prompt
         const effectivePrompt = isImageOnlyMessage ? DEFAULT_IMAGE_ONLY_PROMPT : item.text!;
 
         await window.maestro.process.spawn({
           sessionId: targetSessionId,
-          toolType: 'claude-code',
+          toolType: session.toolType,
           cwd: session.cwd,
           command: commandToUse,
           args: spawnArgs,
@@ -3430,10 +3704,10 @@ export default function MaestroConsole() {
             };
           }));
 
-          // Spawn Claude with the substituted prompt
+          // Spawn agent with the substituted prompt
           await window.maestro.process.spawn({
             sessionId: targetSessionId,
-            toolType: 'claude-code',
+            toolType: session.toolType,
             cwd: session.cwd,
             command: commandToUse,
             args: spawnArgs,
@@ -3523,6 +3797,14 @@ export default function MaestroConsole() {
         };
       }
 
+      // Create canceled log entry for AI mode interrupts
+      const canceledLog: LogEntry | null = currentMode === 'ai' ? {
+        id: generateId(),
+        timestamp: Date.now(),
+        source: 'system',
+        text: 'Canceled by user'
+      } : null;
+
       // Set state to idle with full cleanup, or process next queued item
       setSessions(prev => prev.map(s => {
         if (s.id !== activeSession.id) return s;
@@ -3545,13 +3827,15 @@ export default function MaestroConsole() {
           }
 
           // Set the interrupted tab to idle, and the target tab for queued item to busy
+          // Also add the canceled log to the interrupted tab
           let updatedAiTabs = s.aiTabs.map(tab => {
             if (tab.id === targetTab.id) {
               return { ...tab, state: 'busy' as const, thinkingStartTime: Date.now() };
             }
-            // Set any other busy tabs to idle (they were interrupted)
+            // Set any other busy tabs to idle (they were interrupted) and add canceled log
             if (tab.state === 'busy') {
-              return { ...tab, state: 'idle' as const, thinkingStartTime: undefined };
+              const updatedLogs = canceledLog ? [...tab.logs, canceledLog] : tab.logs;
+              return { ...tab, state: 'idle' as const, thinkingStartTime: undefined, logs: updatedLogs };
             }
             return tab;
           });
@@ -3584,12 +3868,26 @@ export default function MaestroConsole() {
           };
         }
 
-        // No queued items, just go to idle
+        // No queued items, just go to idle and add canceled log to the active tab
+        const activeTabForCancel = getActiveTab(s);
+        const updatedAiTabsForIdle = canceledLog && activeTabForCancel
+          ? s.aiTabs.map(tab =>
+              tab.id === activeTabForCancel.id
+                ? { ...tab, logs: [...tab.logs, canceledLog], state: 'idle' as const, thinkingStartTime: undefined }
+                : tab
+            )
+          : s.aiTabs.map(tab =>
+              tab.state === 'busy'
+                ? { ...tab, state: 'idle' as const, thinkingStartTime: undefined }
+                : tab
+            );
+
         return {
           ...s,
           state: 'idle',
           busySource: undefined,
-          thinkingStartTime: undefined
+          thinkingStartTime: undefined,
+          aiTabs: updatedAiTabsForIdle
         };
       }));
 
@@ -4144,7 +4442,7 @@ export default function MaestroConsole() {
     setLeftSidebarOpen, setRightPanelOpen, addNewSession, deleteSession, setQuickActionInitialMode,
     setQuickActionOpen, cycleSession, toggleInputMode, setShortcutsHelpOpen, setSettingsModalOpen,
     setSettingsTab, setActiveRightTab, handleSetActiveRightTab, setActiveFocus, setBookmarksCollapsed, setGroups,
-    setSelectedSidebarIndex, setActiveSessionId, handleViewGitDiff, setGitLogOpen, setActiveClaudeSessionId,
+    setSelectedSidebarIndex, setActiveSessionId, handleViewGitDiff, setGitLogOpen, setActiveAgentSessionId,
     setAgentSessionsOpen, setLogViewerOpen, setProcessMonitorOpen, logsEndRef, inputRef, terminalOutputRef, sidebarContainerRef,
     setSessions, createTab, closeTab, reopenClosedTab, getActiveTab, setRenameTabId, setRenameTabInitialName,
     setRenameTabModalOpen, navigateToNextTab, navigateToPrevTab, navigateToTabByIndex, navigateToLastTab,
@@ -4362,7 +4660,7 @@ export default function MaestroConsole() {
               const activeTab = activeSession.aiTabs?.find(t => t.id === activeSession.activeTabId);
               if (activeTab) {
                 const tabLabel = activeTab.name ||
-                  (activeTab.claudeSessionId ? activeTab.claudeSessionId.split('-')[0].toUpperCase() : null);
+                  (activeTab.agentSessionId ? activeTab.agentSessionId.split('-')[0].toUpperCase() : null);
                 if (tabLabel) {
                   parts.push(tabLabel);
                 }
@@ -4409,7 +4707,7 @@ export default function MaestroConsole() {
           setProcessMonitorOpen={setProcessMonitorOpen}
           setActiveRightTab={setActiveRightTab}
           setAgentSessionsOpen={setAgentSessionsOpen}
-          setActiveClaudeSessionId={setActiveClaudeSessionId}
+          setActiveAgentSessionId={setActiveAgentSessionId}
           setGitDiffPreview={setGitDiffPreview}
           setGitLogOpen={setGitLogOpen}
           isAiMode={activeSession?.inputMode === 'ai'}
@@ -4418,7 +4716,7 @@ export default function MaestroConsole() {
             if (activeSession?.inputMode === 'ai' && activeSession.activeTabId) {
               const activeTab = activeSession.aiTabs?.find(t => t.id === activeSession.activeTabId);
               // Only allow rename if tab has an active Claude session
-              if (activeTab?.claudeSessionId) {
+              if (activeTab?.agentSessionId) {
                 setRenameTabId(activeTab.id);
                 setRenameTabInitialName(activeTab.name || '');
                 setRenameTabModalOpen(true);
@@ -4561,6 +4859,19 @@ export default function MaestroConsole() {
         />
       )}
 
+      {/* --- AGENT ERROR MODAL --- */}
+      {errorSession?.agentError && (
+        <AgentErrorModal
+          theme={theme}
+          error={errorSession.agentError}
+          agentName={errorSession.toolType === 'claude-code' ? 'Claude Code' : errorSession.toolType}
+          sessionName={errorSession.name}
+          recoveryActions={recoveryActions}
+          onDismiss={() => handleClearAgentError(errorSession.id)}
+          dismissible={errorSession.agentError.recoverable}
+        />
+      )}
+
       {/* --- FIRST RUN CELEBRATION OVERLAY --- */}
       {firstRunCelebrationData && (
         <FirstRunCelebration
@@ -4679,7 +4990,7 @@ export default function MaestroConsole() {
         <RenameTabModal
           theme={theme}
           initialName={renameTabInitialName}
-          claudeSessionId={activeSession?.aiTabs?.find(t => t.id === renameTabId)?.claudeSessionId}
+          agentSessionId={activeSession?.aiTabs?.find(t => t.id === renameTabId)?.agentSessionId}
           onClose={() => {
             setRenameTabModalOpen(false);
             setRenameTabId(null);
@@ -4688,18 +4999,18 @@ export default function MaestroConsole() {
             if (!activeSession || !renameTabId) return;
             setSessions(prev => prev.map(s => {
               if (s.id !== activeSession.id) return s;
-              // Find the tab to get its claudeSessionId for persistence
+              // Find the tab to get its agentSessionId for persistence
               const tab = s.aiTabs.find(t => t.id === renameTabId);
-              if (tab?.claudeSessionId) {
-                // Persist name to Claude session metadata (async, fire and forget)
-                window.maestro.claude.updateSessionName(
+              if (tab?.agentSessionId) {
+                // Persist name to agent session metadata (async, fire and forget)
+                window.maestro.agentSessions.updateSessionName(
                   s.cwd,
-                  tab.claudeSessionId,
+                  tab.agentSessionId,
                   newName || ''
                 ).catch(err => console.error('Failed to persist tab name:', err));
-                // Also update past history entries with this claudeSessionId
+                // Also update past history entries with this agentSessionId
                 window.maestro.history.updateSessionName(
-                  tab.claudeSessionId,
+                  tab.agentSessionId,
                   newName || ''
                 ).catch(err => console.error('Failed to update history session names:', err));
               }
@@ -4825,7 +5136,7 @@ export default function MaestroConsole() {
         ref={mainPanelRef}
         logViewerOpen={logViewerOpen}
         agentSessionsOpen={agentSessionsOpen}
-        activeClaudeSessionId={activeClaudeSessionId}
+        activeAgentSessionId={activeAgentSessionId}
         activeSession={activeSession}
         sessions={sessions}
         theme={theme}
@@ -4857,12 +5168,12 @@ export default function MaestroConsole() {
         setGitDiffPreview={setGitDiffPreview}
         setLogViewerOpen={setLogViewerOpen}
         setAgentSessionsOpen={setAgentSessionsOpen}
-        setActiveClaudeSessionId={setActiveClaudeSessionId}
-        onResumeClaudeSession={(claudeSessionId: string, messages: LogEntry[], sessionName?: string, starred?: boolean) => {
+        setActiveAgentSessionId={setActiveAgentSessionId}
+        onResumeAgentSession={(agentSessionId: string, messages: LogEntry[], sessionName?: string, starred?: boolean) => {
           // Opens the Claude session as a new tab (or switches to existing tab if duplicate)
-          handleResumeSession(claudeSessionId, messages, sessionName, starred);
+          handleResumeSession(agentSessionId, messages, sessionName, starred);
         }}
-        onNewClaudeSession={() => {
+        onNewAgentSession={() => {
           // Create a fresh AI tab
           if (activeSession) {
             setSessions(prev => prev.map(s => {
@@ -4870,7 +5181,7 @@ export default function MaestroConsole() {
               const result = createTab(s, { saveToHistory: defaultSaveToHistory });
               return result.session;
             }));
-            setActiveClaudeSessionId(null);
+            setActiveAgentSessionId(null);
           }
           setAgentSessionsOpen(false);
         }}
@@ -4977,13 +5288,13 @@ export default function MaestroConsole() {
           if (isAIMode && activeTab) {
             // For AI mode, also delete from the Claude session JSONL file
             // This ensures the context is actually removed for future interactions
-            // Use the active tab's claudeSessionId, not the deprecated session-level one
-            const claudeSessionId = activeTab.claudeSessionId;
-            if (claudeSessionId && activeSession.cwd) {
+            // Use the active tab's agentSessionId, not the deprecated session-level one
+            const agentSessionId = activeTab.agentSessionId;
+            if (agentSessionId && activeSession.cwd) {
               // Delete asynchronously - don't block the UI update
               window.maestro.claude.deleteMessagePair(
                 activeSession.cwd,
-                claudeSessionId,
+                agentSessionId,
                 logId, // This is the UUID if loaded from Claude session
                 log.text // Fallback: match by content if UUID doesn't match
               ).then(result => {
@@ -5074,13 +5385,13 @@ export default function MaestroConsole() {
           // Update tab state
           setSessions(prev => prev.map(s => {
             if (s.id !== activeSession.id) return s;
-            // Find the tab to get its claudeSessionId for persistence
+            // Find the tab to get its agentSessionId for persistence
             const tab = s.aiTabs.find(t => t.id === tabId);
-            if (tab?.claudeSessionId) {
-              // Persist name to Claude session metadata (async, fire and forget)
-              window.maestro.claude.updateSessionName(
+            if (tab?.agentSessionId) {
+              // Persist name to agent session metadata (async, fire and forget)
+              window.maestro.agentSessions.updateSessionName(
                 s.cwd,
-                tab.claudeSessionId,
+                tab.agentSessionId,
                 newName || ''
               ).catch(err => console.error('Failed to persist tab name:', err));
             }
@@ -5122,18 +5433,18 @@ export default function MaestroConsole() {
             return { ...s, aiTabs: [tabToKeep], activeTabId: tabId };
           }));
         }}
-        onUpdateTabByClaudeSessionId={(claudeSessionId: string, updates: { name?: string | null; starred?: boolean }) => {
+        onUpdateTabByClaudeSessionId={(agentSessionId: string, updates: { name?: string | null; starred?: boolean }) => {
           // Update the AITab that matches this Claude session ID
           // This is called when a session is renamed or starred in the AgentSessionsBrowser
           if (!activeSession) return;
           setSessions(prev => prev.map(s => {
             if (s.id !== activeSession.id) return s;
-            const tabIndex = s.aiTabs.findIndex(tab => tab.claudeSessionId === claudeSessionId);
+            const tabIndex = s.aiTabs.findIndex(tab => tab.agentSessionId === agentSessionId);
             if (tabIndex === -1) return s; // Session not open as a tab
             return {
               ...s,
               aiTabs: s.aiTabs.map(tab =>
-                tab.claudeSessionId === claudeSessionId
+                tab.agentSessionId === agentSessionId
                   ? {
                       ...tab,
                       ...(updates.name !== undefined ? { name: updates.name } : {}),
@@ -5148,13 +5459,13 @@ export default function MaestroConsole() {
           if (!activeSession) return;
           setSessions(prev => prev.map(s => {
             if (s.id !== activeSession.id) return s;
-            // Find the tab to get its claudeSessionId for persistence
+            // Find the tab to get its agentSessionId for persistence
             const tab = s.aiTabs.find(t => t.id === tabId);
-            if (tab?.claudeSessionId) {
+            if (tab?.agentSessionId) {
               // Persist starred status to Claude session metadata (async, fire and forget)
               window.maestro.claude.updateSessionStarred(
                 s.cwd,
-                tab.claudeSessionId,
+                tab.agentSessionId,
                 starred
               ).catch(err => console.error('Failed to persist tab starred:', err));
             }
@@ -5335,6 +5646,8 @@ export default function MaestroConsole() {
             setPreviewFile(filePreviewHistory[index]);
           }
         }}
+        onClearAgentError={activeSession?.agentError ? () => handleClearAgentError(activeSession.id) : undefined}
+        onShowAgentErrorModal={activeSession?.agentError ? () => setAgentErrorModalSessionId(activeSession.id) : undefined}
       />
       )}
 
@@ -5392,7 +5705,10 @@ export default function MaestroConsole() {
             currentSessionBatchState={currentSessionBatchState}
             onOpenBatchRunner={handleOpenBatchRunner}
             onStopBatchRun={handleStopBatchRun}
-            onJumpToClaudeSession={handleJumpToClaudeSession}
+            onSkipCurrentDocument={handleSkipCurrentDocument}
+            onAbortBatchOnError={handleAbortBatchOnError}
+            onResumeAfterError={handleResumeAfterError}
+            onJumpToAgentSession={handleJumpToAgentSession}
             onResumeSession={handleResumeSession}
             onOpenSessionAsTab={handleResumeSession}
             onOpenAboutModal={() => setAboutModalOpen(true)}
@@ -5450,9 +5766,9 @@ export default function MaestroConsole() {
               s.id === activeSession.id ? { ...s, activeTabId: tabId } : s
             ));
           }}
-          onNamedSessionSelect={(claudeSessionId, _projectPath, sessionName, starred) => {
+          onNamedSessionSelect={(agentSessionId, _projectPath, sessionName, starred) => {
             // Open a closed named session as a new tab - use handleResumeSession to properly load messages
-            handleResumeSession(claudeSessionId, [], sessionName, starred);
+            handleResumeSession(agentSessionId, [], sessionName, starred);
             // Focus input so user can start interacting immediately
             setActiveFocus('main');
             setTimeout(() => inputRef.current?.focus(), 50);

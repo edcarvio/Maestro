@@ -11,7 +11,7 @@ export interface HistoryEntryInput {
   type: 'AUTO' | 'USER';
   summary: string;
   fullResponse?: string;
-  claudeSessionId?: string;
+  agentSessionId?: string;
   usageStats?: UsageStats;
   /** Optional override for background operations (prevents cross-agent bleed) */
   sessionId?: string;
@@ -22,15 +22,15 @@ export interface HistoryEntryInput {
 }
 
 /**
- * Dependencies for the useClaudeSessionManagement hook.
+ * Dependencies for the useAgentSessionManagement hook.
  */
-export interface UseClaudeSessionManagementDeps {
+export interface UseAgentSessionManagementDeps {
   /** Current active session (null if none selected) */
   activeSession: Session | null;
   /** Session state setter */
   setSessions: React.Dispatch<React.SetStateAction<Session[]>>;
-  /** Claude session ID setter */
-  setActiveClaudeSessionId: (id: string | null) => void;
+  /** Agent session ID setter */
+  setActiveAgentSessionId: (id: string | null) => void;
   /** Agent sessions browser open state setter */
   setAgentSessionsOpen: (open: boolean) => void;
   /** Helper to add a log entry to the active tab */
@@ -45,22 +45,22 @@ export interface UseClaudeSessionManagementDeps {
 }
 
 /**
- * Return type for useClaudeSessionManagement hook.
+ * Return type for useAgentSessionManagement hook.
  */
-export interface UseClaudeSessionManagementReturn {
+export interface UseAgentSessionManagementReturn {
   /** Add a history entry for the current session */
   addHistoryEntry: (entry: HistoryEntryInput) => Promise<void>;
   /** Ref to addHistoryEntry for use in callbacks that need latest version */
   addHistoryEntryRef: React.MutableRefObject<((entry: HistoryEntryInput) => Promise<void>) | null>;
-  /** Clear Claude session and start fresh */
-  startNewClaudeSession: () => void;
-  /** Ref to startNewClaudeSession for use in callbacks that need latest version */
-  startNewClaudeSessionRef: React.MutableRefObject<(() => void) | null>;
-  /** Jump to a specific Claude session in the browser */
-  handleJumpToClaudeSession: (claudeSessionId: string) => void;
-  /** Resume a Claude session, opening as a new tab or switching to existing */
+  /** Clear Agent session and start fresh */
+  startNewAgentSession: () => void;
+  /** Ref to startNewAgentSession for use in callbacks that need latest version */
+  startNewAgentSessionRef: React.MutableRefObject<(() => void) | null>;
+  /** Jump to a specific agent session in the browser */
+  handleJumpToAgentSession: (agentSessionId: string) => void;
+  /** Resume a Agent session, opening as a new tab or switching to existing */
   handleResumeSession: (
-    claudeSessionId: string,
+    agentSessionId: string,
     providedMessages?: LogEntry[],
     sessionName?: string,
     starred?: boolean
@@ -68,24 +68,24 @@ export interface UseClaudeSessionManagementReturn {
 }
 
 /**
- * Hook for Claude-specific session operations.
+ * Hook for Agent-specific session operations.
  *
  * Handles:
  * - Adding history entries with session metadata
- * - Starting new Claude sessions (clearing context)
- * - Jumping to Claude sessions in the browser
- * - Resuming saved Claude sessions as tabs
+ * - Starting new Agent sessions (clearing context)
+ * - Jumping to Agent sessions in the browser
+ * - Resuming saved Agent sessions as tabs
  *
  * @param deps - Hook dependencies
  * @returns Session management functions and refs
  */
-export function useClaudeSessionManagement(
-  deps: UseClaudeSessionManagementDeps
-): UseClaudeSessionManagementReturn {
+export function useAgentSessionManagement(
+  deps: UseAgentSessionManagementDeps
+): UseAgentSessionManagementReturn {
   const {
     activeSession,
     setSessions,
-    setActiveClaudeSessionId,
+    setActiveAgentSessionId,
     setAgentSessionsOpen,
     addLogToActiveTab,
     rightPanelRef,
@@ -94,7 +94,7 @@ export function useClaudeSessionManagement(
 
   // Refs for functions that need to be accessed from other callbacks
   const addHistoryEntryRef = useRef<((entry: HistoryEntryInput) => Promise<void>) | null>(null);
-  const startNewClaudeSessionRef = useRef<(() => void) | null>(null);
+  const startNewAgentSessionRef = useRef<(() => void) | null>(null);
 
   /**
    * Add a history entry for a session.
@@ -120,7 +120,7 @@ export function useClaudeSessionManagement(
       timestamp: Date.now(),
       summary: entry.summary,
       fullResponse: entry.fullResponse,
-      claudeSessionId: entry.claudeSessionId,
+      agentSessionId: entry.agentSessionId,
       sessionId: targetSessionId,
       sessionName: sessionName,
       projectPath: targetProjectPath,
@@ -135,10 +135,10 @@ export function useClaudeSessionManagement(
   }, [activeSession, rightPanelRef]);
 
   /**
-   * Start a new Claude session by clearing the current context.
+   * Start a new Agent session by clearing the current context.
    * Blocks if there are queued items.
    */
-  const startNewClaudeSession = useCallback(() => {
+  const startNewAgentSession = useCallback(() => {
     if (!activeSession) return;
 
     // Block clearing when there are queued items
@@ -160,7 +160,7 @@ export function useClaudeSessionManagement(
         : s.aiTabs;
       return {
         ...s,
-        claudeSessionId: undefined,
+        agentSessionId: undefined,
         aiLogs: [],
         state: 'idle' as SessionState,
         busySource: undefined,
@@ -168,35 +168,35 @@ export function useClaudeSessionManagement(
         aiTabs: updatedAiTabs
       };
     }));
-    setActiveClaudeSessionId(null);
-  }, [activeSession, addLogToActiveTab, setSessions, setActiveClaudeSessionId]);
+    setActiveAgentSessionId(null);
+  }, [activeSession, addLogToActiveTab, setSessions, setActiveAgentSessionId]);
 
   /**
-   * Jump to a specific Claude session in the agent sessions browser.
+   * Jump to a specific agent session in the agent sessions browser.
    */
-  const handleJumpToClaudeSession = useCallback((claudeSessionId: string) => {
-    // Set the Claude session ID and load its messages
+  const handleJumpToAgentSession = useCallback((agentSessionId: string) => {
+    // Set the agent session ID and load its messages
     if (activeSession) {
-      setActiveClaudeSessionId(claudeSessionId);
+      setActiveAgentSessionId(agentSessionId);
       // Open the agent sessions browser to show the selected session
       setAgentSessionsOpen(true);
     }
-  }, [activeSession, setActiveClaudeSessionId, setAgentSessionsOpen]);
+  }, [activeSession, setActiveAgentSessionId, setAgentSessionsOpen]);
 
   /**
-   * Resume a Claude session - opens as a new tab or switches to existing tab.
+   * Resume an agent session - opens as a new tab or switches to existing tab.
    * Loads messages from the session and looks up metadata (starred, name).
    */
   const handleResumeSession = useCallback(async (
-    claudeSessionId: string,
+    agentSessionId: string,
     providedMessages?: LogEntry[],
     sessionName?: string,
     starred?: boolean
   ) => {
     if (!activeSession?.cwd) return;
 
-    // Check if a tab with this claudeSessionId already exists
-    const existingTab = activeSession.aiTabs?.find(tab => tab.claudeSessionId === claudeSessionId);
+    // Check if a tab with this agentSessionId already exists
+    const existingTab = activeSession.aiTabs?.find(tab => tab.agentSessionId === agentSessionId);
     if (existingTab) {
       // Switch to the existing tab instead of creating a duplicate
       setSessions(prev => prev.map(s =>
@@ -204,7 +204,7 @@ export function useClaudeSessionManagement(
           ? { ...s, activeTabId: existingTab.id, inputMode: 'ai' }
           : s
       ));
-      setActiveClaudeSessionId(claudeSessionId);
+      setActiveAgentSessionId(agentSessionId);
       return;
     }
 
@@ -214,10 +214,12 @@ export function useClaudeSessionManagement(
       if (providedMessages && providedMessages.length > 0) {
         messages = providedMessages;
       } else {
-        // Load the session messages
-        const result = await window.maestro.claude.readSessionMessages(
+        // Load the session messages using the generic agentSessions API
+        const agentId = activeSession.toolType || 'claude-code';
+        const result = await window.maestro.agentSessions.read(
+          agentId,
           activeSession.cwd,
-          claudeSessionId,
+          agentSessionId,
           { offset: 0, limit: 100 }
         );
 
@@ -236,9 +238,10 @@ export function useClaudeSessionManagement(
 
       if (!starred && !sessionName) {
         try {
-          // Look up session metadata from Claude session origins (name and starred)
+          // Look up session metadata from session origins (name and starred)
+          // Note: getSessionOrigins is still Agent-specific until we add generic origin tracking
           const origins = await window.maestro.claude.getSessionOrigins(activeSession.cwd);
-          const originData = origins[claudeSessionId];
+          const originData = origins[agentSessionId];
           if (originData && typeof originData === 'object') {
             if (originData.sessionName) {
               name = originData.sessionName;
@@ -259,7 +262,7 @@ export function useClaudeSessionManagement(
 
         // Create tab from the CURRENT session state (not stale closure value)
         const { session: updatedSession } = createTab(s, {
-          claudeSessionId,
+          agentSessionId,
           logs: messages,
           name,
           starred: isStarred,
@@ -268,22 +271,22 @@ export function useClaudeSessionManagement(
 
         return { ...updatedSession, inputMode: 'ai' };
       }));
-      setActiveClaudeSessionId(claudeSessionId);
+      setActiveAgentSessionId(agentSessionId);
     } catch (error) {
       console.error('Failed to resume session:', error);
     }
-  }, [activeSession?.cwd, activeSession?.id, activeSession?.aiTabs, setSessions, setActiveClaudeSessionId, defaultSaveToHistory]);
+  }, [activeSession?.cwd, activeSession?.id, activeSession?.aiTabs, activeSession?.toolType, setSessions, setActiveAgentSessionId, defaultSaveToHistory]);
 
   // Update refs for slash command functions (so other handlers can access latest versions)
   addHistoryEntryRef.current = addHistoryEntry;
-  startNewClaudeSessionRef.current = startNewClaudeSession;
+  startNewAgentSessionRef.current = startNewAgentSession;
 
   return {
     addHistoryEntry,
     addHistoryEntryRef,
-    startNewClaudeSession,
-    startNewClaudeSessionRef,
-    handleJumpToClaudeSession,
+    startNewAgentSession,
+    startNewAgentSessionRef,
+    handleJumpToAgentSession,
     handleResumeSession,
   };
 }

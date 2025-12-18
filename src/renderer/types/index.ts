@@ -4,7 +4,12 @@
 export type { Theme, ThemeId, ThemeMode, ThemeColors } from '../../shared/theme-types';
 export { isValidThemeId } from '../../shared/theme-types';
 
-export type ToolType = 'claude' | 'claude-code' | 'aider' | 'opencode' | 'terminal';
+// Re-export error types from shared location
+export type { AgentError, AgentErrorType, AgentErrorRecovery } from '../../shared/types';
+// Import AgentError for use within this file
+import type { AgentError } from '../../shared/types';
+
+export type ToolType = 'claude' | 'claude-code' | 'aider' | 'opencode' | 'codex' | 'terminal';
 export type SessionState = 'idle' | 'busy' | 'waiting_input' | 'connecting' | 'error';
 export type FileChangeType = 'modified' | 'added' | 'deleted';
 export type RightPanelTab = 'files' | 'history' | 'autorun';
@@ -157,6 +162,12 @@ export interface BatchRunState {
   startTime?: number; // Timestamp when batch run started
   accumulatedElapsedMs?: number; // Accumulated active elapsed time (excludes sleep/suspend time)
   lastActiveTimestamp?: number; // Last timestamp when actively tracking (for pause/resume calculation)
+
+  // Error handling state (Phase 5.10)
+  error?: AgentError;                // Current error if batch is paused due to agent error
+  errorPaused?: boolean;             // True if batch is paused waiting for error resolution
+  errorDocumentIndex?: number;       // Which document had the error (for skip functionality)
+  errorTaskDescription?: string;     // Description of the task that failed (for UI display)
 }
 
 // Document entry within a playbook (similar to BatchDocumentEntry but for storage)
@@ -187,14 +198,20 @@ export interface Playbook {
   };
 }
 
-// Usage statistics from Claude Code CLI
+// Usage statistics from AI agent CLI (Claude Code, Codex, etc.)
 export interface UsageStats {
   inputTokens: number;
   outputTokens: number;
   cacheReadInputTokens: number;
   cacheCreationInputTokens: number;
   totalCostUsd: number;
-  contextWindow: number; // e.g., 200000 for Claude
+  contextWindow: number; // e.g., 200000 for Claude, 128000 for Codex o4-mini
+  /**
+   * Reasoning/thinking tokens (separate from outputTokens)
+   * Some models like OpenAI o3/o4-mini report reasoning tokens separately.
+   * These are already included in outputTokens but tracked separately for UI display.
+   */
+  reasoningTokens?: number;
 }
 
 // Persistent global statistics (survives app restarts)
@@ -259,10 +276,10 @@ export interface OnboardingStats {
 }
 
 // AI Tab for multi-tab support within a Maestro session
-// Each tab represents a separate Claude Code conversation
+// Each tab represents a separate AI agent conversation (Claude Code, OpenCode, etc.)
 export interface AITab {
   id: string;                      // Unique tab ID (generated UUID)
-  claudeSessionId: string | null;  // Claude Code session UUID (null for new tabs)
+  agentSessionId: string | null;   // Agent session UUID (null for new tabs)
   name: string | null;             // User-defined name (null = show UUID octet)
   starred: boolean;                // Whether session is starred (for pill display)
   logs: LogEntry[];                // Conversation history
@@ -271,7 +288,7 @@ export interface AITab {
   usageStats?: UsageStats;         // Token usage for this tab
   createdAt: number;               // Timestamp for ordering
   state: 'idle' | 'busy';          // Tab-level state for write-mode tracking
-  readOnlyMode?: boolean;          // When true, Claude operates in plan/read-only mode
+  readOnlyMode?: boolean;          // When true, agent operates in plan/read-only mode
   saveToHistory?: boolean;         // When true, synopsis is requested after each completion and saved to History
   awaitingSessionId?: boolean;     // True when this tab sent a message and is awaiting its session ID
   thinkingStartTime?: number;      // Timestamp when tab started thinking (for elapsed time display)
@@ -330,9 +347,9 @@ export interface Session {
   // Command history (separate for each mode)
   aiCommandHistory?: string[];
   shellCommandHistory?: string[];
-  // Claude Code session ID for conversation continuity
-  // DEPRECATED: Use aiTabs[activeIndex].claudeSessionId instead
-  claudeSessionId?: string;
+  // Agent session ID for conversation continuity
+  // DEPRECATED: Use aiTabs[activeIndex].agentSessionId instead
+  agentSessionId?: string;
   // Pending jump path for /jump command (relative path within file tree)
   pendingJumpPath?: string;
   // Custom status message for the thinking indicator (e.g., "Agent is synopsizing...")
@@ -351,8 +368,8 @@ export interface Session {
   executionQueue: QueuedItem[];
   // Active time tracking - cumulative milliseconds of active use
   activeTimeMs: number;
-  // Claude Code slash commands available for this session (fetched per session based on cwd)
-  claudeCommands?: { command: string; description: string; }[];
+  // Agent slash commands available for this session (fetched per session based on cwd)
+  agentCommands?: { command: string; description: string; }[];
   // Bookmark flag - bookmarked sessions appear in a dedicated section at the top
   bookmarked?: boolean;
   // Pending AI command that will trigger a synopsis on completion (e.g., '/commit')
@@ -400,6 +417,14 @@ export interface Session {
   // Nudge message - appended to every interactive user message (max 1000 chars)
   // Not visible in UI, but sent to the agent with each message
   nudgeMessage?: string;
+
+  // Agent error state - set when an agent error is detected
+  // Cleared when user dismisses the error or takes recovery action
+  agentError?: AgentError;
+
+  // Whether operations are paused due to an agent error
+  // When true, new messages are blocked until the error is resolved
+  agentErrorPaused?: boolean;
 }
 
 export interface Group {
@@ -409,15 +434,28 @@ export interface Group {
   collapsed: boolean;
 }
 
+export interface AgentConfigOption {
+  key: string;
+  type: 'checkbox' | 'text' | 'number' | 'select';
+  label: string;
+  description: string;
+  default: any;
+  options?: string[];
+  argBuilder?: (value: any) => string[];
+}
+
 export interface AgentConfig {
   id: string;
   name: string;
+  binaryName?: string;
   available: boolean;
   path?: string;
   customPath?: string; // User-specified custom path (shown in UI even if not available)
   command?: string;
   args?: string[];
   hidden?: boolean; // If true, agent is hidden from UI (internal use only)
+  configOptions?: AgentConfigOption[]; // Agent-specific configuration options
+  yoloModeArgs?: string[]; // Args for YOLO/full-access mode (e.g., ['--dangerously-skip-permissions'])
 }
 
 // Process spawning configuration

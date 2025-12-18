@@ -399,10 +399,10 @@ export class HistoryManager {
   }
 
   /**
-   * Update sessionName for all entries matching a given claudeSessionId.
+   * Update sessionName for all entries matching a given agentSessionId.
    * This is used when a tab is renamed to retroactively update past history entries.
    */
-  updateSessionNameByClaudeSessionId(claudeSessionId: string, sessionName: string): number {
+  updateSessionNameByClaudeSessionId(agentSessionId: string, sessionName: string): number {
     const sessions = this.listSessionsWithHistory();
     let updatedCount = 0;
 
@@ -415,7 +415,7 @@ export class HistoryManager {
         let modified = false;
 
         for (const entry of data.entries) {
-          if (entry.claudeSessionId === claudeSessionId && entry.sessionName !== sessionName) {
+          if (entry.agentSessionId === agentSessionId && entry.sessionName !== sessionName) {
             entry.sessionName = sessionName;
             modified = true;
             updatedCount++;
@@ -424,7 +424,7 @@ export class HistoryManager {
 
         if (modified) {
           fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
-          logger.debug(`Updated ${updatedCount} entries for claudeSessionId ${claudeSessionId} in session ${sessionId}`, LOG_CONTEXT);
+          logger.debug(`Updated ${updatedCount} entries for agentSessionId ${agentSessionId} in session ${sessionId}`, LOG_CONTEXT);
         }
       } catch (error) {
         logger.warn(`Failed to update sessionName in session ${sessionId}: ${error}`, LOG_CONTEXT);

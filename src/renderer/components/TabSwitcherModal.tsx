@@ -11,7 +11,7 @@ import { formatTokensCompact, formatRelativeTime, formatCost } from '../utils/fo
 
 /** Named session from the store (not currently open) */
 interface NamedSession {
-  claudeSessionId: string;
+  agentSessionId: string;
   projectPath: string;
   sessionName: string;
   starred?: boolean;
@@ -30,7 +30,7 @@ interface TabSwitcherModalProps {
   projectRoot: string; // The initial project directory (used for Claude session storage)
   shortcut?: Shortcut;
   onTabSelect: (tabId: string) => void;
-  onNamedSessionSelect: (claudeSessionId: string, projectPath: string, sessionName: string, starred?: boolean) => void;
+  onNamedSessionSelect: (agentSessionId: string, projectPath: string, sessionName: string, starred?: boolean) => void;
   onClose: () => void;
 }
 
@@ -65,8 +65,8 @@ function getTabDisplayName(tab: AITab): string {
   if (tab.name) {
     return tab.name;
   }
-  if (tab.claudeSessionId) {
-    return tab.claudeSessionId.split('-')[0].toUpperCase();
+  if (tab.agentSessionId) {
+    return tab.agentSessionId.split('-')[0].toUpperCase();
   }
   return 'New Session';
 }
@@ -74,9 +74,9 @@ function getTabDisplayName(tab: AITab): string {
 /**
  * Get the UUID pill display (first octet of session ID)
  */
-function getUuidPill(claudeSessionId: string | undefined): string | null {
-  if (!claudeSessionId) return null;
-  return claudeSessionId.split('-')[0].toUpperCase();
+function getUuidPill(agentSessionId: string | undefined): string | null {
+  if (!agentSessionId) return null;
+  return agentSessionId.split('-')[0].toUpperCase();
 }
 
 /**
@@ -200,10 +200,10 @@ export function TabSwitcherModal({
   useEffect(() => {
     const syncAndLoad = async () => {
       // First, sync any named open tabs to the store
-      const namedTabs = tabs.filter(t => t.name && t.claudeSessionId);
+      const namedTabs = tabs.filter(t => t.name && t.agentSessionId);
       await Promise.all(
         namedTabs.map(tab =>
-          window.maestro.claude.updateSessionName(projectRoot, tab.claudeSessionId!, tab.name!)
+          window.maestro.agentSessions.updateSessionName(projectRoot, tab.agentSessionId!, tab.name!)
             .catch(err => console.warn('[TabSwitcher] Failed to sync tab name:', err))
         )
       );
@@ -230,7 +230,7 @@ export function TabSwitcherModal({
 
   // Get set of open tab claude session IDs for quick lookup
   const openTabSessionIds = useMemo(() => {
-    return new Set(tabs.map(t => t.claudeSessionId).filter(Boolean));
+    return new Set(tabs.map(t => t.agentSessionId).filter(Boolean));
   }, [tabs]);
 
   // Build the list items based on view mode
@@ -249,14 +249,14 @@ export function TabSwitcherModal({
 
       // Add starred open tabs
       for (const tab of tabs) {
-        if (tab.starred && tab.claudeSessionId) {
+        if (tab.starred && tab.agentSessionId) {
           items.push({ type: 'open' as const, tab });
         }
       }
 
       // Add starred closed sessions from the same project (not currently open)
       for (const session of namedSessions) {
-        if (session.starred && session.projectPath === projectRoot && !openTabSessionIds.has(session.claudeSessionId)) {
+        if (session.starred && session.projectPath === projectRoot && !openTabSessionIds.has(session.agentSessionId)) {
           items.push({ type: 'named' as const, session });
         }
       }
@@ -276,7 +276,7 @@ export function TabSwitcherModal({
 
       // Add open tabs that have a custom name (not just UUID-based display names)
       for (const tab of tabs) {
-        if (tab.claudeSessionId && tab.name) {
+        if (tab.agentSessionId && tab.name) {
           items.push({ type: 'open' as const, tab });
         }
       }
@@ -284,10 +284,10 @@ export function TabSwitcherModal({
       // Add closed named sessions from the SAME PROJECT (not currently open)
       // Only include sessions with actual custom names (not UUID-based names)
       for (const session of namedSessions) {
-        if (session.projectPath === projectRoot && !openTabSessionIds.has(session.claudeSessionId)) {
+        if (session.projectPath === projectRoot && !openTabSessionIds.has(session.agentSessionId)) {
           // Skip sessions where the name is just the UUID or first octet of the UUID
-          const firstOctet = session.claudeSessionId.split('-')[0].toUpperCase();
-          const isUuidBasedName = session.sessionName === session.claudeSessionId ||
+          const firstOctet = session.agentSessionId.split('-')[0].toUpperCase();
+          const isUuidBasedName = session.sessionName === session.agentSessionId ||
                                    session.sessionName.toUpperCase() === firstOctet;
           if (!isUuidBasedName) {
             items.push({ type: 'named' as const, session });
@@ -319,10 +319,10 @@ export function TabSwitcherModal({
 
       if (item.type === 'open') {
         displayName = getTabDisplayName(item.tab);
-        uuid = item.tab.claudeSessionId || '';
+        uuid = item.tab.agentSessionId || '';
       } else {
         displayName = item.session.sessionName;
-        uuid = item.session.claudeSessionId;
+        uuid = item.session.agentSessionId;
       }
 
       const nameResult = fuzzyMatchWithScore(displayName, search);
@@ -347,7 +347,7 @@ export function TabSwitcherModal({
       if (item.type === 'open') {
         onTabSelect(item.tab.id);
       } else {
-        onNamedSessionSelect(item.session.claudeSessionId, item.session.projectPath, item.session.sessionName, item.session.starred);
+        onNamedSessionSelect(item.session.agentSessionId, item.session.projectPath, item.session.sessionName, item.session.starred);
       }
       onClose();
     }
@@ -461,10 +461,10 @@ export function TabSwitcherModal({
               color: viewMode === 'all-named' ? theme.colors.accentForeground : theme.colors.textDim
             }}
           >
-            All Named ({tabs.filter(t => t.claudeSessionId && t.name).length + namedSessions.filter(s => {
-              if (s.projectPath !== projectRoot || openTabSessionIds.has(s.claudeSessionId)) return false;
-              const firstOctet = s.claudeSessionId.split('-')[0].toUpperCase();
-              return s.sessionName !== s.claudeSessionId && s.sessionName.toUpperCase() !== firstOctet;
+            All Named ({tabs.filter(t => t.agentSessionId && t.name).length + namedSessions.filter(s => {
+              if (s.projectPath !== projectRoot || openTabSessionIds.has(s.agentSessionId)) return false;
+              const firstOctet = s.agentSessionId.split('-')[0].toUpperCase();
+              return s.sessionName !== s.agentSessionId && s.sessionName.toUpperCase() !== firstOctet;
             }).length})
           </button>
           <button
@@ -476,7 +476,7 @@ export function TabSwitcherModal({
             }}
           >
             <Star className="w-3 h-3" style={{ fill: viewMode === 'starred' ? 'currentColor' : 'none' }} />
-            Starred ({tabs.filter(t => t.starred && t.claudeSessionId).length + namedSessions.filter(s => s.starred && s.projectPath === projectRoot && !openTabSessionIds.has(s.claudeSessionId)).length})
+            Starred ({tabs.filter(t => t.starred && t.agentSessionId).length + namedSessions.filter(s => s.starred && s.projectPath === projectRoot && !openTabSessionIds.has(s.agentSessionId)).length})
           </button>
           <span className="text-[10px] opacity-50 ml-auto" style={{ color: theme.colors.textDim }}>
             Tab / ⇧Tab to switch
@@ -503,7 +503,7 @@ export function TabSwitcherModal({
               const { tab } = item;
               const isActive = tab.id === activeTabId;
               const displayName = getTabDisplayName(tab);
-              const uuidPill = getUuidPill(tab.claudeSessionId);
+              const uuidPill = getUuidPill(tab.agentSessionId);
               const contextPct = getContextPercentage(tab);
               const cost = tab.usageStats?.totalCostUsd || 0;
 
@@ -578,20 +578,22 @@ export function TabSwitcherModal({
                     </div>
                   </div>
 
-                  {/* Context Gauge */}
-                  <div className="flex-shrink-0">
-                    <ContextGauge percentage={contextPct} theme={theme} />
-                  </div>
+                  {/* Context Gauge - only show when context window is configured */}
+                  {(tab.usageStats?.contextWindow ?? 0) > 0 && (
+                    <div className="flex-shrink-0">
+                      <ContextGauge percentage={contextPct} theme={theme} />
+                    </div>
+                  )}
                 </button>
               );
             } else {
               // Named session (not open)
               const { session } = item;
-              const uuidPill = getUuidPill(session.claudeSessionId);
+              const uuidPill = getUuidPill(session.agentSessionId);
 
               return (
                 <button
-                  key={session.claudeSessionId}
+                  key={session.agentSessionId}
                   ref={isSelected ? selectedItemRef : null}
                   onClick={() => handleSelectByIndex(i)}
                   className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-opacity-10"

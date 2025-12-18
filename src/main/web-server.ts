@@ -32,7 +32,7 @@ const LOG_CONTEXT = 'WebServer';
 // Live session info
 interface LiveSessionInfo {
   sessionId: string;
-  claudeSessionId?: string;
+  agentSessionId?: string;
   enabledAt: number;
 }
 
@@ -90,7 +90,7 @@ export interface LastResponsePreview {
 // AI Tab type for multi-tab support within a Maestro session
 export interface AITabData {
   id: string;
-  claudeSessionId: string | null;
+  agentSessionId: string | null;
   name: string | null;
   starred: boolean;
   inputValue: string;
@@ -113,7 +113,7 @@ export type GetSessionsCallback = () => Array<{
   groupEmoji: string | null;
   usageStats?: SessionUsageStats | null;
   lastResponse?: LastResponsePreview | null;
-  claudeSessionId?: string | null;
+  agentSessionId?: string | null;
   thinkingStartTime?: number | null; // Timestamp when AI started thinking (for elapsed time display)
   aiTabs?: AITabData[];
   activeTabId?: string;
@@ -135,7 +135,7 @@ export interface SessionDetail {
     outputTokens?: number;
     totalCost?: number;
   };
-  claudeSessionId?: string;
+  agentSessionId?: string;
   isGitRepo?: boolean;
   activeTabId?: string;
 }
@@ -178,6 +178,7 @@ export type SelectSessionCallback = (sessionId: string, tabId?: string) => Promi
 export type SelectTabCallback = (sessionId: string, tabId: string) => Promise<boolean>;
 export type NewTabCallback = (sessionId: string) => Promise<{ tabId: string } | null>;
 export type CloseTabCallback = (sessionId: string, tabId: string) => Promise<boolean>;
+export type RenameTabCallback = (sessionId: string, tabId: string, newName: string) => Promise<boolean>;
 
 // Re-export Theme type from shared for backwards compatibility
 export type { Theme } from '../shared/theme-types';
@@ -226,6 +227,7 @@ export class WebServer {
   private selectTabCallback: SelectTabCallback | null = null;
   private newTabCallback: NewTabCallback | null = null;
   private closeTabCallback: CloseTabCallback | null = null;
+  private renameTabCallback: RenameTabCallback | null = null;
   private getHistoryCallback: GetHistoryCallback | null = null;
   private webAssetsPath: string | null = null;
 
@@ -315,16 +317,16 @@ export class WebServer {
   /**
    * Mark a session as live (visible in web interface)
    */
-  setSessionLive(sessionId: string, claudeSessionId?: string): void {
+  setSessionLive(sessionId: string, agentSessionId?: string): void {
     this.liveSessions.set(sessionId, {
       sessionId,
-      claudeSessionId,
+      agentSessionId,
       enabledAt: Date.now(),
     });
     logger.info(`Session ${sessionId} marked as live (total: ${this.liveSessions.size})`, LOG_CONTEXT);
 
     // Broadcast to all connected clients
-    this.broadcastService.broadcastSessionLive(sessionId, claudeSessionId);
+    this.broadcastService.broadcastSessionLive(sessionId, agentSessionId);
   }
 
   /**
@@ -476,6 +478,15 @@ export class WebServer {
   setCloseTabCallback(callback: CloseTabCallback) {
     logger.info('[WebServer] setCloseTabCallback called', LOG_CONTEXT);
     this.closeTabCallback = callback;
+  }
+
+  /**
+   * Set the callback function for renaming a tab within a session
+   * This forwards to the renderer which handles tab rename and broadcasts
+   */
+  setRenameTabCallback(callback: RenameTabCallback) {
+    logger.info('[WebServer] setRenameTabCallback called', LOG_CONTEXT);
+    this.renameTabCallback = callback;
   }
 
   /**
@@ -758,6 +769,10 @@ export class WebServer {
       closeTab: async (sessionId: string, tabId: string) => {
         if (!this.closeTabCallback) return false;
         return this.closeTabCallback(sessionId, tabId);
+      },
+      renameTab: async (sessionId: string, tabId: string, newName: string) => {
+        if (!this.renameTabCallback) return false;
+        return this.renameTabCallback(sessionId, tabId, newName);
       },
       getSessions: () => {
         return this.getSessionsCallback?.() ?? [];

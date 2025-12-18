@@ -184,7 +184,7 @@ export function useInputProcessing(deps: UseInputProcessingDeps): UseInputProces
               commandDescription: matchingCustomCommand.description,
               tabName:
                 activeTab?.name ||
-                (activeTab?.claudeSessionId ? activeTab.claudeSessionId.split('-')[0].toUpperCase() : 'New'),
+                (activeTab?.agentSessionId ? activeTab.agentSessionId.split('-')[0].toUpperCase() : 'New'),
               readOnlyMode: isReadOnlyMode,
             };
 
@@ -303,7 +303,7 @@ export function useInputProcessing(deps: UseInputProcessingDeps): UseInputProces
           images: [...stagedImages],
           tabName:
             activeTab?.name ||
-            (activeTab?.claudeSessionId ? activeTab.claudeSessionId.split('-')[0].toUpperCase() : 'New'),
+            (activeTab?.agentSessionId ? activeTab.agentSessionId.split('-')[0].toUpperCase() : 'New'),
           readOnlyMode: isReadOnlyMode,
         };
 
@@ -436,9 +436,9 @@ export function useInputProcessing(deps: UseInputProcessingDeps): UseInputProces
         }
 
         // Update the active tab's logs and state to 'busy' for write-mode tracking
-        // Also mark as awaitingSessionId if this is a new session (no claudeSessionId yet)
+        // Also mark as awaitingSessionId if this is a new session (no agentSessionId yet)
         // Set thinkingStartTime on the tab for accurate elapsed time tracking (especially for parallel tabs)
-        const isNewSession = !activeTab.claudeSessionId;
+        const isNewSession = !activeTab.agentSessionId;
         const updatedAiTabs = s.aiTabs.map((tab) =>
           tab.id === activeTab.id
             ? {
@@ -514,51 +514,47 @@ export function useInputProcessing(deps: UseInputProcessingDeps): UseInputProces
         ? `${activeSession.id}-ai-${activeTabForSpawn?.id || 'default'}`
         : `${activeSession.id}-terminal`;
 
-    // Check if this is Claude Code in batch mode (AI mode with claude/claude-code tool)
-    const isClaudeBatchMode =
+    // Check if this is an AI agent in batch mode (e.g., Claude Code, OpenCode, Codex)
+    // Batch mode agents spawn a new process per message rather than writing to stdin
+    const isBatchModeAgent =
       currentMode === 'ai' &&
-      (activeSession.toolType === 'claude' || activeSession.toolType === 'claude-code');
+      (activeSession.toolType === 'claude' ||
+       activeSession.toolType === 'claude-code' ||
+       activeSession.toolType === 'opencode' ||
+       activeSession.toolType === 'codex');
 
-    if (isClaudeBatchMode) {
-      // Batch mode: Spawn new Claude process with prompt
+    if (isBatchModeAgent) {
+      // Batch mode: Spawn new agent process with prompt
       (async () => {
         try {
           // Get agent configuration
-          const agent = await window.maestro.agents.get('claude-code');
-          if (!agent) throw new Error('Claude Code agent not found');
+          const agent = await window.maestro.agents.get(activeSession.toolType);
+          if (!agent) throw new Error(`${activeSession.toolType} agent not found`);
 
           // IMPORTANT: Get fresh session state from ref to avoid stale closure bug
           // If user switches tabs quickly, activeSession from closure may have wrong activeTabId
           const freshSession = sessionsRef.current.find((s) => s.id === activeSessionId);
           if (!freshSession) throw new Error('Session not found');
 
-          // Build spawn args with resume if we have a session ID
-          // Use the ACTIVE TAB's claudeSessionId (not the deprecated session-level one)
+          // Use the ACTIVE TAB's agentSessionId (not the deprecated session-level one)
           const freshActiveTab = getActiveTab(freshSession);
-          const tabClaudeSessionId = freshActiveTab?.claudeSessionId;
-          const isNewSession = !tabClaudeSessionId;
+          const tabAgentSessionId = freshActiveTab?.agentSessionId;
           // Check CURRENT session's Auto Run state (not any session's) and respect worktree bypass
           const currentSessionBatchState = getBatchState(activeSessionId);
           const isAutoRunReadOnly = currentSessionBatchState.isRunning && !currentSessionBatchState.worktreeActive;
           const isReadOnly = isAutoRunReadOnly || freshActiveTab?.readOnlyMode;
 
-          // Filter out --dangerously-skip-permissions when read-only mode is active
-          // (it would override --permission-mode plan)
+          // For read-only mode, filter out any YOLO/skip-permissions flags from base args
+          // (they would override the read-only mode we're requesting)
+          // - Claude Code: --dangerously-skip-permissions
+          // - Codex: --dangerously-bypass-approvals-and-sandbox
           const spawnArgs = isReadOnly
-            ? agent.args.filter((arg) => arg !== '--dangerously-skip-permissions')
+            ? agent.args.filter((arg) =>
+                arg !== '--dangerously-skip-permissions' &&
+                arg !== '--dangerously-bypass-approvals-and-sandbox'
+              )
             : [...agent.args];
 
-          if (tabClaudeSessionId) {
-            spawnArgs.push('--resume', tabClaudeSessionId);
-          }
-
-          // Add read-only/plan mode when auto mode is active OR tab has readOnlyMode enabled
-          if (isReadOnly) {
-            spawnArgs.push('--permission-mode', 'plan');
-          }
-
-          // Spawn Claude with prompt as argument (use captured value)
-          // If images are present, they will be passed via stream-json input format
           // Use agent.path (full path) if available, otherwise fall back to agent.command
           const commandToUse = agent.path || agent.command;
 
@@ -568,22 +564,27 @@ export function useInputProcessing(deps: UseInputProcessingDeps): UseInputProces
           const effectivePrompt =
             hasImages && hasNoText ? DEFAULT_IMAGE_ONLY_PROMPT : capturedInputValue;
 
+          // Spawn agent with generic config - the main process will use agent-specific
+          // argument builders (resumeArgs, readOnlyArgs, etc.) to construct the final args
           await window.maestro.process.spawn({
             sessionId: targetSessionId,
-            toolType: 'claude-code',
+            toolType: freshSession.toolType,
             cwd: freshSession.cwd,
             command: commandToUse,
             args: spawnArgs,
             prompt: effectivePrompt,
             images: hasImages ? capturedImages : undefined,
+            // Generic spawn options - main process builds agent-specific args
+            agentSessionId: tabAgentSessionId,
+            readOnlyMode: isReadOnly,
           });
         } catch (error) {
-          console.error('Failed to spawn Claude batch process:', error);
+          console.error('Failed to spawn agent batch process:', error);
           const errorLog: LogEntry = {
             id: generateId(),
             timestamp: Date.now(),
             source: 'system',
-            text: `Error: Failed to spawn Claude process - ${(error as Error).message}`,
+            text: `Error: Failed to spawn agent process - ${(error as Error).message}`,
           };
           setSessions((prev) =>
             prev.map((s) => {

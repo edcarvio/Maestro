@@ -434,7 +434,7 @@ describe('MobileHistoryPanel', () => {
     it('renders Claude session ID octet', async () => {
       const entries = [
         createMockEntry({
-          claudeSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv',
+          agentSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv',
         }),
       ];
       global.fetch = vi.fn().mockResolvedValue({
@@ -954,7 +954,7 @@ describe('MobileHistoryPanel', () => {
     it('shows Claude session ID in detail view', async () => {
       const entries = [
         createMockEntry({
-          claudeSessionId: 'xyz98765-abc-def-ghi-jklmnop',
+          agentSessionId: 'xyz98765-abc-def-ghi-jklmnop',
         }),
       ];
       global.fetch = vi.fn().mockResolvedValue({

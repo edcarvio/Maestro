@@ -72,12 +72,12 @@ function getSessionDisplayName(session: Session, namedSessions?: Record<string, 
   // Get the write-mode (busy) tab for this session
   const writeModeTab = getWriteModeTab(session);
 
-  // Use tab's claudeSessionId if available, fallback to session's (legacy)
-  const claudeSessionId = writeModeTab?.claudeSessionId || session.claudeSessionId;
+  // Use tab's agentSessionId if available, fallback to session's (legacy)
+  const agentSessionId = writeModeTab?.agentSessionId || session.agentSessionId;
 
   // Priority 1: Named session from namedSessions lookup
-  if (claudeSessionId) {
-    const customName = namedSessions?.[claudeSessionId];
+  if (agentSessionId) {
+    const customName = namedSessions?.[agentSessionId];
     if (customName) return customName;
   }
 
@@ -87,8 +87,8 @@ function getSessionDisplayName(session: Session, namedSessions?: Record<string, 
   }
 
   // Priority 3: UUID octet (first 8 chars uppercase)
-  if (claudeSessionId) {
-    return claudeSessionId.substring(0, 8).toUpperCase();
+  if (agentSessionId) {
+    return agentSessionId.substring(0, 8).toUpperCase();
   }
 
   // Fall back to Maestro session name
@@ -323,19 +323,19 @@ function ThinkingStatusPillInner({ sessions, theme, onSessionClick, namedSession
   // Get the write-mode tab to display its info (for tabified sessions)
   const writeModeTab = getWriteModeTab(primarySession);
 
-  // Use tab's claudeSessionId if available, fallback to session's (legacy)
-  const claudeSessionId = writeModeTab?.claudeSessionId || primarySession.claudeSessionId;
+  // Use tab's agentSessionId if available, fallback to session's (legacy)
+  const agentSessionId = writeModeTab?.agentSessionId || primarySession.agentSessionId;
 
   // Priority: 1. namedSessions lookup, 2. tab's name, 3. session name, 4. UUID octet
-  const customName = claudeSessionId ? namedSessions?.[claudeSessionId] : undefined;
+  const customName = agentSessionId ? namedSessions?.[agentSessionId] : undefined;
   const tabName = writeModeTab?.name;
 
   // Display name: prefer namedSessions, then tab name, then session name, then UUID octet
-  const displayClaudeId = customName || tabName || maestroSessionName || (claudeSessionId ? claudeSessionId.substring(0, 8).toUpperCase() : null);
+  const displayClaudeId = customName || tabName || maestroSessionName || (agentSessionId ? agentSessionId.substring(0, 8).toUpperCase() : null);
 
   // For tooltip, show all available info
   const tooltipParts = [maestroSessionName];
-  if (claudeSessionId) tooltipParts.push(`Claude: ${claudeSessionId}`);
+  if (agentSessionId) tooltipParts.push(`Claude: ${agentSessionId}`);
   if (tabName) tooltipParts.push(`Tab: ${tabName}`);
   if (customName) tooltipParts.push(`Named: ${customName}`);
   const fullTooltip = tooltipParts.join(' | ');
@@ -417,7 +417,7 @@ function ThinkingStatusPillInner({ sessions, theme, onSessionClick, namedSession
               onClick={() => onSessionClick?.(primarySession.id, writeModeTab?.id)}
               className="text-xs font-mono hover:underline cursor-pointer"
               style={{ color: theme.colors.accent }}
-              title={claudeSessionId ? `Claude Session: ${claudeSessionId}` : 'Claude Session'}
+              title={agentSessionId ? `Claude Session: ${agentSessionId}` : 'Claude Session'}
             >
               {displayClaudeId}
             </button>
@@ -542,7 +542,7 @@ export const ThinkingStatusPill = memo(ThinkingStatusPillInner, (prevProps, next
     if (
       prev.id !== next.id ||
       prev.name !== next.name ||
-      prev.claudeSessionId !== next.claudeSessionId ||
+      prev.agentSessionId !== next.agentSessionId ||
       prev.state !== next.state ||
       prev.thinkingStartTime !== next.thinkingStartTime ||
       prev.currentCycleTokens !== next.currentCycleTokens
@@ -550,13 +550,13 @@ export const ThinkingStatusPill = memo(ThinkingStatusPillInner, (prevProps, next
       return false;
     }
 
-    // Also check write-mode tab's name, claudeSessionId, and thinkingStartTime (for tabified sessions)
+    // Also check write-mode tab's name, agentSessionId, and thinkingStartTime (for tabified sessions)
     const prevWriteTab = getWriteModeTab(prev);
     const nextWriteTab = getWriteModeTab(next);
     if (
       prevWriteTab?.id !== nextWriteTab?.id ||
       prevWriteTab?.name !== nextWriteTab?.name ||
-      prevWriteTab?.claudeSessionId !== nextWriteTab?.claudeSessionId ||
+      prevWriteTab?.agentSessionId !== nextWriteTab?.agentSessionId ||
       prevWriteTab?.thinkingStartTime !== nextWriteTab?.thinkingStartTime
     ) {
       return false;
@@ -566,9 +566,9 @@ export const ThinkingStatusPill = memo(ThinkingStatusPillInner, (prevProps, next
   // Check if namedSessions changed for any thinking session
   if (prevProps.namedSessions !== nextProps.namedSessions) {
     for (const session of nextThinking) {
-      // Check both session's and write-mode tab's claudeSessionId
+      // Check both session's and write-mode tab's agentSessionId
       const writeTab = getWriteModeTab(session);
-      const claudeId = writeTab?.claudeSessionId || session.claudeSessionId;
+      const claudeId = writeTab?.agentSessionId || session.agentSessionId;
       if (claudeId) {
         const prevName = prevProps.namedSessions?.[claudeId];
         const nextName = nextProps.namedSessions?.[claudeId];

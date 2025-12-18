@@ -76,7 +76,7 @@ export function useRemoteIntegration(deps: UseRemoteIntegrationDeps): UseRemoteI
 
       console.log('[Remote] Received command from web interface:', {
         maestroSessionId: sessionId,
-        claudeSessionId: targetSession?.claudeSessionId || 'none',
+        agentSessionId: targetSession?.agentSessionId || 'none',
         state: targetSession?.state || 'NOT_FOUND',
         sessionInputMode: targetSession?.inputMode || 'unknown',
         webInputMode: inputMode || 'not provided',
@@ -290,17 +290,55 @@ export function useRemoteIntegration(deps: UseRemoteIntegrationDeps): UseRemoteI
       }));
     });
 
+    // Handle remote rename tab from web interface
+    const unsubscribeRenameTab = window.maestro.process.onRemoteRenameTab((sessionId: string, tabId: string, newName: string) => {
+      console.log('[Remote] Received rename tab request from web interface:', { sessionId, tabId, newName });
+
+      setSessions(prev => prev.map(s => {
+        if (s.id !== sessionId) return s;
+
+        // Find the tab to get its agentSessionId for persistence
+        const tab = s.aiTabs.find(t => t.id === tabId);
+        if (!tab) {
+          console.log('[Remote] Tab not found for rename:', tabId);
+          return s;
+        }
+
+        // Persist name to agent session metadata (async, fire and forget)
+        if (tab.agentSessionId) {
+          window.maestro.agentSessions.updateSessionName(
+            s.cwd,
+            tab.agentSessionId,
+            newName || ''
+          ).catch(err => console.error('Failed to persist tab name:', err));
+          // Also update past history entries with this agentSessionId
+          window.maestro.history.updateSessionName(
+            tab.agentSessionId,
+            newName || ''
+          ).catch(err => console.error('Failed to update history session names:', err));
+        }
+
+        return {
+          ...s,
+          aiTabs: s.aiTabs.map(t =>
+            t.id === tabId ? { ...t, name: newName || null } : t
+          )
+        };
+      }));
+    });
+
     return () => {
       unsubscribeSelectSession();
       unsubscribeSelectTab();
       unsubscribeNewTab();
       unsubscribeCloseTab();
+      unsubscribeRenameTab();
     };
   }, [sessionsRef, activeSessionIdRef, setSessions, setActiveSessionId, defaultSaveToHistory]);
 
-  // Broadcast tab changes to web clients when tabs or activeTabId changes
+  // Broadcast tab changes to web clients when tabs, activeTabId, or tab properties change
   // Use a ref to track previous values and only broadcast on actual changes
-  const prevTabsRef = useRef<Map<string, { tabCount: number; activeTabId: string }>>(new Map());
+  const prevTabsRef = useRef<Map<string, { tabCount: number; activeTabId: string; tabsHash: string }>>(new Map());
 
   useEffect(() => {
     // Get current sessions from ref to ensure we have latest state
@@ -310,18 +348,23 @@ export function useRemoteIntegration(deps: UseRemoteIntegrationDeps): UseRemoteI
     sessions.forEach(session => {
       if (!session.aiTabs || session.aiTabs.length === 0) return;
 
+      // Create a hash of tab properties that should trigger a broadcast when changed
+      // This includes: id, name, starred, state (properties visible in web UI)
+      const tabsHash = session.aiTabs.map(t => `${t.id}:${t.name || ''}:${t.starred}:${t.state}`).join('|');
+
       const prev = prevTabsRef.current.get(session.id);
       const current = {
         tabCount: session.aiTabs.length,
         activeTabId: session.activeTabId || session.aiTabs[0]?.id || '',
+        tabsHash,
       };
 
-      // Check if anything changed
-      if (!prev || prev.tabCount !== current.tabCount || prev.activeTabId !== current.activeTabId) {
+      // Check if anything changed (count, active tab, or any tab properties)
+      if (!prev || prev.tabCount !== current.tabCount || prev.activeTabId !== current.activeTabId || prev.tabsHash !== current.tabsHash) {
         // Broadcast to web clients
         const tabsForBroadcast = session.aiTabs.map(tab => ({
           id: tab.id,
-          claudeSessionId: tab.claudeSessionId,
+          agentSessionId: tab.agentSessionId,
           name: tab.name,
           starred: tab.starred,
           inputValue: tab.inputValue,

@@ -951,7 +951,7 @@ describe('storage service', () => {
         summary: 'Full entry',
         projectPath: '/project',
         fullResponse: 'Full response text',
-        claudeSessionId: 'claude-123',
+        agentSessionId: 'claude-123',
         sessionName: 'My Session',
         sessionId: 'session-123',
         contextUsage: 50000,

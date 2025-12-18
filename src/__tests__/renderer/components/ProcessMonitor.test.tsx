@@ -89,7 +89,7 @@ const createSession = (overrides: Partial<Session> = {}): Session => ({
       id: 'tab-1',
       name: 'Tab 1',
       logs: [],
-      claudeSessionId: 'abc12345-6789-0123-4567-890abcdef012',
+      agentSessionId: 'abc12345-6789-0123-4567-890abcdef012',
       isStarred: false,
       state: 'idle',
     },
@@ -489,7 +489,7 @@ describe('ProcessMonitor', () => {
         expect(screen.queryByText('Loading processes...')).not.toBeInTheDocument();
       });
 
-      expect(screen.getByText('UNGROUPED')).toBeInTheDocument();
+      expect(screen.getByText('UNGROUPED AGENTS')).toBeInTheDocument();
       expect(screen.getByText('Test Session')).toBeInTheDocument();
     });
 

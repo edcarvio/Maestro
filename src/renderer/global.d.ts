@@ -20,14 +20,25 @@ interface ProcessConfig {
   images?: string[];
 }
 
+interface AgentConfigOption {
+  key: string;
+  type: 'checkbox' | 'text' | 'number' | 'select';
+  label: string;
+  description: string;
+  default: any;
+  options?: string[];
+}
+
 interface AgentConfig {
   id: string;
   name: string;
+  binaryName?: string;
   available: boolean;
   path?: string;
   command?: string;
   args?: string[];
   hidden?: boolean;
+  configOptions?: AgentConfigOption[];
 }
 
 interface DirectoryEntry {
@@ -50,6 +61,7 @@ interface UsageStats {
   cacheCreationInputTokens: number;
   totalCostUsd: number;
   contextWindow: number;
+  reasoningTokens?: number;  // Separate reasoning tokens (Codex o3/o4-mini)
 }
 
 type HistoryEntryType = 'AUTO' | 'USER';
@@ -85,7 +97,7 @@ interface MaestroAPI {
     }>>;
     onData: (callback: (sessionId: string, data: string) => void) => () => void;
     onExit: (callback: (sessionId: string, code: number) => void) => () => void;
-    onSessionId: (callback: (sessionId: string, claudeSessionId: string) => void) => () => void;
+    onSessionId: (callback: (sessionId: string, agentSessionId: string) => void) => () => void;
     onSlashCommands: (callback: (sessionId: string, slashCommands: string[]) => void) => () => void;
     onRemoteCommand: (callback: (sessionId: string, command: string, inputMode?: 'ai' | 'terminal') => void) => () => void;
     onRemoteSwitchMode: (callback: (sessionId: string, mode: 'ai' | 'terminal') => void) => () => void;
@@ -95,6 +107,7 @@ interface MaestroAPI {
     onRemoteNewTab: (callback: (sessionId: string, responseChannel: string) => void) => () => void;
     sendRemoteNewTabResponse: (responseChannel: string, result: { tabId: string } | null) => void;
     onRemoteCloseTab: (callback: (sessionId: string, tabId: string) => void) => () => void;
+    onRemoteRenameTab: (callback: (sessionId: string, tabId: string, newName: string) => void) => () => void;
     onStderr: (callback: (sessionId: string, data: string) => void) => () => void;
     onCommandExit: (callback: (sessionId: string, code: number) => void) => () => void;
     onUsage: (callback: (sessionId: string, usageStats: UsageStats) => void) => () => void;
@@ -110,7 +123,7 @@ interface MaestroAPI {
     } | null) => Promise<void>;
     broadcastTabsChange: (sessionId: string, aiTabs: Array<{
       id: string;
-      claudeSessionId: string | null;
+      agentSessionId: string | null;
       name: string | null;
       starred: boolean;
       inputValue: string;
@@ -194,10 +207,10 @@ interface MaestroAPI {
     getConnectedClients: () => Promise<number>;
   };
   live: {
-    toggle: (sessionId: string, claudeSessionId?: string) => Promise<{ live: boolean; url: string | null }>;
+    toggle: (sessionId: string, agentSessionId?: string) => Promise<{ live: boolean; url: string | null }>;
     getStatus: (sessionId: string) => Promise<{ live: boolean; url: string | null }>;
     getDashboardUrl: () => Promise<string | null>;
-    getLiveSessions: () => Promise<Array<{ sessionId: string; claudeSessionId?: string; enabledAt: number }>>;
+    getLiveSessions: () => Promise<Array<{ sessionId: string; agentSessionId?: string; enabledAt: number }>>;
     broadcastActiveSession: (sessionId: string) => Promise<void>;
     disableAll: () => Promise<{ success: boolean; count: number }>;
     startServer: () => Promise<{ success: boolean; url?: string; error?: string }>;
@@ -211,6 +224,110 @@ interface MaestroAPI {
     setConfig: (agentId: string, config: Record<string, any>) => Promise<boolean>;
     getConfigValue: (agentId: string, key: string) => Promise<any>;
     setConfigValue: (agentId: string, key: string, value: any) => Promise<boolean>;
+    getModels: (agentId: string, forceRefresh?: boolean) => Promise<string[]>;
+  };
+  agentSessions: {
+    list: (agentId: string, projectPath: string) => Promise<Array<{
+      sessionId: string;
+      projectPath: string;
+      timestamp: string;
+      modifiedAt: string;
+      firstMessage: string;
+      messageCount: number;
+      sizeBytes: number;
+      costUsd?: number;
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadTokens: number;
+      cacheCreationTokens: number;
+      durationSeconds: number;
+    }>>;
+    listPaginated: (agentId: string, projectPath: string, options?: { cursor?: string; limit?: number }) => Promise<{
+      sessions: Array<{
+        sessionId: string;
+        projectPath: string;
+        timestamp: string;
+        modifiedAt: string;
+        firstMessage: string;
+        messageCount: number;
+        sizeBytes: number;
+        costUsd?: number;
+        inputTokens: number;
+        outputTokens: number;
+        cacheReadTokens: number;
+        cacheCreationTokens: number;
+        durationSeconds: number;
+      }>;
+      hasMore: boolean;
+      totalCount: number;
+      nextCursor: string | null;
+    }>;
+    read: (agentId: string, projectPath: string, sessionId: string, options?: { offset?: number; limit?: number }) => Promise<{
+      messages: Array<{
+        type: string;
+        role?: string;
+        content: string;
+        timestamp: string;
+        uuid: string;
+        toolUse?: unknown;
+      }>;
+      total: number;
+      hasMore: boolean;
+    }>;
+    search: (agentId: string, projectPath: string, query: string, searchMode: 'title' | 'user' | 'assistant' | 'all') => Promise<Array<{
+      sessionId: string;
+      matchType: 'title' | 'user' | 'assistant';
+      matchPreview: string;
+      matchCount: number;
+    }>>;
+    getPath: (agentId: string, projectPath: string, sessionId: string) => Promise<string | null>;
+    deleteMessagePair: (agentId: string, projectPath: string, sessionId: string, userMessageUuid: string, fallbackContent?: string) => Promise<{
+      success: boolean;
+      error?: string;
+      linesRemoved?: number;
+    }>;
+    hasStorage: (agentId: string) => Promise<boolean>;
+    getAvailableStorages: () => Promise<string[]>;
+    getGlobalStats: () => Promise<{
+      totalSessions: number;
+      totalMessages: number;
+      totalInputTokens: number;
+      totalOutputTokens: number;
+      totalCacheReadTokens: number;
+      totalCacheCreationTokens: number;
+      totalCostUsd: number;
+      hasCostData: boolean;
+      totalSizeBytes: number;
+      isComplete: boolean;
+      byProvider: Record<string, {
+        sessions: number;
+        messages: number;
+        inputTokens: number;
+        outputTokens: number;
+        costUsd: number;
+        hasCostData: boolean;
+      }>;
+    }>;
+    onGlobalStatsUpdate: (callback: (stats: {
+      totalSessions: number;
+      totalMessages: number;
+      totalInputTokens: number;
+      totalOutputTokens: number;
+      totalCacheReadTokens: number;
+      totalCacheCreationTokens: number;
+      totalCostUsd: number;
+      hasCostData: boolean;
+      totalSizeBytes: number;
+      isComplete: boolean;
+      byProvider: Record<string, {
+        sessions: number;
+        messages: number;
+        inputTokens: number;
+        outputTokens: number;
+        costUsd: number;
+        hasCostData: boolean;
+      }>;
+    }) => void) => () => void;
   };
   dialog: {
     selectFolder: () => Promise<string | null>;
@@ -314,12 +431,12 @@ interface MaestroAPI {
       command: string;
       description: string;
     }>>;
-    registerSessionOrigin: (projectPath: string, claudeSessionId: string, origin: 'user' | 'auto', sessionName?: string) => Promise<boolean>;
-    updateSessionName: (projectPath: string, claudeSessionId: string, sessionName: string) => Promise<boolean>;
-    updateSessionStarred: (projectPath: string, claudeSessionId: string, starred: boolean) => Promise<boolean>;
+    registerSessionOrigin: (projectPath: string, agentSessionId: string, origin: 'user' | 'auto', sessionName?: string) => Promise<boolean>;
+    updateSessionName: (projectPath: string, agentSessionId: string, sessionName: string) => Promise<boolean>;
+    updateSessionStarred: (projectPath: string, agentSessionId: string, starred: boolean) => Promise<boolean>;
     getSessionOrigins: (projectPath: string) => Promise<Record<string, 'user' | 'auto' | { origin: 'user' | 'auto'; sessionName?: string; starred?: boolean }>>;
     getAllNamedSessions: () => Promise<Array<{
-      claudeSessionId: string;
+      agentSessionId: string;
       projectPath: string;
       sessionName: string;
       starred?: boolean;
@@ -340,7 +457,7 @@ interface MaestroAPI {
       timestamp: number;
       summary: string;
       fullResponse?: string;
-      claudeSessionId?: string;
+      agentSessionId?: string;
       projectPath: string;
       sessionId?: string;
       sessionName?: string;
@@ -356,7 +473,7 @@ interface MaestroAPI {
       timestamp: number;
       summary: string;
       fullResponse?: string;
-      claudeSessionId?: string;
+      agentSessionId?: string;
       projectPath: string;
       sessionId?: string;
       sessionName?: string;

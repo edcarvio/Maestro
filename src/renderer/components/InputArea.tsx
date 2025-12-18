@@ -4,6 +4,8 @@ import type { Session, Theme, BatchRunState } from '../types';
 import type { TabCompletionSuggestion, TabCompletionFilter } from '../hooks/useTabCompletion';
 import { ThinkingStatusPill } from './ThinkingStatusPill';
 import { ExecutionQueueIndicator } from './ExecutionQueueIndicator';
+import { useAgentCapabilities } from '../hooks/useAgentCapabilities';
+import { getProviderDisplayName } from '../utils/sessionValidation';
 
 interface SlashCommand {
   command: string;
@@ -106,6 +108,9 @@ export const InputArea = React.memo(function InputArea(props: InputAreaProps) {
     tabSaveToHistory = false, onToggleTabSaveToHistory,
     onOpenPromptComposer
   } = props;
+
+  // Get agent capabilities for conditional feature rendering
+  const { hasCapability } = useAgentCapabilities(session.toolType);
 
   // Check if we're in read-only mode (auto mode OR manual toggle - Claude will be in plan mode)
   const isAutoReadOnly = isAutoModeActive && session.inputMode === 'ai';
@@ -255,7 +260,7 @@ export const InputArea = React.memo(function InputArea(props: InputAreaProps) {
         </div>
       )}
 
-      {/* Slash Command Autocomplete */}
+      {/* Slash Command Autocomplete - shows built-in and custom commands for all agents */}
       {slashCommandOpen && filteredSlashCommands.length > 0 && (
         <div
           className="absolute bottom-full left-0 right-0 mb-2 border rounded-lg shadow-2xl overflow-hidden"
@@ -541,7 +546,7 @@ export const InputArea = React.memo(function InputArea(props: InputAreaProps) {
               ref={inputRef}
               className={`flex-1 bg-transparent text-sm outline-none ${isTerminalMode ? 'pl-1.5' : 'pl-3'} pt-3 pr-3 resize-none min-h-[2.5rem] scrollbar-thin`}
               style={{ color: theme.colors.textMain, maxHeight: '7rem' }}
-              placeholder={isTerminalMode ? "Run shell command..." : `Talking to ${session.name} powered by Claude`}
+              placeholder={isTerminalMode ? "Run shell command..." : `Talking to ${session.name} powered by ${getProviderDisplayName(session.toolType)}`}
               value={inputValue}
               onFocus={onInputFocus}
               onBlur={onInputBlur}
@@ -552,6 +557,7 @@ export const InputArea = React.memo(function InputArea(props: InputAreaProps) {
 
                 // Show slash command autocomplete when typing /
                 // Close when there's a space or newline (user is adding arguments or multiline content)
+                // Always show for built-in and custom commands, regardless of agent capability
                 if (value.startsWith('/') && !value.includes(' ') && !value.includes('\n')) {
                   // Only reset selection when modal first opens, not on every keystroke
                   if (!slashCommandOpen) {
@@ -626,7 +632,7 @@ export const InputArea = React.memo(function InputArea(props: InputAreaProps) {
                   <PenLine className="w-4 h-4"/>
                 </button>
               )}
-              {session.inputMode === 'ai' && (
+              {session.inputMode === 'ai' && hasCapability('supportsImageInput') && (
                 <button
                   onClick={() => document.getElementById('image-file-input')?.click()}
                   className="p-1 hover:bg-white/10 rounded opacity-50 hover:opacity-100"
@@ -676,9 +682,9 @@ export const InputArea = React.memo(function InputArea(props: InputAreaProps) {
                   <span>History</span>
                 </button>
               )}
-              {/* Read-only mode toggle - AI mode only */}
+              {/* Read-only mode toggle - AI mode only, if agent supports it */}
               {/* When AutoRun is active, pill is locked to enabled state */}
-              {session.inputMode === 'ai' && onToggleTabReadOnlyMode && (
+              {session.inputMode === 'ai' && onToggleTabReadOnlyMode && hasCapability('supportsReadOnlyMode') && (
                 <button
                   onClick={isAutoReadOnly ? undefined : onToggleTabReadOnlyMode}
                   disabled={isAutoReadOnly}
@@ -692,7 +698,7 @@ export const InputArea = React.memo(function InputArea(props: InputAreaProps) {
                     color: isReadOnlyMode ? theme.colors.warning : theme.colors.textDim,
                     border: isReadOnlyMode ? `1px solid ${theme.colors.warning}50` : '1px solid transparent'
                   }}
-                  title={isAutoReadOnly ? "Read-only mode locked during AutoRun" : "Toggle read-only mode (Claude won't modify files)"}
+                  title={isAutoReadOnly ? "Read-only mode locked during AutoRun" : "Toggle read-only mode (agent won't modify files)"}
                 >
                   <Eye className="w-3 h-3" />
                   <span>Read-only</span>

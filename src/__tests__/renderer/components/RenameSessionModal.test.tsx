@@ -53,7 +53,7 @@ const createMockSessions = (): Session[] => [
     isGitRepo: false,
     fileTree: [],
     fileExplorerExpanded: [],
-    claudeSessionId: 'claude-123',
+    agentSessionId: 'claude-123',
   },
   {
     id: 'session-2',
@@ -101,7 +101,7 @@ describe('RenameSessionModal', () => {
 
     // Setup window.maestro mock
     (window as unknown as { maestro: Record<string, unknown> }).maestro = {
-      claude: {
+      agentSessions: {
         updateSessionName: vi.fn().mockResolvedValue(undefined),
       },
     };
@@ -539,8 +539,8 @@ describe('RenameSessionModal', () => {
     });
   });
 
-  describe('Claude Session Name Update', () => {
-    it('updates Claude session name when session has claudeSessionId and cwd', () => {
+  describe('Agent Session Name Update', () => {
+    it('updates agent session name when session has agentSessionId and cwd', () => {
       render(
         <TestWrapper>
           <RenameSessionModal
@@ -557,14 +557,14 @@ describe('RenameSessionModal', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
 
-      expect((window as any).maestro.claude.updateSessionName).toHaveBeenCalledWith(
+      expect((window as any).maestro.agentSessions.updateSessionName).toHaveBeenCalledWith(
         '/home/user/project',
         'claude-123',
         'New Name'
       );
     });
 
-    it('does not update Claude session name when session has no claudeSessionId', () => {
+    it('does not update agent session name when session has no agentSessionId', () => {
       render(
         <TestWrapper>
           <RenameSessionModal
@@ -581,7 +581,7 @@ describe('RenameSessionModal', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
 
-      expect((window as any).maestro.claude.updateSessionName).not.toHaveBeenCalled();
+      expect((window as any).maestro.agentSessions.updateSessionName).not.toHaveBeenCalled();
     });
   });
 

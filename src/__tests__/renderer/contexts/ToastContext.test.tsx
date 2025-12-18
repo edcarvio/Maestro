@@ -220,7 +220,7 @@ describe('ToastContext', () => {
           group: 'Test Group',
           project: 'Test Project',
           taskDuration: 5000,
-          claudeSessionId: 'test-session-id',
+          agentSessionId: 'test-session-id',
           tabName: 'TestTab',
         });
       });
@@ -231,7 +231,7 @@ describe('ToastContext', () => {
         group: 'Test Group',
         project: 'Test Project',
         taskDuration: 5000,
-        claudeSessionId: 'test-session-id',
+        agentSessionId: 'test-session-id',
         tabName: 'TestTab',
       });
     });
@@ -337,7 +337,7 @@ describe('ToastContext', () => {
       );
     });
 
-    it('builds notification title with group and claudeSessionId when no tabName', async () => {
+    it('builds notification title with group and agentSessionId when no tabName', async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       let contextValue: ReturnType<typeof useToast> | null = null;
 
@@ -351,12 +351,12 @@ describe('ToastContext', () => {
           title: 'Session ID Test',
           message: 'Error message',
           group: 'ErrorGroup',
-          claudeSessionId: '12345678-abcd-efgh',
+          agentSessionId: '12345678-abcd-efgh',
         });
       });
 
       // Title is project field or fallback to toast title
-      // Body uses first 8 chars of claudeSessionId when no tabName
+      // Body uses first 8 chars of agentSessionId when no tabName
       expect(window.maestro.notification.show).toHaveBeenCalledWith(
         'Session ID Test',
         'ErrorGroup > 12345678: Error message'

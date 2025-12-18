@@ -70,7 +70,7 @@ function MobileHeader({ activeSession }: MobileHeaderProps) {
   const colors = useThemeColors();
   const { isSession, goToDashboard } = useMaestroMode();
 
-  // Get active tab for per-tab data (claudeSessionId, usageStats)
+  // Get active tab for per-tab data (agentSessionId, usageStats)
   const activeTab = getActiveTabFromSession(activeSession);
 
   // Session status and usage - prefer tab-level data
@@ -186,8 +186,8 @@ function MobileHeader({ activeSession }: MobileHeaderProps) {
             {activeSession.name}
           </span>
 
-          {/* Claude Session ID pill - use active tab's claudeSessionId */}
-          {(activeTab?.claudeSessionId || activeSession.claudeSessionId) && (
+          {/* Claude Session ID pill - use active tab's agentSessionId */}
+          {(activeTab?.agentSessionId || activeSession.agentSessionId) && (
             <span
               style={{
                 fontSize: '10px',
@@ -198,9 +198,9 @@ function MobileHeader({ activeSession }: MobileHeaderProps) {
                 borderRadius: '3px',
                 flexShrink: 0,
               }}
-              title={`Claude Session: ${activeTab?.claudeSessionId || activeSession.claudeSessionId}`}
+              title={`Claude Session: ${activeTab?.agentSessionId || activeSession.agentSessionId}`}
             >
-              {(activeTab?.claudeSessionId || activeSession.claudeSessionId)?.slice(0, 8)}
+              {(activeTab?.agentSessionId || activeSession.agentSessionId)?.slice(0, 8)}
             </span>
           )}
 

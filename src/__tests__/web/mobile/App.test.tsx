@@ -471,7 +471,7 @@ function createMockSession(overrides: Partial<Session> = {}): Session {
     groupEmoji: null,
     aiTabs: undefined,
     activeTabId: undefined,
-    claudeSessionId: undefined,
+    agentSessionId: undefined,
     usageStats: undefined,
     ...overrides,
   } as Session;

@@ -1410,7 +1410,7 @@ export function SessionList(props: SessionListProps) {
                       key={`bookmark-collapsed-${s.id}`}
                       className="group/indicator relative flex-1 rounded-full opacity-50 hover:opacity-100 transition-opacity"
                       style={
-                        s.toolType === 'claude' && !s.claudeSessionId
+                        s.toolType === 'claude' && !s.agentSessionId
                           ? { border: `1px solid ${theme.colors.textDim}`, backgroundColor: 'transparent' }
                           : { backgroundColor: getStatusColor(s.state, theme) }
                       }
@@ -1613,7 +1613,7 @@ export function SessionList(props: SessionListProps) {
                         key={`group-collapsed-${group.id}-${s.id}`}
                         className="group/indicator relative flex-1 rounded-full opacity-50 hover:opacity-100 transition-opacity"
                         style={
-                          s.toolType === 'claude' && !s.claudeSessionId
+                          s.toolType === 'claude' && !s.agentSessionId
                             ? { border: `1px solid ${theme.colors.textDim}`, backgroundColor: 'transparent' }
                             : { backgroundColor: getStatusColor(s.state, theme) }
                         }
@@ -1766,7 +1766,7 @@ export function SessionList(props: SessionListProps) {
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider flex-1" style={{ color: theme.colors.textDim }}>
                 {ungroupedCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 <Folder className="w-3.5 h-3.5" />
-                <span>Ungrouped</span>
+                <span>Ungrouped Agents</span>
               </div>
               <button
                 onClick={(e) => {
@@ -1831,7 +1831,7 @@ export function SessionList(props: SessionListProps) {
                     key={`ungrouped-collapsed-${s.id}`}
                     className="group/indicator relative flex-1 rounded-full opacity-50 hover:opacity-100 transition-opacity"
                     style={
-                      s.toolType === 'claude' && !s.claudeSessionId
+                      s.toolType === 'claude' && !s.agentSessionId
                         ? { border: `1px solid ${theme.colors.textDim}`, backgroundColor: 'transparent' }
                         : { backgroundColor: getStatusColor(s.state, theme) }
                     }
@@ -1947,7 +1947,7 @@ export function SessionList(props: SessionListProps) {
             // Sessions in Auto Run mode should show yellow/warning color
             const effectiveStatusColor = isInBatch
               ? theme.colors.warning
-              : (session.toolType === 'claude' && !session.claudeSessionId
+              : (session.toolType === 'claude' && !session.agentSessionId
                   ? undefined // Will use border style instead
                   : getStatusColor(session.state, theme));
             const shouldPulse = session.state === 'busy' || isInBatch;
@@ -1964,11 +1964,11 @@ export function SessionList(props: SessionListProps) {
                 <div
                   className={`w-3 h-3 rounded-full ${shouldPulse ? 'animate-pulse' : ''}`}
                   style={
-                    session.toolType === 'claude' && !session.claudeSessionId && !isInBatch
+                    session.toolType === 'claude' && !session.agentSessionId && !isInBatch
                       ? { border: `1.5px solid ${theme.colors.textDim}`, backgroundColor: 'transparent' }
                       : { backgroundColor: effectiveStatusColor }
                   }
-                  title={session.toolType === 'claude' && !session.claudeSessionId ? 'No active Claude session' : undefined}
+                  title={session.toolType === 'claude' && !session.agentSessionId ? 'No active Claude session' : undefined}
                 />
                 {/* Unread Notification Badge */}
                 {activeSessionId !== session.id && hasUnreadTabs && (

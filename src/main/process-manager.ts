@@ -1,8 +1,42 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import * as pty from 'node-pty';
-import { stripControlSequences } from './utils/terminalFilter';
+import { stripControlSequences, stripAllAnsiCodes } from './utils/terminalFilter';
 import { logger } from './utils/logger';
+import { getOutputParser, type ParsedEvent, type AgentOutputParser } from './parsers';
+import { aggregateModelUsage } from './parsers/usage-aggregator';
+import type { AgentError } from '../shared/types';
+
+// Re-export parser types for consumers
+export type { ParsedEvent, AgentOutputParser } from './parsers';
+export { getOutputParser } from './parsers';
+
+// Re-export error types for consumers
+export type { AgentError, AgentErrorType } from '../shared/types';
+
+// Re-export usage types for backwards compatibility
+export type { UsageStats, ModelStats } from './parsers/usage-aggregator';
+export { aggregateModelUsage } from './parsers/usage-aggregator';
+
+/**
+ * Maximum buffer size for stdout/stderr error detection buffers.
+ * Prevents memory exhaustion during extended process execution.
+ * Only the last MAX_BUFFER_SIZE bytes are kept for error detection at exit.
+ */
+const MAX_BUFFER_SIZE = 100 * 1024; // 100KB
+
+/**
+ * Append to a buffer while enforcing max size limit.
+ * If the buffer exceeds MAX_BUFFER_SIZE, keeps only the last MAX_BUFFER_SIZE bytes.
+ */
+function appendToBuffer(buffer: string, data: string, maxSize: number = MAX_BUFFER_SIZE): string {
+  const combined = buffer + data;
+  if (combined.length <= maxSize) {
+    return combined;
+  }
+  // Keep only the last maxSize characters
+  return combined.slice(-maxSize);
+}
 
 interface ProcessConfig {
   sessionId: string;
@@ -14,6 +48,7 @@ interface ProcessConfig {
   prompt?: string; // For batch mode agents like Claude (passed as CLI argument)
   shell?: string; // Shell to use for terminal sessions (e.g., 'zsh', 'bash', 'fish')
   images?: string[]; // Base64 data URLs for images (passed via stream-json input)
+  contextWindow?: number; // Configured context window size (0 or undefined = not configured, hide UI)
 }
 
 interface ManagedProcess {
@@ -30,7 +65,13 @@ interface ManagedProcess {
   lastCommand?: string; // Last command sent to terminal (for filtering command echoes)
   sessionIdEmitted?: boolean; // True after session_id has been emitted (prevents duplicate emissions)
   resultEmitted?: boolean; // True after result data has been emitted (prevents duplicate emissions)
+  errorEmitted?: boolean; // True after an error has been emitted (prevents duplicate error emissions)
   startTime: number; // Timestamp when process was spawned
+  outputParser?: AgentOutputParser; // Parser for agent-specific JSON output
+  stderrBuffer?: string; // Buffer for accumulating stderr output (for error detection)
+  stdoutBuffer?: string; // Buffer for accumulating stdout output (for error detection at exit)
+  streamedText?: string; // Buffer for accumulating streamed text from partial events (OpenCode, Codex)
+  contextWindow?: number; // Configured context window size (0 or undefined = not configured)
 }
 
 /**
@@ -46,81 +87,8 @@ function parseDataUrl(dataUrl: string): { base64: string; mediaType: string } | 
   };
 }
 
-/**
- * Usage statistics extracted from model usage data
- */
-export interface UsageStats {
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadInputTokens: number;
-  cacheCreationInputTokens: number;
-  totalCostUsd: number;
-  contextWindow: number;
-}
-
-/**
- * Model statistics from Claude Code modelUsage response
- */
-export interface ModelStats {
-  inputTokens?: number;
-  outputTokens?: number;
-  cacheReadInputTokens?: number;
-  cacheCreationInputTokens?: number;
-  contextWindow?: number;
-}
-
-/**
- * Aggregate token counts from modelUsage for accurate context tracking.
- * modelUsage contains per-model breakdown with actual context tokens (including cache hits).
- * Falls back to top-level usage if modelUsage isn't available.
- *
- * @param modelUsage - Per-model statistics object from Claude Code response
- * @param usage - Top-level usage object (fallback)
- * @param totalCostUsd - Total cost from response
- * @returns Aggregated usage statistics
- */
-export function aggregateModelUsage(
-  modelUsage: Record<string, ModelStats> | undefined,
-  usage: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } = {},
-  totalCostUsd: number = 0
-): UsageStats {
-  let aggregatedInputTokens = 0;
-  let aggregatedOutputTokens = 0;
-  let aggregatedCacheReadTokens = 0;
-  let aggregatedCacheCreationTokens = 0;
-  let contextWindow = 200000; // Default for Claude
-
-  if (modelUsage) {
-    for (const modelStats of Object.values(modelUsage)) {
-      aggregatedInputTokens += modelStats.inputTokens || 0;
-      aggregatedOutputTokens += modelStats.outputTokens || 0;
-      aggregatedCacheReadTokens += modelStats.cacheReadInputTokens || 0;
-      aggregatedCacheCreationTokens += modelStats.cacheCreationInputTokens || 0;
-      // Use the highest context window from any model
-      if (modelStats.contextWindow && modelStats.contextWindow > contextWindow) {
-        contextWindow = modelStats.contextWindow;
-      }
-    }
-  }
-
-  // Fall back to top-level usage if modelUsage isn't available
-  // This handles older CLI versions or different output formats
-  if (aggregatedInputTokens === 0 && aggregatedOutputTokens === 0) {
-    aggregatedInputTokens = usage.input_tokens || 0;
-    aggregatedOutputTokens = usage.output_tokens || 0;
-    aggregatedCacheReadTokens = usage.cache_read_input_tokens || 0;
-    aggregatedCacheCreationTokens = usage.cache_creation_input_tokens || 0;
-  }
-
-  return {
-    inputTokens: aggregatedInputTokens,
-    outputTokens: aggregatedOutputTokens,
-    cacheReadInputTokens: aggregatedCacheReadTokens,
-    cacheCreationInputTokens: aggregatedCacheCreationTokens,
-    totalCostUsd,
-    contextWindow
-  };
-}
+// UsageStats, ModelStats, and aggregateModelUsage are now imported from ./parsers/usage-aggregator
+// and re-exported above for backwards compatibility
 
 /**
  * Build a stream-json message for Claude Code with images and text
@@ -173,7 +141,7 @@ export class ProcessManager extends EventEmitter {
    * Spawn a new process for a session
    */
   spawn(config: ProcessConfig): { pid: number; success: boolean } {
-    const { sessionId, toolType, cwd, command, args, requiresPty, prompt, shell, images } = config;
+    const { sessionId, toolType, cwd, command, args, requiresPty, prompt, shell, images, contextWindow } = config;
 
     // For batch mode with images, use stream-json mode and send message via stdin
     // For batch mode without images, append prompt to args with -- separator
@@ -346,8 +314,27 @@ export class ProcessManager extends EventEmitter {
         });
 
         const isBatchMode = !!prompt;
-        // Detect stream-json mode from args (now default for Claude Code) or when images are present
-        const isStreamJsonMode = finalArgs.includes('stream-json') || (hasImages && !!prompt);
+        // Detect JSON streaming mode from args:
+        // - Claude Code: --output-format stream-json
+        // - OpenCode: --format json
+        // - Codex: --json
+        // Also triggered when images are present (forces stream-json mode)
+        const isStreamJsonMode = finalArgs.includes('stream-json') ||
+          finalArgs.includes('--json') ||
+          (finalArgs.includes('--format') && finalArgs.includes('json')) ||
+          (hasImages && !!prompt);
+
+        // Get the output parser for this agent type (if available)
+        const outputParser = getOutputParser(toolType) || undefined;
+
+        logger.debug('[ProcessManager] Output parser lookup', 'ProcessManager', {
+          sessionId,
+          toolType,
+          hasParser: !!outputParser,
+          parserId: outputParser?.agentId,
+          isStreamJsonMode,
+          isBatchMode
+        });
 
         const managedProcess: ManagedProcess = {
           sessionId,
@@ -360,6 +347,10 @@ export class ProcessManager extends EventEmitter {
           isStreamJsonMode,
           jsonBuffer: isBatchMode ? '' : undefined,
           startTime: Date.now(),
+          outputParser,
+          stderrBuffer: '', // Initialize stderr buffer for error detection at exit
+          stdoutBuffer: '', // Initialize stdout buffer for error detection at exit
+          contextWindow, // User-configured context window size (0 = not configured)
         };
 
         this.processes.set(sessionId, managedProcess);
@@ -392,37 +383,121 @@ export class ProcessManager extends EventEmitter {
 
             for (const line of lines) {
               if (!line.trim()) continue;
+
+              // Accumulate stdout for error detection at exit (with size limit to prevent memory exhaustion)
+              managedProcess.stdoutBuffer = appendToBuffer(managedProcess.stdoutBuffer || '', line + '\n');
+
+              // Check for errors using the parser (if available)
+              if (outputParser && !managedProcess.errorEmitted) {
+                const agentError = outputParser.detectErrorFromLine(line);
+                if (agentError) {
+                  managedProcess.errorEmitted = true;
+                  agentError.sessionId = sessionId;
+                  logger.debug('[ProcessManager] Error detected from output', 'ProcessManager', {
+                    sessionId,
+                    errorType: agentError.type,
+                    errorMessage: agentError.message,
+                  });
+                  this.emit('agent-error', sessionId, agentError);
+                }
+              }
+
               try {
                 const msg = JSON.parse(line);
-                // Handle different message types from stream-json output
-                // Policy: Use 'result' for complete response, skip 'assistant' streaming messages
-                // This gives us the final complete response rather than incremental chunks
-                // Only emit once per process to prevent duplicates
-                if (msg.type === 'result' && msg.result && !managedProcess.resultEmitted) {
-                  managedProcess.resultEmitted = true;
-                  logger.debug('[ProcessManager] Emitting result data', 'ProcessManager', { sessionId, resultLength: msg.result.length });
-                  this.emit('data', sessionId, msg.result);
-                }
-                // Skip 'assistant' type - we prefer the complete 'result' over streaming chunks
-                // Capture session_id from the first message only (prevents duplicate emissions)
-                // Claude includes session_id in every message, but we only want to emit once
-                if (msg.session_id && !managedProcess.sessionIdEmitted) {
-                  managedProcess.sessionIdEmitted = true;
-                  this.emit('session-id', sessionId, msg.session_id);
-                }
-                // Extract slash commands from init message
-                // Claude Code emits available slash commands (built-in + user-defined) in the init message
-                if (msg.type === 'system' && msg.subtype === 'init' && msg.slash_commands) {
-                  this.emit('slash-commands', sessionId, msg.slash_commands);
-                }
-                // Extract usage statistics from stream-json messages (typically in 'result' type)
-                if (msg.modelUsage || msg.usage || msg.total_cost_usd !== undefined) {
-                  const usageStats = aggregateModelUsage(
-                    msg.modelUsage,
-                    msg.usage || {},
-                    msg.total_cost_usd || 0
-                  );
-                  this.emit('usage', sessionId, usageStats);
+
+                // Use output parser for agents that have one (Codex, OpenCode, Claude Code)
+                // This provides a unified way to extract session ID, usage, and data
+                if (outputParser) {
+                  const event = outputParser.parseJsonLine(line);
+
+                  logger.debug('[ProcessManager] Parsed event from output parser', 'ProcessManager', {
+                    sessionId,
+                    eventType: event?.type,
+                    hasText: !!event?.text,
+                    textPreview: event?.text?.substring(0, 100),
+                    isPartial: event?.isPartial,
+                    isResultMessage: event ? outputParser.isResultMessage(event) : false,
+                    resultEmitted: managedProcess.resultEmitted
+                  });
+
+                  if (event) {
+                    // Extract usage statistics
+                    const usage = outputParser.extractUsage(event);
+                    if (usage) {
+                      // Map parser's usage format to UsageStats
+                      // For contextWindow: prefer parser-reported value, then configured value, then 0 (means not available)
+                      // A value of 0 signals the UI to hide context usage display
+                      const usageStats = {
+                        inputTokens: usage.inputTokens,
+                        outputTokens: usage.outputTokens,
+                        cacheReadInputTokens: usage.cacheReadTokens || 0,
+                        cacheCreationInputTokens: usage.cacheCreationTokens || 0,
+                        totalCostUsd: usage.costUsd || 0,
+                        contextWindow: usage.contextWindow || managedProcess.contextWindow || 0,
+                        reasoningTokens: usage.reasoningTokens,
+                      };
+                      this.emit('usage', sessionId, usageStats);
+                    }
+
+                    // Extract session ID from parsed event (thread_id for Codex, session_id for Claude)
+                    const eventSessionId = outputParser.extractSessionId(event);
+                    if (eventSessionId && !managedProcess.sessionIdEmitted) {
+                      managedProcess.sessionIdEmitted = true;
+                      this.emit('session-id', sessionId, eventSessionId);
+                    }
+
+                    // Extract slash commands from init events
+                    const slashCommands = outputParser.extractSlashCommands(event);
+                    if (slashCommands) {
+                      this.emit('slash-commands', sessionId, slashCommands);
+                    }
+
+                    // Accumulate text from partial streaming events (OpenCode text messages)
+                    if (event.type === 'text' && event.isPartial && event.text) {
+                      managedProcess.streamedText = (managedProcess.streamedText || '') + event.text;
+                    }
+
+                    // Extract text data from result events (final complete response)
+                    // For Codex: agent_message events have text directly
+                    // For OpenCode: step_finish with reason="stop" triggers emission of accumulated text
+                    if (outputParser.isResultMessage(event) && !managedProcess.resultEmitted) {
+                      managedProcess.resultEmitted = true;
+                      // Use event text if available, otherwise use accumulated streamed text
+                      const resultText = event.text || managedProcess.streamedText || '';
+                      if (resultText) {
+                        logger.debug('[ProcessManager] Emitting result data via parser', 'ProcessManager', {
+                          sessionId,
+                          resultLength: resultText.length,
+                          hasEventText: !!event.text,
+                          hasStreamedText: !!managedProcess.streamedText
+                        });
+                        this.emit('data', sessionId, resultText);
+                      }
+                    }
+                  }
+                } else {
+                  // Fallback for agents without parsers (legacy Claude Code format)
+                  // Handle different message types from stream-json output
+                  if (msg.type === 'result' && msg.result && !managedProcess.resultEmitted) {
+                    managedProcess.resultEmitted = true;
+                    logger.debug('[ProcessManager] Emitting result data', 'ProcessManager', { sessionId, resultLength: msg.result.length });
+                    this.emit('data', sessionId, msg.result);
+                  }
+                  if (msg.session_id && !managedProcess.sessionIdEmitted) {
+                    managedProcess.sessionIdEmitted = true;
+                    this.emit('session-id', sessionId, msg.session_id);
+                  }
+                  if (msg.type === 'system' && msg.subtype === 'init' && msg.slash_commands) {
+                    this.emit('slash-commands', sessionId, msg.slash_commands);
+                  }
+                  if (msg.modelUsage || msg.usage || msg.total_cost_usd !== undefined) {
+                    const usageStats = aggregateModelUsage(
+                      msg.modelUsage,
+                      msg.usage || {},
+                      msg.total_cost_usd || 0
+                    );
+                    this.emit('usage', sessionId, usageStats);
+                  }
                 }
               } catch (e) {
                 // If it's not valid JSON, emit as raw text
@@ -450,8 +525,33 @@ export class ProcessManager extends EventEmitter {
             logger.error('[ProcessManager] stderr error', 'ProcessManager', { sessionId, error: String(err) });
           });
           childProcess.stderr.on('data', (data: Buffer | string) => {
-            logger.debug('[ProcessManager] stderr event fired', 'ProcessManager', { sessionId, dataPreview: data.toString().substring(0, 100) });
-            this.emit('data', sessionId, `[stderr] ${data.toString()}`);
+            const stderrData = data.toString();
+            logger.debug('[ProcessManager] stderr event fired', 'ProcessManager', { sessionId, dataPreview: stderrData.substring(0, 100) });
+
+            // Accumulate stderr for error detection at exit (with size limit to prevent memory exhaustion)
+            managedProcess.stderrBuffer = appendToBuffer(managedProcess.stderrBuffer || '', stderrData);
+
+            // Check for errors in stderr using the parser (if available)
+            if (outputParser && !managedProcess.errorEmitted) {
+              const agentError = outputParser.detectErrorFromLine(stderrData);
+              if (agentError) {
+                managedProcess.errorEmitted = true;
+                agentError.sessionId = sessionId;
+                logger.debug('[ProcessManager] Error detected from stderr', 'ProcessManager', {
+                  sessionId,
+                  errorType: agentError.type,
+                  errorMessage: agentError.message,
+                });
+                this.emit('agent-error', sessionId, agentError);
+              }
+            }
+
+            // Strip ANSI codes and only emit if there's actual content
+            const cleanedStderr = stripAllAnsiCodes(stderrData).trim();
+            if (cleanedStderr) {
+              // Emit to separate 'stderr' event for AI processes (consistent with runCommand)
+              this.emit('stderr', sessionId, cleanedStderr);
+            }
           });
         }
 
@@ -498,12 +598,50 @@ export class ProcessManager extends EventEmitter {
             }
           }
 
+          // Check for errors on non-zero exit code using the parser (if not already emitted)
+          if (code !== 0 && outputParser && !managedProcess.errorEmitted) {
+            const agentError = outputParser.detectErrorFromExit(
+              code || 1,
+              managedProcess.stderrBuffer || '',
+              managedProcess.stdoutBuffer || ''
+            );
+            if (agentError) {
+              managedProcess.errorEmitted = true;
+              agentError.sessionId = sessionId;
+              logger.debug('[ProcessManager] Error detected from exit', 'ProcessManager', {
+                sessionId,
+                exitCode: code,
+                errorType: agentError.type,
+                errorMessage: agentError.message,
+              });
+              this.emit('agent-error', sessionId, agentError);
+            }
+          }
+
           this.emit('exit', sessionId, code || 0);
           this.processes.delete(sessionId);
         });
 
         childProcess.on('error', (error) => {
           logger.error('[ProcessManager] Child process error', 'ProcessManager', { sessionId, error: error.message });
+
+          // Emit agent error for process spawn failures
+          if (!managedProcess.errorEmitted) {
+            managedProcess.errorEmitted = true;
+            const agentError: AgentError = {
+              type: 'agent_crashed',
+              message: `Agent process error: ${error.message}`,
+              recoverable: true,
+              agentId: toolType,
+              sessionId,
+              timestamp: Date.now(),
+              raw: {
+                stderr: error.message,
+              },
+            };
+            this.emit('agent-error', sessionId, agentError);
+          }
+
           this.emit('data', sessionId, `[error] ${error.message}`);
           this.emit('exit', sessionId, 1); // Ensure exit is emitted on error
           this.processes.delete(sessionId);
@@ -669,6 +807,30 @@ export class ProcessManager extends EventEmitter {
    */
   get(sessionId: string): ManagedProcess | undefined {
     return this.processes.get(sessionId);
+  }
+
+  /**
+   * Get the output parser for a session's agent type
+   * @param sessionId - The session ID
+   * @returns The parser or null if not available
+   */
+  getParser(sessionId: string): AgentOutputParser | null {
+    const process = this.processes.get(sessionId);
+    return process?.outputParser || null;
+  }
+
+  /**
+   * Parse a JSON line using the appropriate parser for the session
+   * @param sessionId - The session ID
+   * @param line - The JSON line to parse
+   * @returns ParsedEvent or null if no parser or invalid
+   */
+  parseLine(sessionId: string, line: string): ParsedEvent | null {
+    const parser = this.getParser(sessionId);
+    if (!parser) {
+      return null;
+    }
+    return parser.parseJsonLine(line);
   }
 
   /**

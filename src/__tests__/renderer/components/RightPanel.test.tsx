@@ -136,7 +136,7 @@ describe('RightPanel', () => {
     currentSessionBatchState: undefined,  // For session-specific progress display
     onOpenBatchRunner: vi.fn(),
     onStopBatchRun: vi.fn(),
-    onJumpToClaudeSession: vi.fn(),
+    onJumpToAgentSession: vi.fn(),
     onResumeSession: vi.fn(),
     onOpenSessionAsTab: vi.fn(),
     ...overrides,

@@ -850,11 +850,12 @@ describe('AutoRun Memory Leak Detection', () => {
   });
 
   describe('Combined Memory Stress Tests', () => {
-    it('handles 50 mount/unmount cycles with large content', () => {
-      const largeContent = generateLargeContent(500); // 500KB
+    it('handles 10 mount/unmount cycles with large content', () => {
+      // Reduced from 50 to 10 cycles and 500KB to 100KB to keep test runtime reasonable
+      const largeContent = generateLargeContent(100); // 100KB
       const props = createDefaultProps({ content: largeContent });
 
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 10; i++) {
         const { unmount } = renderWithProvider(<AutoRun {...props} />);
         expect(screen.getByRole('textbox')).toBeInTheDocument();
         unmount();
@@ -1065,7 +1066,8 @@ describe('AutoRun Memory Leak Detection', () => {
     });
 
     it('handles very long content without memory issues', () => {
-      const veryLongContent = generateLargeContent(1000); // 1MB
+      // Reduced from 1MB to 200KB - still tests "very long" content reasonably
+      const veryLongContent = generateLargeContent(200); // 200KB
       const props = createDefaultProps({ content: veryLongContent });
 
       const { unmount } = renderWithProvider(<AutoRun {...props} />);

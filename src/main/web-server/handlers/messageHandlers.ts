@@ -15,6 +15,7 @@
  * - select_tab: Select a tab within a session
  * - new_tab: Create a new tab within a session
  * - close_tab: Close a tab within a session
+ * - rename_tab: Rename a tab within a session
  */
 
 import { WebSocket } from 'ws';
@@ -33,6 +34,7 @@ export interface WebClientMessage {
   command?: string;
   mode?: 'ai' | 'terminal';
   inputMode?: 'ai' | 'terminal';
+  newName?: string;
   [key: string]: unknown;
 }
 
@@ -52,7 +54,7 @@ export interface WebClient {
 export interface SessionDetailForHandler {
   state: string;
   inputMode: string;
-  claudeSessionId?: string;
+  agentSessionId?: string;
 }
 
 /**
@@ -60,7 +62,7 @@ export interface SessionDetailForHandler {
  */
 export interface LiveSessionInfo {
   sessionId: string;
-  claudeSessionId?: string;
+  agentSessionId?: string;
   enabledAt: number;
 }
 
@@ -75,6 +77,7 @@ export interface MessageHandlerCallbacks {
   selectTab: (sessionId: string, tabId: string) => Promise<boolean>;
   newTab: (sessionId: string) => Promise<{ tabId: string } | null>;
   closeTab: (sessionId: string, tabId: string) => Promise<boolean>;
+  renameTab: (sessionId: string, tabId: string, newName: string) => Promise<boolean>;
   getSessions: () => Array<{
     id: string;
     name: string;
@@ -82,7 +85,7 @@ export interface MessageHandlerCallbacks {
     state: string;
     inputMode: string;
     cwd: string;
-    claudeSessionId?: string | null;
+    agentSessionId?: string | null;
     [key: string]: unknown;
   }>;
   getLiveSessionInfo: (sessionId: string) => LiveSessionInfo | undefined;
@@ -150,6 +153,10 @@ export class WebSocketMessageHandler {
 
       case 'close_tab':
         this.handleCloseTab(client, message);
+        break;
+
+      case 'rename_tab':
+        this.handleRenameTab(client, message);
         break;
 
       default:
@@ -229,7 +236,7 @@ export class WebSocketMessageHandler {
     const effectiveMode = clientInputMode || sessionDetail.inputMode;
     const isAiMode = effectiveMode === 'ai';
     const mode = isAiMode ? 'AI' : 'CLI';
-    const claudeId = sessionDetail.claudeSessionId || 'none';
+    const claudeId = sessionDetail.agentSessionId || 'none';
 
     // Log all web interface commands prominently
     logger.info(`[Web Command] Mode: ${mode} | Session: ${sessionId}${isAiMode ? ` | Claude: ${claudeId}` : ''} | Message: ${command}`, LOG_CONTEXT);
@@ -380,7 +387,7 @@ export class WebSocketMessageHandler {
         const liveInfo = this.callbacks.getLiveSessionInfo!(s.id);
         return {
           ...s,
-          claudeSessionId: liveInfo?.claudeSessionId || s.claudeSessionId,
+          agentSessionId: liveInfo?.agentSessionId || s.agentSessionId,
           liveEnabledAt: liveInfo?.enabledAt,
           isLive: this.callbacks.isSessionLive!(s.id),
         };
@@ -522,6 +529,54 @@ export class WebSocketMessageHandler {
         client.socket.send(JSON.stringify({
           type: 'error',
           message: `Failed to close tab: ${error.message}`,
+          timestamp: Date.now(),
+        }));
+      });
+  }
+
+  /**
+   * Handle rename_tab message - rename a tab within a session
+   */
+  private handleRenameTab(client: WebClient, message: WebClientMessage): void {
+    const sessionId = message.sessionId as string;
+    const tabId = message.tabId as string;
+    const newName = message.newName as string;
+    logger.info(`[Web] Received rename_tab message: session=${sessionId}, tab=${tabId}, newName=${newName}`, LOG_CONTEXT);
+
+    if (!sessionId || !tabId) {
+      client.socket.send(JSON.stringify({
+        type: 'error',
+        message: 'Missing sessionId or tabId',
+        timestamp: Date.now(),
+      }));
+      return;
+    }
+
+    if (!this.callbacks.renameTab) {
+      client.socket.send(JSON.stringify({
+        type: 'error',
+        message: 'Tab renaming not configured',
+        timestamp: Date.now(),
+      }));
+      return;
+    }
+
+    // newName can be empty string to clear the name
+    this.callbacks.renameTab(sessionId, tabId, newName || '')
+      .then((success) => {
+        client.socket.send(JSON.stringify({
+          type: 'rename_tab_result',
+          success,
+          sessionId,
+          tabId,
+          newName: newName || '',
+          timestamp: Date.now(),
+        }));
+      })
+      .catch((error) => {
+        client.socket.send(JSON.stringify({
+          type: 'error',
+          message: `Failed to rename tab: ${error.message}`,
           timestamp: Date.now(),
         }));
       });

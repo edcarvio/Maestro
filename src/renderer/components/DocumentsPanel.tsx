@@ -571,6 +571,13 @@ export function DocumentsPanel({
         </div>
       </div>
 
+      {/* Hint for enabling loop mode */}
+      {documents.length === 1 && (
+        <p className="mt-1.5 text-xs text-center" style={{ color: theme.colors.textDim }}>
+          You can enable loops with two or more documents
+        </p>
+      )}
+
       {/* Missing Documents Warning */}
       {hasMissingDocs && (
         <div

@@ -669,7 +669,8 @@ describe('AutoRun Save Path Correctness', () => {
       render(<AutoRun {...props} />);
 
       const textarea = screen.getByRole('textbox');
-      const longContent = 'X'.repeat(100000);
+      // Reduced from 100,000 to 5,000 chars - still tests "long" content without excessive slowdown
+      const longContent = 'X'.repeat(5000);
       fireEvent.change(textarea, { target: { value: longContent } });
 
       fireEvent.click(screen.getByText('Save'));

@@ -253,7 +253,7 @@ describe('WebServer E2E Sync Tests', () => {
           [
             {
               id: 'tab-1',
-              claudeSessionId: null,
+              agentSessionId: null,
               name: 'Tab 1',
               starred: false,
               inputValue: '',
@@ -262,7 +262,7 @@ describe('WebServer E2E Sync Tests', () => {
             },
             {
               id: 'tab-2',
-              claudeSessionId: null,
+              agentSessionId: null,
               name: 'Tab 2',
               starred: false,
               inputValue: '',
@@ -473,7 +473,7 @@ describe('WebServer E2E Sync Tests', () => {
           [
             {
               id: 'tab-1',
-              claudeSessionId: null,
+              agentSessionId: null,
               name: 'Tab 1',
               starred: false,
               inputValue: '',
@@ -482,7 +482,7 @@ describe('WebServer E2E Sync Tests', () => {
             },
             {
               id: tabId,
-              claudeSessionId: null,
+              agentSessionId: null,
               name: 'Selected Tab',
               starred: false,
               inputValue: '',

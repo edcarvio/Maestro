@@ -51,7 +51,7 @@ export interface SessionListItemProps {
   /** Whether this session is starred */
   isStarred: boolean;
   /** Currently active Claude session ID (if any) */
-  activeClaudeSessionId: string | null;
+  activeAgentSessionId: string | null;
   /** ID of session currently being renamed (if any) */
   renamingSessionId: string | null;
   /** Current rename input value */
@@ -90,7 +90,7 @@ export function SessionListItem({
   index,
   selectedIndex,
   isStarred,
-  activeClaudeSessionId,
+  activeAgentSessionId,
   renamingSessionId,
   renameValue,
   searchMode,
@@ -108,7 +108,7 @@ export function SessionListItem({
 }: SessionListItemProps) {
   const isSelected = index === selectedIndex;
   const isRenaming = renamingSessionId === session.sessionId;
-  const isActive = activeClaudeSessionId === session.sessionId;
+  const isActive = activeAgentSessionId === session.sessionId;
 
   return (
     <div

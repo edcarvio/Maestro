@@ -1,7 +1,7 @@
 // Shared type definitions for Maestro CLI and Electron app
 // These types are used by both the CLI tool and the renderer process
 
-export type ToolType = 'claude' | 'claude-code' | 'aider' | 'opencode' | 'terminal';
+export type ToolType = 'claude' | 'claude-code' | 'aider' | 'opencode' | 'codex' | 'terminal';
 
 // Session group
 export interface Group {
@@ -22,7 +22,7 @@ export interface SessionInfo {
   autoRunFolderPath?: string;
 }
 
-// Usage statistics from Claude Code CLI
+// Usage statistics from AI agent CLI (Claude Code, Codex, etc.)
 export interface UsageStats {
   inputTokens: number;
   outputTokens: number;
@@ -30,6 +30,12 @@ export interface UsageStats {
   cacheCreationInputTokens: number;
   totalCostUsd: number;
   contextWindow: number;
+  /**
+   * Reasoning/thinking tokens (separate from outputTokens)
+   * Some models like OpenAI o3/o4-mini report reasoning tokens separately.
+   * These are already included in outputTokens but tracked separately for UI display.
+   */
+  reasoningTokens?: number;
 }
 
 // History entry types for the History panel
@@ -41,7 +47,7 @@ export interface HistoryEntry {
   timestamp: number;
   summary: string;
   fullResponse?: string;
-  claudeSessionId?: string;
+  agentSessionId?: string;
   sessionName?: string;
   projectPath: string;
   sessionId?: string;
@@ -113,4 +119,74 @@ export interface AgentConfig {
   path?: string;
   requiresPty?: boolean;
   hidden?: boolean;
+}
+
+// ============================================================================
+// Agent Error Handling Types
+// ============================================================================
+
+/**
+ * Types of errors that agents can encounter.
+ * Used to determine appropriate recovery actions and UI display.
+ */
+export type AgentErrorType =
+  | 'auth_expired'      // API key invalid, token expired, login required
+  | 'token_exhaustion'  // Context window full, max tokens reached
+  | 'rate_limited'      // Too many requests, quota exceeded
+  | 'network_error'     // Connection failed, timeout
+  | 'agent_crashed'     // Process exited unexpectedly
+  | 'permission_denied' // Agent lacks required permissions
+  | 'unknown';          // Unrecognized error
+
+/**
+ * Structured error information from an AI agent.
+ * Contains details needed for error display and recovery.
+ */
+export interface AgentError {
+  /** The category of error */
+  type: AgentErrorType;
+
+  /** Human-readable error message for display */
+  message: string;
+
+  /** Whether the error can be recovered from (vs. requiring user intervention) */
+  recoverable: boolean;
+
+  /** The agent that encountered the error (e.g., 'claude-code', 'opencode') */
+  agentId: string;
+
+  /** The session ID where the error occurred (if applicable) */
+  sessionId?: string;
+
+  /** Timestamp when the error occurred */
+  timestamp: number;
+
+  /** Original error data for debugging (stderr, exit code, etc.) */
+  raw?: {
+    exitCode?: number;
+    stderr?: string;
+    stdout?: string;
+    errorLine?: string;
+  };
+}
+
+/**
+ * Recovery action for an agent error.
+ * Provides both the action metadata and the action function.
+ */
+export interface AgentErrorRecovery {
+  /** The error type this recovery addresses */
+  type: AgentErrorType;
+
+  /** Button label for the recovery action (e.g., "Re-authenticate", "Start New Session") */
+  label: string;
+
+  /** Description of what the recovery action will do */
+  description?: string;
+
+  /** Whether this is the recommended/primary action */
+  primary?: boolean;
+
+  /** Icon identifier for the action button (optional) */
+  icon?: string;
 }

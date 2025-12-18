@@ -25,7 +25,7 @@ export { useKeyboardShortcutHelpers } from './useKeyboardShortcutHelpers';
 export { useKeyboardNavigation } from './useKeyboardNavigation';
 export { useMainKeyboardHandler } from './useMainKeyboardHandler';
 export { useRemoteIntegration } from './useRemoteIntegration';
-export { useClaudeSessionManagement } from './useClaudeSessionManagement';
+export { useAgentSessionManagement } from './useAgentSessionManagement';
 export { useAgentExecution } from './useAgentExecution';
 export { useFileTreeManagement } from './useFileTreeManagement';
 export { useGroupManagement } from './useGroupManagement';
@@ -39,6 +39,8 @@ export { useClickOutside } from './useClickOutside';
 export { useListNavigation } from './useListNavigation';
 export { useExpandedSet } from './useExpandedSet';
 export { useScrollPosition } from './useScrollPosition';
+export { useAgentCapabilities, clearCapabilitiesCache, setCapabilitiesCache, DEFAULT_CAPABILITIES } from './useAgentCapabilities';
+export { useAgentErrorRecovery } from './useAgentErrorRecovery';
 
 export type { UseSettingsReturn } from './useSettings';
 export type { UseSessionManagerReturn } from './useSessionManager';
@@ -54,7 +56,7 @@ export type { UseGitStatusPollingReturn, UseGitStatusPollingOptions, GitStatusDa
 export type { UseLiveOverlayReturn, TunnelStatus, UrlTab } from './useLiveOverlay';
 export type { UsePlaybookManagementReturn, UsePlaybookManagementDeps, PlaybookConfigState } from './usePlaybookManagement';
 export type { UseWorktreeValidationReturn, UseWorktreeValidationDeps } from './useWorktreeValidation';
-export type { UseSessionViewerReturn, UseSessionViewerDeps, ClaudeSession, SessionMessage } from './useSessionViewer';
+export type { UseSessionViewerReturn, UseSessionViewerDeps, AgentSession, ClaudeSession, SessionMessage } from './useSessionViewer';
 export type { UseSessionPaginationReturn, UseSessionPaginationDeps } from './useSessionPagination';
 export type {
   UseFilteredAndSortedSessionsReturn,
@@ -78,10 +80,10 @@ export type {
   UseRemoteIntegrationReturn,
 } from './useRemoteIntegration';
 export type {
-  UseClaudeSessionManagementDeps,
-  UseClaudeSessionManagementReturn,
+  UseAgentSessionManagementDeps,
+  UseAgentSessionManagementReturn,
   HistoryEntryInput,
-} from './useClaudeSessionManagement';
+} from './useAgentSessionManagement';
 export type {
   UseAgentExecutionDeps,
   UseAgentExecutionReturn,
@@ -125,3 +127,5 @@ export type { UseClickOutsideOptions } from './useClickOutside';
 export type { UseListNavigationOptions, UseListNavigationReturn } from './useListNavigation';
 export type { UseExpandedSetOptions, UseExpandedSetReturn } from './useExpandedSet';
 export type { UseScrollPositionOptions, UseScrollPositionReturn, ScrollMetrics } from './useScrollPosition';
+export type { AgentCapabilities, UseAgentCapabilitiesReturn } from './useAgentCapabilities';
+export type { UseAgentErrorRecoveryOptions, UseAgentErrorRecoveryResult } from './useAgentErrorRecovery';

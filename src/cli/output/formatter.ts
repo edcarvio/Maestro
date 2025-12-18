@@ -335,7 +335,7 @@ export function formatRunEvent(event: RunEvent, options?: { debug?: boolean }): 
       const success = event.success as boolean;
       const elapsed = ((event.elapsedMs as number) / 1000).toFixed(1);
       const icon = success ? c('green', '✓') : c('red', '✗');
-      const sessionId = event.claudeSessionId as string | undefined;
+      const sessionId = event.agentSessionId as string | undefined;
       // Indent: 6 spaces under task (result of task)
 
       if (debug && event.fullResponse) {

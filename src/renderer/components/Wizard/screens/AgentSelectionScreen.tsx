@@ -35,9 +35,11 @@ interface AgentTile {
 
 /**
  * Define the agents to display in the grid
- * Claude Code is the only currently supported agent; others are shown ghosted
+ * Supported agents: Claude Code, Codex, OpenCode (shown first)
+ * Unsupported agents: shown ghosted with "Coming soon" (at bottom)
  */
 const AGENT_TILES: AgentTile[] = [
+  // Supported agents first
   {
     id: 'claude-code',
     name: 'Claude Code',
@@ -46,11 +48,26 @@ const AGENT_TILES: AgentTile[] = [
     brandColor: '#D97757', // Claude's orange/coral color
   },
   {
-    id: 'openai-codex',
-    name: 'OpenAI Codex',
+    id: 'codex',
+    name: 'Codex',
+    supported: true,
+    description: 'OpenAI\'s AI coding assistant',
+    brandColor: '#10A37F', // OpenAI green
+  },
+  {
+    id: 'opencode',
+    name: 'OpenCode',
+    supported: true,
+    description: 'Open-source AI coding assistant',
+    brandColor: '#F97316', // Orange
+  },
+  // Coming soon agents at the bottom
+  {
+    id: 'aider',
+    name: 'Aider',
     supported: false,
     description: 'Coming soon',
-    brandColor: '#10A37F', // OpenAI green
+    brandColor: '#14B8A6', // Teal
   },
   {
     id: 'gemini-cli',
@@ -58,13 +75,6 @@ const AGENT_TILES: AgentTile[] = [
     supported: false,
     description: 'Coming soon',
     brandColor: '#4285F4', // Google blue
-  },
-  {
-    id: 'opencode',
-    name: 'OpenCode',
-    supported: false,
-    description: 'Coming soon',
-    brandColor: '#F97316', // Orange
   },
   {
     id: 'qwen3-coder',
@@ -117,8 +127,8 @@ function AgentLogo({ agentId, supported, detected, brandColor, theme }: {
         </svg>
       );
 
-    case 'openai-codex':
-      // OpenAI - hexagonal/circular logo
+    case 'codex':
+      // Codex (OpenAI) - hexagonal/circular logo
       return (
         <svg
           className="w-12 h-12"
@@ -138,6 +148,33 @@ function AgentLogo({ agentId, supported, detected, brandColor, theme }: {
             d="M24 6v36M40 15L8 33M8 15l32 18"
             stroke={color}
             strokeWidth="2"
+          />
+        </svg>
+      );
+
+    case 'aider':
+      // Aider - chat bubble with code brackets
+      return (
+        <svg
+          className="w-12 h-12"
+          viewBox="0 0 48 48"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          style={{ opacity }}
+        >
+          {/* Chat bubble with code brackets */}
+          <path
+            d="M8 12C8 9.79 9.79 8 12 8H36C38.21 8 40 9.79 40 12V28C40 30.21 38.21 32 36 32H20L12 40V32H12C9.79 32 8 30.21 8 28V12Z"
+            stroke={color}
+            strokeWidth="2"
+            fill="none"
+          />
+          <path
+            d="M18 16L14 20L18 24M30 16L34 20L30 24"
+            stroke={color}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </svg>
       );
@@ -647,6 +684,19 @@ export function AgentSelectionScreen({ theme }: AgentSelectionScreenProps): JSX.
                     }}
                   >
                     Soon
+                  </span>
+                )}
+
+                {/* "New" badge for Codex and OpenCode */}
+                {isSupported && (tile.id === 'codex' || tile.id === 'opencode') && (
+                  <span
+                    className="absolute top-2 left-2 px-1.5 py-0.5 text-[10px] rounded-full font-medium"
+                    style={{
+                      backgroundColor: '#22c55e30',
+                      color: '#22c55e',
+                    }}
+                  >
+                    New
                   </span>
                 )}
               </button>

@@ -36,13 +36,13 @@ export function RenameSessionModal(props: RenameSessionModalProps) {
         s.id === sessionIdToRename ? { ...s, name: trimmedName } : s
       ));
 
-      // Also update the Claude session name if this session has an associated Claude session
-      if (targetSession?.claudeSessionId && targetSession?.cwd) {
-        window.maestro.claude.updateSessionName(
+      // Also update the agent session name if this session has an associated agent session
+      if (targetSession?.agentSessionId && targetSession?.cwd) {
+        window.maestro.agentSessions.updateSessionName(
           targetSession.cwd,
-          targetSession.claudeSessionId,
+          targetSession.agentSessionId,
           trimmedName
-        ).catch(err => console.error('Failed to update Claude session name:', err));
+        ).catch(err => console.error('Failed to update agent session name:', err));
       }
 
       // Flush persistence immediately for critical operation (session rename)

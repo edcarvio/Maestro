@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { BatchRunState, BatchRunConfig, BatchDocumentEntry, Session, HistoryEntry, UsageStats, Group, AutoRunStats } from '../types';
+import type { BatchRunState, BatchRunConfig, BatchDocumentEntry, Session, HistoryEntry, UsageStats, Group, AutoRunStats, AgentError, ToolType } from '../types';
 import { substituteTemplateVariables, TemplateContext } from '../utils/templateVariables';
 import { getBadgeForTime, getNextBadge, formatTimeRemaining } from '../constants/conductorBadges';
 import { autorunSynopsisPrompt } from '../../prompts';
@@ -41,7 +41,12 @@ const DEFAULT_BATCH_STATE: BatchRunState = {
   sessionIds: [],
   // Time tracking (excludes sleep/suspend time)
   accumulatedElapsedMs: 0,
-  lastActiveTimestamp: undefined
+  lastActiveTimestamp: undefined,
+  // Error handling state (Phase 5.10)
+  error: undefined,
+  errorPaused: false,
+  errorDocumentIndex: undefined,
+  errorTaskDescription: undefined
 };
 
 interface BatchCompleteInfo {
@@ -65,8 +70,8 @@ interface UseBatchProcessorProps {
   sessions: Session[];
   groups: Group[];
   onUpdateSession: (sessionId: string, updates: Partial<Session>) => void;
-  onSpawnAgent: (sessionId: string, prompt: string, cwdOverride?: string) => Promise<{ success: boolean; response?: string; claudeSessionId?: string; usageStats?: UsageStats }>;
-  onSpawnSynopsis: (sessionId: string, cwd: string, claudeSessionId: string, prompt: string) => Promise<{ success: boolean; response?: string }>;
+  onSpawnAgent: (sessionId: string, prompt: string, cwdOverride?: string) => Promise<{ success: boolean; response?: string; agentSessionId?: string; usageStats?: UsageStats }>;
+  onSpawnSynopsis: (sessionId: string, cwd: string, agentSessionId: string, prompt: string, toolType?: ToolType) => Promise<{ success: boolean; response?: string }>;
   onAddHistoryEntry: (entry: Omit<HistoryEntry, 'id'>) => void;
   onComplete?: (info: BatchCompleteInfo) => void;
   // Callback for PR creation results (success or failure)
@@ -94,6 +99,11 @@ interface UseBatchProcessorReturn {
   // Custom prompts per session
   customPrompts: Record<string, string>;
   setCustomPrompt: (sessionId: string, prompt: string) => void;
+  // Error handling (Phase 5.10)
+  pauseBatchOnError: (sessionId: string, error: AgentError, documentIndex: number, taskDescription?: string) => void;
+  skipCurrentDocument: (sessionId: string) => void;
+  resumeAfterError: (sessionId: string) => void;
+  abortBatchOnError: (sessionId: string) => void;
 }
 
 /**
@@ -586,7 +596,7 @@ ${docList}
     setCustomPrompts(prev => ({ ...prev, [sessionId]: prompt }));
 
     // Collect Claude session IDs and track completion
-    const claudeSessionIds: string[] = [];
+    const agentSessionIds: string[] = [];
     let totalCompletedTasks = 0;
     let loopIteration = 0;
 
@@ -772,11 +782,11 @@ ${docList}
             // Capture elapsed time
             const elapsedTimeMs = Date.now() - taskStartTime;
 
-            if (result.claudeSessionId) {
-              claudeSessionIds.push(result.claudeSessionId);
+            if (result.agentSessionId) {
+              agentSessionIds.push(result.agentSessionId);
               // Register as auto-initiated Maestro session
               // Use effectiveCwd (worktree path when active) so session can be found later
-              window.maestro.claude.registerSessionOrigin(effectiveCwd, result.claudeSessionId, 'auto')
+              window.maestro.agentSessions.registerSessionOrigin(effectiveCwd, result.agentSessionId, 'auto')
                 .catch(err => console.error('[BatchProcessor] Failed to register session origin:', err));
             }
 
@@ -828,23 +838,25 @@ ${docList}
                 // Legacy fields
                 completedTasks: totalCompletedTasks,
                 currentTaskIndex: totalCompletedTasks,
-                sessionIds: [...(prev[sessionId]?.sessionIds || []), result.claudeSessionId || '']
+                sessionIds: [...(prev[sessionId]?.sessionIds || []), result.agentSessionId || '']
               }
             }));
 
-            // Generate synopsis for successful tasks with a Claude session
+            // Generate synopsis for successful tasks with an agent session
             let shortSummary = `[${docEntry.filename}] Task completed`;
             let fullSynopsis = shortSummary;
 
-            if (result.success && result.claudeSessionId) {
+            if (result.success && result.agentSessionId) {
               // Request a synopsis from the agent by resuming the session
               // Use effectiveCwd (worktree path when active) to find the session
               try {
+                console.log(`[BatchProcessor] Synopsis request: sessionId=${sessionId}, agentSessionId=${result.agentSessionId}, toolType=${session.toolType}`);
                 const synopsisResult = await onSpawnSynopsis(
                   sessionId,
                   effectiveCwd,
-                  result.claudeSessionId,
-                  BATCH_SYNOPSIS_PROMPT
+                  result.agentSessionId,
+                  BATCH_SYNOPSIS_PROMPT,
+                  session.toolType // Pass the agent type for multi-provider support
                 );
 
                 if (synopsisResult.success && synopsisResult.response) {
@@ -867,7 +879,7 @@ ${docList}
               timestamp: Date.now(),
               summary: shortSummary,
               fullResponse: fullSynopsis,
-              claudeSessionId: result.claudeSessionId,
+              agentSessionId: result.agentSessionId,
               projectPath: effectiveCwd,
               sessionId: sessionId,
               success: result.success,
@@ -1352,7 +1364,7 @@ ${docList}
         completedTasks: 0,
         currentTaskIndex: 0,
         originalContent: '',
-        sessionIds: claudeSessionIds
+        sessionIds: agentSessionIds
       }
     }));
 
@@ -1387,6 +1399,133 @@ ${docList}
     }));
   }, []);
 
+  /**
+   * Pause the batch run due to an agent error (Phase 5.10)
+   * Called externally when agent error is detected
+   */
+  const pauseBatchOnError = useCallback((sessionId: string, error: AgentError, documentIndex: number, taskDescription?: string) => {
+    console.log('[BatchProcessor] Pausing batch due to error:', { sessionId, errorType: error.type, documentIndex });
+    window.maestro.logger.autorun(
+      `Auto Run paused due to error: ${error.type}`,
+      sessionId,
+      {
+        errorType: error.type,
+        errorMessage: error.message,
+        documentIndex,
+        taskDescription
+      }
+    );
+
+    setBatchRunStates(prev => {
+      const currentState = prev[sessionId];
+      if (!currentState || !currentState.isRunning) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [sessionId]: {
+          ...currentState,
+          error,
+          errorPaused: true,
+          errorDocumentIndex: documentIndex,
+          errorTaskDescription: taskDescription
+        }
+      };
+    });
+  }, []);
+
+  /**
+   * Skip the current document that caused an error and continue with the next one (Phase 5.10)
+   */
+  const skipCurrentDocument = useCallback((sessionId: string) => {
+    console.log('[BatchProcessor] Skipping current document after error:', sessionId);
+    window.maestro.logger.autorun(
+      `Skipping document after error`,
+      sessionId,
+      {}
+    );
+
+    setBatchRunStates(prev => {
+      const currentState = prev[sessionId];
+      if (!currentState || !currentState.errorPaused) {
+        return prev;
+      }
+
+      // Mark for skip - the processing loop will detect this and move to next document
+      // We clear the error state and set a flag for the processing loop
+      return {
+        ...prev,
+        [sessionId]: {
+          ...currentState,
+          error: undefined,
+          errorPaused: false,
+          errorDocumentIndex: undefined,
+          errorTaskDescription: undefined
+        }
+      };
+    });
+
+    // Signal to skip current document in the processing loop
+    // The stopRequestedRefs is reused with a special marker
+    // Note: This relies on the processing loop checking for error state changes
+  }, []);
+
+  /**
+   * Resume the batch run after an error has been resolved (Phase 5.10)
+   * This clears the error state and allows the batch to continue
+   */
+  const resumeAfterError = useCallback((sessionId: string) => {
+    console.log('[BatchProcessor] Resuming batch after error resolution:', sessionId);
+    window.maestro.logger.autorun(
+      `Resuming Auto Run after error resolution`,
+      sessionId,
+      {}
+    );
+
+    setBatchRunStates(prev => {
+      const currentState = prev[sessionId];
+      if (!currentState) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [sessionId]: {
+          ...currentState,
+          error: undefined,
+          errorPaused: false,
+          errorDocumentIndex: undefined,
+          errorTaskDescription: undefined
+        }
+      };
+    });
+  }, []);
+
+  /**
+   * Abort the batch run completely due to an unrecoverable error (Phase 5.10)
+   */
+  const abortBatchOnError = useCallback((sessionId: string) => {
+    console.log('[BatchProcessor] Aborting batch due to error:', sessionId);
+    window.maestro.logger.autorun(
+      `Auto Run aborted due to error`,
+      sessionId,
+      {}
+    );
+
+    // Request stop and clear error state
+    stopRequestedRefs.current[sessionId] = true;
+    setBatchRunStates(prev => ({
+      ...prev,
+      [sessionId]: {
+        ...prev[sessionId],
+        isStopping: true,
+        error: undefined,
+        errorPaused: false,
+        errorDocumentIndex: undefined,
+        errorTaskDescription: undefined
+      }
+    }));
+  }, []);
+
   return {
     batchRunStates,
     getBatchState,
@@ -1395,6 +1534,11 @@ ${docList}
     startBatchRun,
     stopBatchRun,
     customPrompts,
-    setCustomPrompt
+    setCustomPrompt,
+    // Error handling (Phase 5.10)
+    pauseBatchOnError,
+    skipCurrentDocument,
+    resumeAfterError,
+    abortBatchOnError
   };
 }

@@ -75,7 +75,7 @@ function createMockSession(overrides: Partial<Session> = {}): Session {
 function createMockTab(overrides: Partial<AITab> = {}): AITab {
   return {
     id: 'tab-1',
-    claudeSessionId: null,
+    agentSessionId: null,
     name: null,
     starred: false,
     logs: [],
@@ -137,7 +137,7 @@ describe('tabHelpers', () => {
 
       expect(result.tab).toMatchObject({
         id: 'mock-generated-id',
-        claudeSessionId: null,
+        agentSessionId: null,
         name: null,
         starred: false,
         logs: [],
@@ -154,7 +154,7 @@ describe('tabHelpers', () => {
     it('creates a tab with custom options', () => {
       const session = createMockSession({ aiTabs: [] });
       const options = {
-        claudeSessionId: 'claude-123',
+        agentSessionId: 'claude-123',
         name: 'My Tab',
         starred: true,
         logs: [{ id: 'log-1', timestamp: 123, source: 'user' as const, text: 'test' }],
@@ -171,7 +171,7 @@ describe('tabHelpers', () => {
 
       const result = createTab(session, options);
 
-      expect(result.tab.claudeSessionId).toBe('claude-123');
+      expect(result.tab.agentSessionId).toBe('claude-123');
       expect(result.tab.name).toBe('My Tab');
       expect(result.tab.starred).toBe(true);
       expect(result.tab.logs).toHaveLength(1);
@@ -334,7 +334,7 @@ describe('tabHelpers', () => {
       const existingTab = createMockTab({ id: 'existing' });
       const closedTab = createMockTab({
         id: 'closed-tab',
-        claudeSessionId: null,
+        agentSessionId: null,
         name: 'Restored Tab',
       });
       const session = createMockSession({
@@ -364,14 +364,14 @@ describe('tabHelpers', () => {
       expect(result!.tab.id).toBe('mock-generated-id');
     });
 
-    it('detects duplicate by claudeSessionId and switches instead', () => {
+    it('detects duplicate by agentSessionId and switches instead', () => {
       const existingTab = createMockTab({
         id: 'existing',
-        claudeSessionId: 'session-123',
+        agentSessionId: 'session-123',
       });
       const closedTab = createMockTab({
         id: 'closed',
-        claudeSessionId: 'session-123',
+        agentSessionId: 'session-123',
       });
       const session = createMockSession({
         aiTabs: [existingTab],
@@ -388,14 +388,14 @@ describe('tabHelpers', () => {
       expect(result!.session.aiTabs).toHaveLength(1);
     });
 
-    it('does not consider null claudeSessionId as duplicate', () => {
+    it('does not consider null agentSessionId as duplicate', () => {
       const existingTab = createMockTab({
         id: 'existing',
-        claudeSessionId: null,
+        agentSessionId: null,
       });
       const closedTab = createMockTab({
         id: 'closed',
-        claudeSessionId: null,
+        agentSessionId: null,
       });
       const session = createMockSession({
         aiTabs: [existingTab],
@@ -411,7 +411,7 @@ describe('tabHelpers', () => {
 
     it('appends at end if original index exceeds current length', () => {
       const existingTab = createMockTab({ id: 'existing' });
-      const closedTab = createMockTab({ id: 'closed', claudeSessionId: null });
+      const closedTab = createMockTab({ id: 'closed', agentSessionId: null });
       const session = createMockSession({
         aiTabs: [existingTab],
         activeTabId: 'existing',
@@ -425,8 +425,8 @@ describe('tabHelpers', () => {
     });
 
     it('removes tab from history after restoration', () => {
-      const closedTab1 = createMockTab({ id: 'closed-1', claudeSessionId: null });
-      const closedTab2 = createMockTab({ id: 'closed-2', claudeSessionId: null });
+      const closedTab1 = createMockTab({ id: 'closed-1', agentSessionId: null });
+      const closedTab2 = createMockTab({ id: 'closed-2', agentSessionId: null });
       const session = createMockSession({
         aiTabs: [],
         closedTabHistory: [

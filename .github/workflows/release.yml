@@ -242,6 +242,7 @@ jobs:
           fi
 
       - name: Create Release
+        id: create_release
         if: steps.check_artifacts.outputs.has_artifacts == 'true'
         uses: softprops/action-gh-release@v2
         with:
@@ -255,3 +256,14 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify Discord
+        if: steps.check_artifacts.outputs.has_artifacts == 'true'
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          nodetail: true
+          title: "🎉 Maestro ${{ github.ref_name }} Released!"
+          description: "A new version of Maestro is now available. Check out the release for download links and changelog."
+          url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+          color: 0x58B09C

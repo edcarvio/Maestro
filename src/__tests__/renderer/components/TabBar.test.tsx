@@ -66,7 +66,7 @@ const mockTheme: Theme = {
 function createTab(overrides: Partial<AITab> = {}): AITab {
   return {
     id: 'tab-1',
-    claudeSessionId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    agentSessionId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
     state: 'idle',
     name: '',
     starred: false,
@@ -206,11 +206,11 @@ describe('TabBar', () => {
       expect(screen.getByText('My Custom Tab')).toBeInTheDocument();
     });
 
-    it('displays first UUID octet when no name but claudeSessionId exists', () => {
+    it('displays first UUID octet when no name but agentSessionId exists', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: '',
-        claudeSessionId: 'abcd1234-5678-9abc-def0-123456789012'
+        agentSessionId: 'abcd1234-5678-9abc-def0-123456789012'
       })];
 
       render(
@@ -227,11 +227,11 @@ describe('TabBar', () => {
       expect(screen.getByText('ABCD1234')).toBeInTheDocument();
     });
 
-    it('displays "New Session" when no name and no claudeSessionId', () => {
+    it('displays "New Session" when no name and no agentSessionId', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: '',
-        claudeSessionId: undefined
+        agentSessionId: undefined
       })];
 
       render(
@@ -846,11 +846,11 @@ describe('TabBar', () => {
   });
 
   describe('hover overlay', () => {
-    it('shows overlay after hover delay for tabs with claudeSessionId', async () => {
+    it('shows overlay after hover delay for tabs with agentSessionId', async () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: 'Tab 1',
-        claudeSessionId: 'abc123-def456'
+        agentSessionId: 'abc123-def456'
       })];
 
       render(
@@ -883,11 +883,11 @@ describe('TabBar', () => {
       expect(screen.getByText('Rename Tab')).toBeInTheDocument();
     });
 
-    it('does not show overlay for tabs without claudeSessionId', () => {
+    it('does not show overlay for tabs without agentSessionId', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: '',
-        claudeSessionId: undefined
+        agentSessionId: undefined
       })];
 
       render(
@@ -915,7 +915,7 @@ describe('TabBar', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: 'Tab 1',
-        claudeSessionId: 'abc123'
+        agentSessionId: 'abc123'
       })];
 
       render(
@@ -954,7 +954,7 @@ describe('TabBar', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: 'Tab 1',
-        claudeSessionId: 'abc123'
+        agentSessionId: 'abc123'
       })];
 
       render(
@@ -996,7 +996,7 @@ describe('TabBar', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: 'Tab 1',
-        claudeSessionId: 'abc123'
+        agentSessionId: 'abc123'
       })];
 
       render(
@@ -1039,7 +1039,7 @@ describe('TabBar', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: 'Tab 1',
-        claudeSessionId: 'abc123'
+        agentSessionId: 'abc123'
       })];
 
       render(
@@ -1075,7 +1075,7 @@ describe('TabBar', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: 'Tab 1',
-        claudeSessionId: 'abc123-xyz789'
+        agentSessionId: 'abc123-xyz789'
       })];
 
       render(
@@ -1111,7 +1111,7 @@ describe('TabBar', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: 'Tab 1',
-        claudeSessionId: 'abc123',
+        agentSessionId: 'abc123',
         starred: false
       })];
 
@@ -1141,7 +1141,7 @@ describe('TabBar', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: 'Tab 1',
-        claudeSessionId: 'abc123',
+        agentSessionId: 'abc123',
         starred: true
       })];
 
@@ -1170,7 +1170,7 @@ describe('TabBar', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: 'Tab 1',
-        claudeSessionId: 'abc123'
+        agentSessionId: 'abc123'
       })];
 
       render(
@@ -1199,7 +1199,7 @@ describe('TabBar', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: 'Tab 1',
-        claudeSessionId: 'abc123'
+        agentSessionId: 'abc123'
       })];
 
       render(
@@ -1228,7 +1228,7 @@ describe('TabBar', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: 'My Session Name',
-        claudeSessionId: 'abc123'
+        agentSessionId: 'abc123'
       })];
 
       render(
@@ -1257,7 +1257,7 @@ describe('TabBar', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: '',
-        claudeSessionId: 'full-session-id-12345'
+        agentSessionId: 'full-session-id-12345'
       })];
 
       render(
@@ -1492,7 +1492,7 @@ describe('TabBar', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: 'My Tab',
-        claudeSessionId: 'session-123'
+        agentSessionId: 'session-123'
       })];
 
       render(
@@ -1510,11 +1510,11 @@ describe('TabBar', () => {
       expect(tab).toHaveAttribute('title', 'My Tab');
     });
 
-    it('uses claudeSessionId for title when no name', () => {
+    it('uses agentSessionId for title when no name', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: '',
-        claudeSessionId: 'session-123-abc'
+        agentSessionId: 'session-123-abc'
       })];
 
       render(
@@ -1532,11 +1532,11 @@ describe('TabBar', () => {
       expect(tab).toHaveAttribute('title', 'session-123-abc');
     });
 
-    it('uses "New tab" for title when no name or claudeSessionId', () => {
+    it('uses "New tab" for title when no name or agentSessionId', () => {
       const tabs = [createTab({
         id: 'tab-1',
         name: '',
-        claudeSessionId: undefined
+        agentSessionId: undefined
       })];
 
       render(

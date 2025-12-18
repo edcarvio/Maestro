@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import type { Theme, Session, Shortcut, FocusArea, BatchRunState } from '../../../renderer/types';
+import { clearCapabilitiesCache, setCapabilitiesCache } from '../../../renderer/hooks/useAgentCapabilities';
 
 // Mock child components to simplify testing - must be before MainPanel import
 vi.mock('../../../renderer/components/LogViewer', () => ({
@@ -212,7 +213,7 @@ describe('MainPanel', () => {
     messageQueue: [],
     aiTabs: [{
       id: 'tab-1',
-      claudeSessionId: 'claude-session-1',
+      agentSessionId: 'claude-session-1',
       name: 'Tab 1',
       isUnread: false,
       createdAt: Date.now(),
@@ -266,9 +267,9 @@ describe('MainPanel', () => {
     setGitDiffPreview: vi.fn(),
     setLogViewerOpen: vi.fn(),
     setAgentSessionsOpen: vi.fn(),
-    setActiveClaudeSessionId: vi.fn(),
-    onResumeClaudeSession: vi.fn(),
-    onNewClaudeSession: vi.fn(),
+    setActiveAgentSessionId: vi.fn(),
+    onResumeAgentSession: vi.fn(),
+    onNewAgentSession: vi.fn(),
     setActiveFocus: vi.fn(),
     setOutputSearchOpen: vi.fn(),
     setOutputSearchQuery: vi.fn(),
@@ -314,6 +315,23 @@ describe('MainPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    // Clear capabilities cache and pre-populate with Claude Code capabilities (default test agent)
+    clearCapabilitiesCache();
+    setCapabilitiesCache('claude-code', {
+      supportsResume: true,
+      supportsReadOnlyMode: true,
+      supportsJsonOutput: true,
+      supportsSessionId: true,
+      supportsImageInput: true,
+      supportsSlashCommands: true,
+      supportsSessionStorage: true,
+      supportsCostTracking: true,
+      supportsUsageStats: true,
+      supportsBatchMode: true,
+      supportsStreaming: true,
+      supportsResultMessages: true,
+    });
 
     // Reset mock git status data to defaults
     resetMockGitStatus();
@@ -421,17 +439,67 @@ describe('MainPanel', () => {
 
     it('should open Agent Sessions when button is clicked', () => {
       const setAgentSessionsOpen = vi.fn();
-      const setActiveClaudeSessionId = vi.fn();
+      const setActiveAgentSessionId = vi.fn();
       render(<MainPanel
         {...defaultProps}
         setAgentSessionsOpen={setAgentSessionsOpen}
-        setActiveClaudeSessionId={setActiveClaudeSessionId}
+        setActiveAgentSessionId={setActiveAgentSessionId}
       />);
 
       fireEvent.click(screen.getByTitle(/Agent Sessions/));
 
-      expect(setActiveClaudeSessionId).toHaveBeenCalledWith(null);
+      expect(setActiveAgentSessionId).toHaveBeenCalledWith(null);
       expect(setAgentSessionsOpen).toHaveBeenCalledWith(true);
+    });
+
+    it('should hide Agent Sessions button when agent does not support session storage', () => {
+      // Pre-populate cache with capabilities where supportsSessionStorage is false
+      clearCapabilitiesCache();
+      setCapabilitiesCache('claude-code', {
+        supportsResume: true,
+        supportsReadOnlyMode: true,
+        supportsJsonOutput: true,
+        supportsSessionId: true,
+        supportsImageInput: true,
+        supportsSlashCommands: true,
+        supportsSessionStorage: false, // Agent doesn't support session storage
+        supportsCostTracking: true,
+        supportsUsageStats: true,
+        supportsBatchMode: true,
+        supportsStreaming: true,
+        supportsResultMessages: true,
+      });
+
+      render(<MainPanel {...defaultProps} />);
+
+      // Agent Sessions button should not be present
+      expect(screen.queryByTitle(/Agent Sessions/)).not.toBeInTheDocument();
+    });
+
+    it('should not render AgentSessionsBrowser when agentSessionsOpen is true but agent does not support session storage', () => {
+      // Pre-populate cache with capabilities where supportsSessionStorage is false
+      clearCapabilitiesCache();
+      setCapabilitiesCache('claude-code', {
+        supportsResume: true,
+        supportsReadOnlyMode: true,
+        supportsJsonOutput: true,
+        supportsSessionId: true,
+        supportsImageInput: true,
+        supportsSlashCommands: true,
+        supportsSessionStorage: false, // Agent doesn't support session storage
+        supportsCostTracking: true,
+        supportsUsageStats: true,
+        supportsBatchMode: true,
+        supportsStreaming: true,
+        supportsResultMessages: true,
+      });
+
+      render(<MainPanel {...defaultProps} agentSessionsOpen={true} />);
+
+      // AgentSessionsBrowser should not be shown even with agentSessionsOpen=true
+      expect(screen.queryByTestId('agent-sessions-browser')).not.toBeInTheDocument();
+      // Normal content should be shown instead
+      expect(screen.getByTestId('terminal-output')).toBeInTheDocument();
     });
   });
 
@@ -606,7 +674,7 @@ describe('MainPanel', () => {
         inputMode: 'ai',
         aiTabs: [{
           id: 'tab-1',
-          claudeSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv',
+          agentSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv',
           name: 'Tab 1',
           isUnread: false,
           createdAt: Date.now(),
@@ -628,7 +696,7 @@ describe('MainPanel', () => {
         inputMode: 'ai',
         aiTabs: [{
           id: 'tab-1',
-          claudeSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv',
+          agentSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv',
           name: 'Tab 1',
           isUnread: false,
           createdAt: Date.now(),
@@ -648,7 +716,7 @@ describe('MainPanel', () => {
         inputMode: 'terminal',
         aiTabs: [{
           id: 'tab-1',
-          claudeSessionId: 'abc12345-def6-7890',
+          agentSessionId: 'abc12345-def6-7890',
           name: 'Tab 1',
           isUnread: false,
           createdAt: Date.now(),
@@ -658,6 +726,45 @@ describe('MainPanel', () => {
       render(<MainPanel {...defaultProps} activeSession={session} />);
 
       expect(screen.queryByText('ABC12345')).not.toBeInTheDocument();
+    });
+
+    it('should not show UUID pill when agent does not support session ID', () => {
+      // Pre-populate cache with capabilities where supportsSessionId is false
+      clearCapabilitiesCache();
+      setCapabilitiesCache('claude-code', {
+        supportsResume: true,
+        supportsReadOnlyMode: true,
+        supportsJsonOutput: true,
+        supportsSessionId: false, // Agent doesn't support session ID
+        supportsImageInput: true,
+        supportsSlashCommands: true,
+        supportsSessionStorage: true,
+        supportsCostTracking: true,
+        supportsUsageStats: true,
+        supportsBatchMode: true,
+        supportsStreaming: true,
+        supportsResultMessages: true,
+      });
+
+      const session = createSession({
+        inputMode: 'ai',
+        aiTabs: [{
+          id: 'tab-1',
+          agentSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv',
+          name: 'Tab 1',
+          isUnread: false,
+          createdAt: Date.now(),
+        }],
+        activeTabId: 'tab-1',
+      });
+
+      render(<MainPanel {...defaultProps} activeSession={session} />);
+
+      // Should NOT show the UUID pill when agent doesn't support session ID
+      expect(screen.queryByText('ABC12345')).not.toBeInTheDocument();
+
+      // Restore cache for other tests
+      clearCapabilitiesCache();
     });
   });
 
@@ -674,7 +781,7 @@ describe('MainPanel', () => {
         inputMode: 'ai',
         aiTabs: [{
           id: 'tab-1',
-          claudeSessionId: 'claude-1',
+          agentSessionId: 'claude-1',
           name: 'Tab 1',
           isUnread: false,
           createdAt: Date.now(),
@@ -709,6 +816,62 @@ describe('MainPanel', () => {
 
       expect(screen.queryByText(/\$\d+\.\d+/)).not.toBeInTheDocument();
     });
+
+    it('should not display cost tracker when agent does not support cost tracking', () => {
+      // Pre-populate cache with capabilities where supportsCostTracking is false
+      clearCapabilitiesCache();
+      setCapabilitiesCache('claude-code', {
+        supportsResume: true,
+        supportsReadOnlyMode: true,
+        supportsJsonOutput: true,
+        supportsSessionId: true,
+        supportsImageInput: true,
+        supportsSlashCommands: true,
+        supportsSessionStorage: true,
+        supportsCostTracking: false, // Agent doesn't support cost tracking
+        supportsUsageStats: true,
+        supportsBatchMode: true,
+        supportsStreaming: true,
+        supportsResultMessages: true,
+      });
+
+      // Mock offsetWidth to return a value > 500 so cost widget would be shown if capability was true
+      const originalOffsetWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+      Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+        configurable: true,
+        value: 800,
+      });
+
+      const session = createSession({
+        inputMode: 'ai',
+        aiTabs: [{
+          id: 'tab-1',
+          agentSessionId: 'claude-1',
+          name: 'Tab 1',
+          isUnread: false,
+          createdAt: Date.now(),
+          usageStats: {
+            inputTokens: 1000,
+            outputTokens: 500,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            totalCostUsd: 0.15,
+            contextWindow: 200000,
+          },
+        }],
+        activeTabId: 'tab-1',
+      });
+
+      render(<MainPanel {...defaultProps} activeSession={session} />);
+
+      // Cost tracker should not be present even though panel is wide enough and we have usage stats
+      expect(screen.queryByText(/\$0\.15/)).not.toBeInTheDocument();
+
+      // Restore
+      if (originalOffsetWidth) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', originalOffsetWidth);
+      }
+    });
   });
 
   describe('Context window widget', () => {
@@ -723,6 +886,30 @@ describe('MainPanel', () => {
 
       render(<MainPanel {...defaultProps} activeSession={session} />);
 
+      expect(screen.queryByText('Context Window')).not.toBeInTheDocument();
+    });
+
+    it('should not display context window widget when agent does not support usage stats', () => {
+      // Pre-populate cache with capabilities where supportsUsageStats is false
+      clearCapabilitiesCache();
+      setCapabilitiesCache('claude-code', {
+        supportsResume: true,
+        supportsReadOnlyMode: true,
+        supportsJsonOutput: true,
+        supportsSessionId: true,
+        supportsImageInput: true,
+        supportsSlashCommands: true,
+        supportsSessionStorage: true,
+        supportsCostTracking: true,
+        supportsUsageStats: false, // Agent doesn't support usage stats
+        supportsBatchMode: true,
+        supportsStreaming: true,
+        supportsResultMessages: true,
+      });
+
+      render(<MainPanel {...defaultProps} />);
+
+      // Context Window widget should not be present
       expect(screen.queryByText('Context Window')).not.toBeInTheDocument();
     });
   });
@@ -957,7 +1144,7 @@ describe('MainPanel', () => {
       const session = createSession({
         aiTabs: [{
           id: 'tab-1',
-          claudeSessionId: 'claude-1',
+          agentSessionId: 'claude-1',
           name: 'Tab 1',
           isUnread: false,
           createdAt: Date.now(),
@@ -1039,7 +1226,7 @@ describe('MainPanel', () => {
         inputMode: 'ai',
         aiTabs: [{
           id: 'tab-1',
-          claudeSessionId: 'abc12345-def6-7890',
+          agentSessionId: 'abc12345-def6-7890',
           name: 'Tab 1',
           isUnread: false,
           createdAt: Date.now(),
@@ -1064,7 +1251,7 @@ describe('MainPanel', () => {
         inputMode: 'ai',
         aiTabs: [{
           id: 'tab-1',
-          claudeSessionId: 'abc12345-def6-7890',
+          agentSessionId: 'abc12345-def6-7890',
           name: 'Tab 1',
           isUnread: false,
           createdAt: Date.now(),
@@ -1134,7 +1321,7 @@ describe('MainPanel', () => {
       const session = createSession({
         aiTabs: [{
           id: 'tab-1',
-          claudeSessionId: 'claude-1',
+          agentSessionId: 'claude-1',
           name: 'Tab 1',
           isUnread: false,
           createdAt: Date.now(),
@@ -1454,7 +1641,7 @@ describe('MainPanel', () => {
       const session = createSession({
         aiTabs: [{
           id: 'tab-1',
-          claudeSessionId: 'claude-1',
+          agentSessionId: 'claude-1',
           name: 'Tab 1',
           isUnread: false,
           createdAt: Date.now(),
@@ -1465,8 +1652,8 @@ describe('MainPanel', () => {
 
       render(<MainPanel {...defaultProps} activeSession={session} />);
 
-      // Should render without crashing
-      expect(screen.getByText('Context Window')).toBeInTheDocument();
+      // Should render without crashing - Context Window widget is hidden when contextWindow is not configured
+      expect(screen.queryByText('Context Window')).not.toBeInTheDocument();
     });
 
     it('should handle missing git status from context gracefully', async () => {
@@ -1492,7 +1679,7 @@ describe('MainPanel', () => {
         inputMode: 'ai',
         aiTabs: [{
           id: 'tab-1',
-          claudeSessionId: 'abc12345-def6-7890',
+          agentSessionId: 'abc12345-def6-7890',
           name: 'Tab 1',
           isUnread: false,
           createdAt: Date.now(),
@@ -1530,11 +1717,11 @@ describe('MainPanel', () => {
   });
 
   describe('Context usage calculation edge cases', () => {
-    it('should handle zero context window', () => {
+    it('should hide context widget when context window is zero', () => {
       const session = createSession({
         aiTabs: [{
           id: 'tab-1',
-          claudeSessionId: 'claude-1',
+          agentSessionId: 'claude-1',
           name: 'Tab 1',
           isUnread: false,
           createdAt: Date.now(),
@@ -1552,8 +1739,8 @@ describe('MainPanel', () => {
 
       render(<MainPanel {...defaultProps} activeSession={session} />);
 
-      // Should render without crashing
-      expect(screen.getByText('Context Window')).toBeInTheDocument();
+      // Context Window widget should be hidden when contextWindow is 0 (not configured)
+      expect(screen.queryByText('Context Window')).not.toBeInTheDocument();
     });
 
     it('should cap context usage at 100%', () => {
@@ -1561,7 +1748,7 @@ describe('MainPanel', () => {
       const session = createSession({
         aiTabs: [{
           id: 'tab-1',
-          claudeSessionId: 'claude-1',
+          agentSessionId: 'claude-1',
           name: 'Tab 1',
           isUnread: false,
           createdAt: Date.now(),

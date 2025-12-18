@@ -84,7 +84,7 @@ vi.mock('../../../renderer/components/AchievementCard', () => ({
 // Add __APP_VERSION__ global
 (globalThis as unknown as { __APP_VERSION__: string }).__APP_VERSION__ = '1.0.0';
 
-// Interface for global stats
+// Interface for global stats (matches GlobalAgentStats in AboutModal.tsx)
 interface ClaudeGlobalStats {
   totalSessions: number;
   totalMessages: number;
@@ -93,6 +93,7 @@ interface ClaudeGlobalStats {
   totalCacheReadTokens: number;
   totalCacheCreationTokens: number;
   totalCostUsd: number;
+  hasCostData: boolean;
   totalSizeBytes: number;
   isComplete?: boolean;
 }
@@ -157,6 +158,7 @@ const createGlobalStats = (overrides: Partial<ClaudeGlobalStats> = {}): ClaudeGl
   totalCacheReadTokens: 0,
   totalCacheCreationTokens: 0,
   totalCostUsd: 25.50,
+  hasCostData: true,
   totalSizeBytes: 1048576,
   isComplete: true,
   ...overrides,
@@ -175,14 +177,14 @@ describe('AboutModal', () => {
     unsubscribeMock = vi.fn();
     statsCallback = null;
 
-    // Mock onGlobalStatsUpdate to capture the callback
-    vi.mocked(window.maestro.claude.onGlobalStatsUpdate).mockImplementation((callback) => {
+    // Mock onGlobalStatsUpdate to capture the callback (now uses agentSessions API)
+    vi.mocked(window.maestro.agentSessions.onGlobalStatsUpdate).mockImplementation((callback) => {
       statsCallback = callback;
       return unsubscribeMock;
     });
 
-    // Mock getGlobalStats
-    vi.mocked(window.maestro.claude.getGlobalStats).mockResolvedValue(createGlobalStats());
+    // Mock getGlobalStats (now uses agentSessions API)
+    vi.mocked(window.maestro.agentSessions.getGlobalStats).mockResolvedValue(createGlobalStats());
 
     // Mock shell.openExternal
     vi.mocked(window.maestro.shell.openExternal).mockResolvedValue(undefined);
@@ -541,7 +543,7 @@ describe('AboutModal', () => {
         />
       );
 
-      expect(window.maestro.claude.onGlobalStatsUpdate).toHaveBeenCalledTimes(1);
+      expect(window.maestro.agentSessions.onGlobalStatsUpdate).toHaveBeenCalledTimes(1);
     });
 
     it('should call getGlobalStats on mount', () => {
@@ -554,7 +556,7 @@ describe('AboutModal', () => {
         />
       );
 
-      expect(window.maestro.claude.getGlobalStats).toHaveBeenCalledTimes(1);
+      expect(window.maestro.agentSessions.getGlobalStats).toHaveBeenCalledTimes(1);
     });
 
     it('should unsubscribe from stats updates on unmount', () => {
@@ -624,7 +626,7 @@ describe('AboutModal', () => {
 
     it('should handle stats loading error gracefully', async () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      vi.mocked(window.maestro.claude.getGlobalStats).mockRejectedValue(new Error('Failed'));
+      vi.mocked(window.maestro.agentSessions.getGlobalStats).mockRejectedValue(new Error('Failed'));
 
       render(
         <AboutModal
@@ -639,14 +641,14 @@ describe('AboutModal', () => {
         await vi.runAllTimersAsync();
       });
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to load global Claude stats:', expect.any(Error));
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to load global agent stats:', expect.any(Error));
       consoleErrorSpy.mockRestore();
     });
 
-    it('should display "No Claude sessions found" when no stats', async () => {
+    it('should display "No sessions found" when no stats', async () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       // Setup the mock to reject BEFORE rendering
-      vi.mocked(window.maestro.claude.getGlobalStats).mockRejectedValue(new Error('Failed'));
+      vi.mocked(window.maestro.agentSessions.getGlobalStats).mockRejectedValue(new Error('Failed'));
 
       render(
         <AboutModal
@@ -661,7 +663,7 @@ describe('AboutModal', () => {
         await vi.runAllTimersAsync();
       });
 
-      expect(screen.getByText('No Claude sessions found')).toBeInTheDocument();
+      expect(screen.getByText('No sessions found')).toBeInTheDocument();
       consoleErrorSpy.mockRestore();
     });
   });

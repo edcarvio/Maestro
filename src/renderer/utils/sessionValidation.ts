@@ -96,12 +96,13 @@ function normalizeDirectory(dir: string): string {
 /**
  * Get a human-readable display name for a provider/tool type.
  */
-function getProviderDisplayName(toolType: ToolType): string {
+export function getProviderDisplayName(toolType: ToolType): string {
   const displayNames: Record<ToolType, string> = {
     'claude-code': 'Claude Code',
     'claude': 'Claude',
     'aider': 'Aider',
     'opencode': 'OpenCode',
+    'codex': 'Codex',
     'terminal': 'Terminal'
   };
   return displayNames[toolType] || toolType;

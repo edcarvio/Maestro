@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import Store from 'electron-store';
 import { AgentDetector } from '../../agent-detector';
+import { getAgentCapabilities } from '../../agent-capabilities';
 import { execFileNoThrow } from '../../utils/execFile';
 import { logger } from '../../utils/logger';
 import { withIpcErrorLogging, requireDependency, CreateHandlerOptions } from '../../utils/ipcHandler';
@@ -31,13 +32,23 @@ export interface AgentsHandlerDependencies {
 
 /**
  * Helper to strip non-serializable functions from agent configs.
- * Agent configs can have argBuilder functions that cannot be sent over IPC.
+ * Agent configs can have function properties that cannot be sent over IPC:
+ * - argBuilder in configOptions
+ * - resumeArgs, modelArgs, workingDirArgs on the agent config
  */
 function stripAgentFunctions(agent: any) {
   if (!agent) return null;
 
+  // Destructure to remove function properties from agent config
+  const {
+    resumeArgs,
+    modelArgs,
+    workingDirArgs,
+    ...serializableAgent
+  } = agent;
+
   return {
-    ...agent,
+    ...serializableAgent,
     configOptions: agent.configOptions?.map((opt: any) => {
       const { argBuilder, ...serializableOpt } = opt;
       return serializableOpt;
@@ -134,6 +145,15 @@ export function registerAgentsHandlers(deps: AgentsHandlerDependencies): void {
       const agent = await agentDetector.getAgent(agentId);
       // Strip argBuilder functions before sending over IPC
       return stripAgentFunctions(agent);
+    })
+  );
+
+  // Get capabilities for a specific agent
+  ipcMain.handle(
+    'agents:getCapabilities',
+    withIpcErrorLogging(handlerOpts('getCapabilities'), async (agentId: string) => {
+      logger.debug(`Getting capabilities for agent: ${agentId}`, LOG_CONTEXT);
+      return getAgentCapabilities(agentId);
     })
   );
 
@@ -247,6 +267,66 @@ export function registerAgentsHandlers(deps: AgentsHandlerDependencies): void {
         }
       }
       return customPaths;
+    })
+  );
+
+  // Set custom CLI arguments for an agent - arbitrary args appended to all agent invocations
+  ipcMain.handle(
+    'agents:setCustomArgs',
+    withIpcErrorLogging(
+      handlerOpts('setCustomArgs', CONFIG_LOG_CONTEXT),
+      async (agentId: string, customArgs: string | null) => {
+        const allConfigs = agentConfigsStore.get('configs', {});
+        if (!allConfigs[agentId]) {
+          allConfigs[agentId] = {};
+        }
+
+        if (customArgs && customArgs.trim()) {
+          allConfigs[agentId].customArgs = customArgs.trim();
+          logger.info(`Set custom args for agent ${agentId}: ${customArgs}`, CONFIG_LOG_CONTEXT);
+        } else {
+          delete allConfigs[agentId].customArgs;
+          logger.info(`Cleared custom args for agent ${agentId}`, CONFIG_LOG_CONTEXT);
+        }
+
+        agentConfigsStore.set('configs', allConfigs);
+        return true;
+      }
+    )
+  );
+
+  // Get custom CLI arguments for an agent
+  ipcMain.handle(
+    'agents:getCustomArgs',
+    withIpcErrorLogging(handlerOpts('getCustomArgs', CONFIG_LOG_CONTEXT), async (agentId: string) => {
+      const allConfigs = agentConfigsStore.get('configs', {});
+      return allConfigs[agentId]?.customArgs || null;
+    })
+  );
+
+  // Get all custom CLI arguments for agents
+  ipcMain.handle(
+    'agents:getAllCustomArgs',
+    withIpcErrorLogging(handlerOpts('getAllCustomArgs', CONFIG_LOG_CONTEXT), async () => {
+      const allConfigs = agentConfigsStore.get('configs', {});
+      const customArgs: Record<string, string> = {};
+      for (const [agentId, config] of Object.entries(allConfigs)) {
+        if (config && typeof config === 'object' && 'customArgs' in config && config.customArgs) {
+          customArgs[agentId] = config.customArgs as string;
+        }
+      }
+      return customArgs;
+    })
+  );
+
+  // Discover available models for an agent that supports model selection
+  ipcMain.handle(
+    'agents:getModels',
+    withIpcErrorLogging(handlerOpts('getModels'), async (agentId: string, forceRefresh?: boolean) => {
+      const agentDetector = requireDependency(getAgentDetector, 'Agent detector');
+      logger.info(`Discovering models for agent: ${agentId}`, LOG_CONTEXT, { forceRefresh });
+      const models = await agentDetector.discoverModels(agentId, forceRefresh ?? false);
+      return models;
     })
   );
 }

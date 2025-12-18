@@ -6,7 +6,7 @@ import { useListNavigation } from '../hooks/useListNavigation';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { formatSize, formatRelativeTime } from '../utils/formatters';
 
-interface ClaudeSession {
+interface AgentSession {
   sessionId: string;
   projectPath: string;
   timestamp: string;
@@ -15,6 +15,7 @@ interface ClaudeSession {
   messageCount: number;
   sizeBytes: number;
   sessionName?: string; // Named session from Maestro
+  starred?: boolean; // Starred status from Maestro
 }
 
 interface SessionMessage {
@@ -30,7 +31,7 @@ interface AgentSessionsModalProps {
   theme: Theme;
   activeSession: Session | undefined;
   onClose: () => void;
-  onResumeSession: (claudeSessionId: string) => void;
+  onResumeSession: (agentSessionId: string) => void;
 }
 
 export function AgentSessionsModal({
@@ -39,10 +40,10 @@ export function AgentSessionsModal({
   onClose,
   onResumeSession,
 }: AgentSessionsModalProps) {
-  const [sessions, setSessions] = useState<ClaudeSession[]>([]);
+  const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [viewingSession, setViewingSession] = useState<ClaudeSession | null>(null);
+  const [viewingSession, setViewingSession] = useState<AgentSession | null>(null);
   const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
@@ -124,9 +125,11 @@ export function AgentSessionsModal({
         return;
       }
 
-      console.log('AgentSessionsModal: Loading sessions for cwd:', activeSession.cwd);
+      const agentId = activeSession.toolType || 'claude-code';
+      console.log('AgentSessionsModal: Loading sessions for cwd:', activeSession.cwd, 'agentId:', agentId);
       try {
         // Load starred sessions from Claude session origins (shared with AgentSessionsBrowser)
+        // Note: Origin tracking remains Claude-specific until generic implementation is added
         const origins = await window.maestro.claude.getSessionOrigins(activeSession.cwd);
         const starredFromOrigins = new Set<string>();
         for (const [sessionId, originData] of Object.entries(origins)) {
@@ -136,8 +139,8 @@ export function AgentSessionsModal({
         }
         setStarredSessions(starredFromOrigins);
 
-        // Use paginated API for better performance with many sessions
-        const result = await window.maestro.claude.listSessionsPaginated(activeSession.cwd, { limit: 100 });
+        // Use generic agentSessions API for session listing
+        const result = await window.maestro.agentSessions.listPaginated(agentId, activeSession.cwd, { limit: 100 });
         console.log('AgentSessionsModal: Got sessions:', result.sessions.length, 'of', result.totalCount);
         setSessions(result.sessions);
         setHasMoreSessions(result.hasMore);
@@ -151,15 +154,16 @@ export function AgentSessionsModal({
     };
 
     loadSessions();
-  }, [activeSession?.cwd]);
+  }, [activeSession?.cwd, activeSession?.toolType]);
 
   // Load more sessions when scrolling near bottom
   const loadMoreSessions = useCallback(async () => {
     if (!activeSession?.cwd || !hasMoreSessions || isLoadingMoreSessions || !nextCursorRef.current) return;
 
+    const agentId = activeSession.toolType || 'claude-code';
     setIsLoadingMoreSessions(true);
     try {
-      const result = await window.maestro.claude.listSessionsPaginated(activeSession.cwd, {
+      const result = await window.maestro.agentSessions.listPaginated(agentId, activeSession.cwd, {
         cursor: nextCursorRef.current,
         limit: 100,
       });
@@ -177,7 +181,7 @@ export function AgentSessionsModal({
     } finally {
       setIsLoadingMoreSessions(false);
     }
-  }, [activeSession?.cwd, hasMoreSessions, isLoadingMoreSessions]);
+  }, [activeSession?.cwd, activeSession?.toolType, hasMoreSessions, isLoadingMoreSessions]);
 
   // Handle scroll for sessions list pagination - load more at 70% scroll
   const handleSessionsScroll = useCallback(() => {
@@ -223,12 +227,14 @@ export function AgentSessionsModal({
   }, []);
 
   // Load messages when viewing a session
-  const loadMessages = useCallback(async (session: ClaudeSession, offset: number = 0) => {
+  const loadMessages = useCallback(async (session: AgentSession, offset: number = 0) => {
     if (!activeSession?.cwd) return;
 
+    const agentId = activeSession.toolType || 'claude-code';
     setMessagesLoading(true);
     try {
-      const result = await window.maestro.claude.readSessionMessages(
+      const result = await window.maestro.agentSessions.read(
+        agentId,
         activeSession.cwd,
         session.sessionId,
         { offset, limit: 20 }
@@ -248,10 +254,10 @@ export function AgentSessionsModal({
     } finally {
       setMessagesLoading(false);
     }
-  }, [activeSession?.cwd]);
+  }, [activeSession?.cwd, activeSession?.toolType]);
 
   // Handle viewing a session
-  const handleViewSession = useCallback((session: ClaudeSession) => {
+  const handleViewSession = useCallback((session: AgentSession) => {
     setViewingSession(session);
     setMessages([]);
     setMessagesOffset(0);

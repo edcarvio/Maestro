@@ -101,7 +101,7 @@ function createMockSession(id: string = 'session-1'): SessionBroadcastData {
 function createMockTab(id: string = 'tab-1'): AITabData {
   return {
     id,
-    claudeSessionId: null,
+    agentSessionId: null,
     name: 'Tab 1',
     starred: false,
     inputValue: '',
@@ -403,7 +403,7 @@ describe('BroadcastService', () => {
       const sentData = JSON.parse((client.socket.send as any).mock.calls[0][0]);
       expect(sentData.type).toBe('session_live');
       expect(sentData.sessionId).toBe('session-1');
-      expect(sentData.claudeSessionId).toBe('claude-session-abc');
+      expect(sentData.agentSessionId).toBe('claude-session-abc');
     });
 
     it('should broadcast session offline status', () => {

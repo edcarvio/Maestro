@@ -46,16 +46,16 @@ vi.mock('../../../web/mobile/constants', () => ({
 describe('TabSearchModal', () => {
   const createTab = (overrides: Partial<AITabData> & { id: string }): AITabData => ({
     name: '',
-    claudeSessionId: '',
+    agentSessionId: '',
     state: 'idle',
     starred: false,
     ...overrides,
   });
 
   const defaultTabs: AITabData[] = [
-    createTab({ id: 'tab-1', name: 'Main', claudeSessionId: 'abc12345-6789' }),
-    createTab({ id: 'tab-2', name: 'Feature', claudeSessionId: 'def67890-abcd' }),
-    createTab({ id: 'tab-3', name: 'Tests', claudeSessionId: 'ghi11111-efgh' }),
+    createTab({ id: 'tab-1', name: 'Main', agentSessionId: 'abc12345-6789' }),
+    createTab({ id: 'tab-2', name: 'Feature', agentSessionId: 'def67890-abcd' }),
+    createTab({ id: 'tab-3', name: 'Tests', agentSessionId: 'ghi11111-efgh' }),
   ];
 
   let mockOnSelectTab: ReturnType<typeof vi.fn>;
@@ -90,8 +90,8 @@ describe('TabSearchModal', () => {
         expect(screen.getByText('MyCustomTab')).toBeInTheDocument();
       });
 
-      it('uses claudeSessionId first segment in uppercase when name is empty', () => {
-        const tabs = [createTab({ id: 'tab-1', name: '', claudeSessionId: 'abc12345-6789-0def' })];
+      it('uses agentSessionId first segment in uppercase when name is empty', () => {
+        const tabs = [createTab({ id: 'tab-1', name: '', agentSessionId: 'abc12345-6789-0def' })];
         render(
           <TabSearchModal
             tabs={tabs}
@@ -103,8 +103,8 @@ describe('TabSearchModal', () => {
         expect(screen.getByText('ABC12345')).toBeInTheDocument();
       });
 
-      it('displays "New Tab" when both name and claudeSessionId are empty', () => {
-        const tabs = [createTab({ id: 'tab-1', name: '', claudeSessionId: '' })];
+      it('displays "New Tab" when both name and agentSessionId are empty', () => {
+        const tabs = [createTab({ id: 'tab-1', name: '', agentSessionId: '' })];
         render(
           <TabSearchModal
             tabs={tabs}
@@ -116,7 +116,7 @@ describe('TabSearchModal', () => {
         expect(screen.getByText('New Tab')).toBeInTheDocument();
       });
 
-      it('displays "New Tab" when claudeSessionId is undefined', () => {
+      it('displays "New Tab" when agentSessionId is undefined', () => {
         const tabs = [{ id: 'tab-1', name: '', state: 'idle' as const, starred: false }];
         render(
           <TabSearchModal
@@ -129,8 +129,8 @@ describe('TabSearchModal', () => {
         expect(screen.getByText('New Tab')).toBeInTheDocument();
       });
 
-      it('handles claudeSessionId without dashes', () => {
-        const tabs = [createTab({ id: 'tab-1', name: '', claudeSessionId: 'simpleId' })];
+      it('handles agentSessionId without dashes', () => {
+        const tabs = [createTab({ id: 'tab-1', name: '', agentSessionId: 'simpleId' })];
         render(
           <TabSearchModal
             tabs={tabs}
@@ -272,8 +272,8 @@ describe('TabSearchModal', () => {
     });
 
     describe('Claude session ID display', () => {
-      it('shows claudeSessionId when available', () => {
-        const tabs = [createTab({ id: 'tab-1', name: 'Test', claudeSessionId: 'abc12345-6789-0def' })];
+      it('shows agentSessionId when available', () => {
+        const tabs = [createTab({ id: 'tab-1', name: 'Test', agentSessionId: 'abc12345-6789-0def' })];
         render(
           <TabSearchModal
             tabs={tabs}
@@ -285,8 +285,8 @@ describe('TabSearchModal', () => {
         expect(screen.getByText('abc12345-6789-0def')).toBeInTheDocument();
       });
 
-      it('hides claudeSessionId when not available', () => {
-        const tabs = [createTab({ id: 'tab-1', name: 'Test', claudeSessionId: '' })];
+      it('hides agentSessionId when not available', () => {
+        const tabs = [createTab({ id: 'tab-1', name: 'Test', agentSessionId: '' })];
         render(
           <TabSearchModal
             tabs={tabs}
@@ -300,8 +300,8 @@ describe('TabSearchModal', () => {
         expect(button?.querySelector('span[style*="monospace"]')).not.toBeInTheDocument();
       });
 
-      it('uses monospace font for claudeSessionId', () => {
-        const tabs = [createTab({ id: 'tab-1', name: 'Test', claudeSessionId: 'xyz-session' })];
+      it('uses monospace font for agentSessionId', () => {
+        const tabs = [createTab({ id: 'tab-1', name: 'Test', agentSessionId: 'xyz-session' })];
         render(
           <TabSearchModal
             tabs={tabs}
@@ -767,7 +767,7 @@ describe('TabSearchModal', () => {
         expect(screen.queryByText('Tests')).not.toBeInTheDocument();
       });
 
-      it('filters by claudeSessionId (case-insensitive)', () => {
+      it('filters by agentSessionId (case-insensitive)', () => {
         render(
           <TabSearchModal
             tabs={defaultTabs}
@@ -977,9 +977,9 @@ describe('TabSearchModal', () => {
       expect(screen.getByText('🎵 Music Tab 中文 العربية 🎶')).toBeInTheDocument();
     });
 
-    it('handles tab with null name and null claudeSessionId', () => {
+    it('handles tab with null name and null agentSessionId', () => {
       // TypeScript would normally prevent this, but testing runtime behavior
-      const tabs = [{ id: 'tab-1', name: null as unknown as string, claudeSessionId: null as unknown as string, state: 'idle' as const, starred: false }];
+      const tabs = [{ id: 'tab-1', name: null as unknown as string, agentSessionId: null as unknown as string, state: 'idle' as const, starred: false }];
       render(
         <TabSearchModal
           tabs={tabs}
@@ -1031,7 +1031,7 @@ describe('TabSearchModal', () => {
       expect(screen.queryByText('Feature')).not.toBeInTheDocument();
     });
 
-    it('handles search matching partial claudeSessionId', () => {
+    it('handles search matching partial agentSessionId', () => {
       render(
         <TabSearchModal
           tabs={defaultTabs}
@@ -1070,7 +1070,7 @@ describe('TabSearchModal', () => {
 
     it('filters correctly with mixed case in both search and names', () => {
       const tabs = [
-        createTab({ id: 'tab-1', name: 'MixedCase', claudeSessionId: 'UPPER-lower-123' }),
+        createTab({ id: 'tab-1', name: 'MixedCase', agentSessionId: 'UPPER-lower-123' }),
       ];
       render(
         <TabSearchModal

@@ -36,7 +36,7 @@ interface ProcessNode {
   children?: ProcessNode[];
   toolType?: string;
   cwd?: string;
-  claudeSessionId?: string; // UUID octet from the Claude session (for AI processes)
+  agentSessionId?: string; // UUID octet from the Claude session (for AI processes)
   tabId?: string; // Tab ID for navigation to specific AI tab
   startTime?: number; // Process start timestamp for runtime calculation
   isAutoRun?: boolean; // True for batch processes from Auto Run
@@ -306,7 +306,7 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
         const sessionName = session.name;
 
         // Look up Claude session ID from the tab if this is an AI process
-        let claudeSessionId: string | undefined;
+        let agentSessionId: string | undefined;
         let tabId: string | undefined;
         if (processType === 'ai' || processType === 'batch' || processType === 'synopsis') {
           tabId = parseTabId(proc.sessionId) || undefined;
@@ -314,15 +314,15 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
             // First try to find by tab ID
             if (tabId) {
               const tab = session.aiTabs.find(t => t.id === tabId);
-              if (tab?.claudeSessionId) {
-                claudeSessionId = tab.claudeSessionId;
+              if (tab?.agentSessionId) {
+                agentSessionId = tab.agentSessionId;
               }
             }
             // Fall back to active tab if no tab ID match
-            if (!claudeSessionId) {
+            if (!agentSessionId) {
               const activeTab = session.aiTabs.find(t => t.id === session.activeTabId);
-              if (activeTab?.claudeSessionId) {
-                claudeSessionId = activeTab.claudeSessionId;
+              if (activeTab?.agentSessionId) {
+                agentSessionId = activeTab.agentSessionId;
                 tabId = activeTab.id;
               }
             }
@@ -340,7 +340,7 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
           isAlive: true, // Active processes are always alive
           toolType: proc.toolType,
           cwd: proc.cwd,
-          claudeSessionId,
+          agentSessionId,
           tabId,
           startTime: proc.startTime,
           isAutoRun
@@ -382,7 +382,7 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
         const rootNode: ProcessNode = {
           id: 'group-root',
           type: 'group',
-          label: 'UNGROUPED',
+          label: 'UNGROUPED AGENTS',
           emoji: '📁',
           expanded: expandedNodes.has('group-root'),
           children: sessionNodes
@@ -670,7 +670,7 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
           </div>
           {/* Second line: Claude session ID, PID, runtime, status - indented */}
           <div className="flex items-center gap-3 mt-1" style={{ paddingLeft: '24px' }}>
-            {node.claudeSessionId && node.sessionId && onNavigateToSession && (
+            {node.agentSessionId && node.sessionId && onNavigateToSession && (
               <button
                 className="text-xs font-mono hover:underline cursor-pointer"
                 style={{ color: theme.colors.accent }}
@@ -681,12 +681,12 @@ export function ProcessMonitor(props: ProcessMonitorProps) {
                 }}
                 title="Click to navigate to this session"
               >
-                {node.claudeSessionId.substring(0, 8)}...
+                {node.agentSessionId.substring(0, 8)}...
               </button>
             )}
-            {node.claudeSessionId && (!node.sessionId || !onNavigateToSession) && (
+            {node.agentSessionId && (!node.sessionId || !onNavigateToSession) && (
               <span className="text-xs font-mono" style={{ color: theme.colors.accent }}>
-                {node.claudeSessionId.substring(0, 8)}...
+                {node.agentSessionId.substring(0, 8)}...
               </span>
             )}
             <span className="text-xs font-mono" style={{ color: theme.colors.textDim }}>

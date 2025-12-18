@@ -9,7 +9,7 @@ export interface Toast {
   project?: string; // Maestro session name (the agent name in Left Bar)
   duration?: number;
   taskDuration?: number; // How long the task took in ms
-  claudeSessionId?: string; // Claude Code session UUID for traceability
+  agentSessionId?: string; // Claude Code session UUID for traceability
   tabName?: string; // Tab name or short UUID for display
   timestamp: number;
   // Session navigation - allows clicking toast to jump to session
@@ -85,7 +85,7 @@ export function ToastProvider({ children, defaultDuration: initialDuration = 20 
       group: toast.group,
       project: toast.project,
       taskDuration: toast.taskDuration,
-      claudeSessionId: toast.claudeSessionId,
+      agentSessionId: toast.agentSessionId,
       tabName: toast.tabName
     });
 
@@ -105,7 +105,7 @@ export function ToastProvider({ children, defaultDuration: initialDuration = 20 
       // Body: [Group > ] [TabName: ] First sentence of message
       // - group = Maestro group name
       // - tabName = tab label or short Claude session UUID
-      const tabLabel = toast.tabName || (toast.claudeSessionId ? toast.claudeSessionId.slice(0, 8) : null);
+      const tabLabel = toast.tabName || (toast.agentSessionId ? toast.agentSessionId.slice(0, 8) : null);
 
       // Extract first sentence from message (up to first . ! or ? followed by space/end)
       const firstSentenceMatch = toast.message.match(/^[^.!?]*[.!?]?/);

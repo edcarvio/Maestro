@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Folder, RefreshCw } from 'lucide-react';
+import { Folder, RefreshCw, ChevronRight } from 'lucide-react';
 import type { AgentConfig, Session, ToolType } from '../types';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { validateNewSession, validateEditSession } from '../utils/sessionValidation';
@@ -39,9 +39,13 @@ interface EditAgentModalProps {
   existingSessions: Session[];
 }
 
+// Supported agents that are fully implemented
+const SUPPORTED_AGENTS = ['claude-code', 'opencode', 'codex'];
+
 export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgent, existingSessions }: NewInstanceModalProps) {
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [selectedAgent, setSelectedAgent] = useState(defaultAgent);
+  const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
   const [workingDir, setWorkingDir] = useState('');
   const [instanceName, setInstanceName] = useState('');
   const [nudgeMessage, setNudgeMessage] = useState('');
@@ -50,6 +54,8 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
   const [debugInfo, setDebugInfo] = useState<AgentDebugInfo | null>(null);
   const [homeDir, setHomeDir] = useState<string>('');
   const [customAgentPaths, setCustomAgentPaths] = useState<Record<string, string>>({});
+  const [customAgentArgs, setCustomAgentArgs] = useState<Record<string, string>>({});
+  const [agentConfigs, setAgentConfigs] = useState<Record<string, Record<string, any>>>({});
 
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -83,9 +89,19 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
       const detectedAgents = await window.maestro.agents.detect();
       setAgents(detectedAgents);
 
-      // Load custom paths for agents
+      // Load custom paths and args for agents
       const paths = await window.maestro.agents.getAllCustomPaths();
       setCustomAgentPaths(paths);
+      const args = await window.maestro.agents.getAllCustomArgs();
+      setCustomAgentArgs(args);
+
+      // Load configurations for all agents
+      const configs: Record<string, Record<string, any>> = {};
+      for (const agent of detectedAgents) {
+        const config = await window.maestro.agents.getConfig(agent.id);
+        configs[agent.id] = config;
+      }
+      setAgentConfigs(configs);
 
       // Set default or first available
       const defaultAvailable = detectedAgents.find((a: AgentConfig) => a.id === defaultAgent && a.available);
@@ -174,12 +190,22 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
     }
   }, [handleSelectFolder, handleCreate, isFormValid]);
 
+  // Sort agents: supported first, then coming soon at the bottom
+  const sortedAgents = useMemo(() => {
+    const visible = agents.filter(a => !a.hidden);
+    const supported = visible.filter(a => SUPPORTED_AGENTS.includes(a.id));
+    const comingSoon = visible.filter(a => !SUPPORTED_AGENTS.includes(a.id));
+    return [...supported, ...comingSoon];
+  }, [agents]);
+
   // Effects
   useEffect(() => {
     if (isOpen) {
       loadAgents();
+      // Keep all agents collapsed by default
+      setExpandedAgent(null);
     }
-  }, [isOpen]);
+  }, [isOpen, defaultAgent]);
 
   if (!isOpen) return null;
 
@@ -224,40 +250,70 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
             {loading ? (
               <div className="text-sm opacity-50">Loading agents...</div>
             ) : (
-              <div className="space-y-2">
-                {agents.filter(a => !a.hidden).map((agent) => (
-                  <div
-                    key={agent.id}
-                    className={`rounded border transition-all ${
-                      selectedAgent === agent.id ? 'ring-2' : ''
-                    }`}
-                    style={{
-                      borderColor: theme.colors.border,
-                      backgroundColor: selectedAgent === agent.id ? theme.colors.accentDim : 'transparent',
-                      ringColor: theme.colors.accent,
-                    }}
-                  >
+              <div className="space-y-1">
+                {sortedAgents.map((agent) => {
+                  const isSupported = SUPPORTED_AGENTS.includes(agent.id);
+                  const isExpanded = expandedAgent === agent.id;
+                  const isSelected = selectedAgent === agent.id;
+                  const canSelect = isSupported && agent.available;
+
+                  return (
                     <div
-                      onClick={() => {
-                        if (agent.id === 'claude-code' && agent.available) {
-                          setSelectedAgent(agent.id);
-                        }
+                      key={agent.id}
+                      className={`rounded border transition-all overflow-hidden ${
+                        isSelected ? 'ring-2' : ''
+                      }`}
+                      style={{
+                        borderColor: theme.colors.border,
+                        backgroundColor: isSelected ? theme.colors.accentDim : 'transparent',
+                        ringColor: theme.colors.accent,
                       }}
-                      className={`w-full text-left p-3 ${(agent.id !== 'claude-code' || !agent.available) ? 'opacity-40 cursor-not-allowed' : 'hover:bg-opacity-10 cursor-pointer'}`}
-                      style={{ color: theme.colors.textMain }}
-                      role="option"
-                      aria-selected={selectedAgent === agent.id}
-                      tabIndex={agent.id === 'claude-code' && agent.available ? 0 : -1}
                     >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">{agent.name}</div>
-                          {agent.path && (
-                            <div className="text-xs opacity-50 font-mono mt-1">{agent.path}</div>
+                      {/* Collapsed header row */}
+                      <div
+                        onClick={() => {
+                          if (isSupported) {
+                            // Toggle expansion
+                            setExpandedAgent(isExpanded ? null : agent.id);
+                            // Auto-select if available
+                            if (canSelect) {
+                              setSelectedAgent(agent.id);
+                            }
+                          }
+                        }}
+                        className={`w-full text-left px-3 py-2 flex items-center justify-between ${
+                          !isSupported ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/5 cursor-pointer'
+                        }`}
+                        style={{ color: theme.colors.textMain }}
+                        role="option"
+                        aria-selected={isSelected}
+                        aria-expanded={isExpanded}
+                        tabIndex={isSupported ? 0 : -1}
+                      >
+                        <div className="flex items-center gap-2">
+                          {/* Expand/collapse chevron for supported agents */}
+                          {isSupported && (
+                            <ChevronRight
+                              className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                              style={{ color: theme.colors.textDim }}
+                            />
+                          )}
+                          <span className="font-medium">{agent.name}</span>
+                          {/* "New" badge for Codex and OpenCode */}
+                          {(agent.id === 'codex' || agent.id === 'opencode') && (
+                            <span
+                              className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                              style={{
+                                backgroundColor: '#22c55e30',
+                                color: '#22c55e',
+                              }}
+                            >
+                              New
+                            </span>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          {agent.id === 'claude-code' ? (
+                          {isSupported ? (
                             <>
                               {agent.available ? (
                                 <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: theme.colors.success + '20', color: theme.colors.success }}>
@@ -274,10 +330,10 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
                                   handleRefreshAgent(agent.id);
                                 }}
                                 className="p-1 rounded hover:bg-white/10 transition-colors"
-                                title="Refresh detection (shows debug info if not found)"
+                                title="Refresh detection"
                                 style={{ color: theme.colors.textDim }}
                               >
-                                <RefreshCw className={`w-4 h-4 ${refreshingAgent === agent.id ? 'animate-spin' : ''}`} />
+                                <RefreshCw className={`w-3 h-3 ${refreshingAgent === agent.id ? 'animate-spin' : ''}`} />
                               </button>
                             </>
                           ) : (
@@ -287,54 +343,204 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
                           )}
                         </div>
                       </div>
-                    </div>
-                    {/* Custom path input for Claude Code */}
-                    {agent.id === 'claude-code' && (
-                      <div className="px-3 pb-3 pt-1 border-t" style={{ borderColor: theme.colors.border }}>
-                        <label className="block text-xs opacity-60 mb-1">Custom Path (optional)</label>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={customAgentPaths[agent.id] || ''}
-                            onChange={(e) => {
-                              const newPaths = { ...customAgentPaths, [agent.id]: e.target.value };
-                              setCustomAgentPaths(newPaths);
-                            }}
-                            onBlur={async () => {
-                              const path = customAgentPaths[agent.id]?.trim() || null;
-                              await window.maestro.agents.setCustomPath(agent.id, path);
-                              // Refresh agents to pick up the new path
-                              loadAgents();
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            placeholder="/path/to/claude"
-                            className="flex-1 p-1.5 rounded border bg-transparent outline-none text-xs font-mono"
-                            style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
-                          />
-                          {customAgentPaths[agent.id] && (
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                const newPaths = { ...customAgentPaths };
-                                delete newPaths[agent.id];
-                                setCustomAgentPaths(newPaths);
-                                await window.maestro.agents.setCustomPath(agent.id, null);
-                                loadAgents();
-                              }}
-                              className="px-2 py-1 rounded text-xs"
+
+                      {/* Expanded details for supported agents */}
+                      {isSupported && isExpanded && (
+                        <div className="px-3 pb-3 pt-2 space-y-3">
+                          {/* Show detected path if available */}
+                          {agent.path && (
+                            <div
+                              className="text-xs font-mono px-3 py-2 rounded"
                               style={{ backgroundColor: theme.colors.bgActivity, color: theme.colors.textDim }}
                             >
-                              Clear
-                            </button>
+                              <span className="opacity-60">Detected:</span> {agent.path}
+                            </div>
                           )}
+                          {/* Custom path input */}
+                          <div
+                            className="p-3 rounded border"
+                            style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgMain }}
+                          >
+                            <label className="block text-xs font-medium mb-2" style={{ color: theme.colors.textDim }}>
+                              Custom Path (optional)
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={customAgentPaths[agent.id] || ''}
+                                onChange={(e) => {
+                                  const newPaths = { ...customAgentPaths, [agent.id]: e.target.value };
+                                  setCustomAgentPaths(newPaths);
+                                }}
+                                onBlur={async () => {
+                                  const path = customAgentPaths[agent.id]?.trim() || null;
+                                  await window.maestro.agents.setCustomPath(agent.id, path);
+                                  loadAgents();
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder={`/path/to/${agent.binaryName}`}
+                                className="flex-1 p-2 rounded border bg-transparent outline-none text-xs font-mono"
+                                style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
+                              />
+                              {customAgentPaths[agent.id] && (
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const newPaths = { ...customAgentPaths };
+                                    delete newPaths[agent.id];
+                                    setCustomAgentPaths(newPaths);
+                                    await window.maestro.agents.setCustomPath(agent.id, null);
+                                    loadAgents();
+                                  }}
+                                  className="px-2 py-1.5 rounded text-xs"
+                                  style={{ backgroundColor: theme.colors.bgActivity, color: theme.colors.textDim }}
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-xs opacity-50 mt-2">
+                              Specify a custom path if the agent is not in your PATH
+                            </p>
+                          </div>
+                          {/* Custom CLI arguments input */}
+                          <div
+                            className="p-3 rounded border"
+                            style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgMain }}
+                          >
+                            <label className="block text-xs font-medium mb-2" style={{ color: theme.colors.textDim }}>
+                              Custom Arguments (optional)
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={customAgentArgs[agent.id] || ''}
+                                onChange={(e) => {
+                                  const newArgs = { ...customAgentArgs, [agent.id]: e.target.value };
+                                  setCustomAgentArgs(newArgs);
+                                }}
+                                onBlur={async () => {
+                                  const args = customAgentArgs[agent.id]?.trim() || null;
+                                  await window.maestro.agents.setCustomArgs(agent.id, args);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder="--flag value --another-flag"
+                                className="flex-1 p-2 rounded border bg-transparent outline-none text-xs font-mono"
+                                style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
+                              />
+                              {customAgentArgs[agent.id] && (
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const newArgs = { ...customAgentArgs };
+                                    delete newArgs[agent.id];
+                                    setCustomAgentArgs(newArgs);
+                                    await window.maestro.agents.setCustomArgs(agent.id, null);
+                                  }}
+                                  className="px-2 py-1.5 rounded text-xs"
+                                  style={{ backgroundColor: theme.colors.bgActivity, color: theme.colors.textDim }}
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-xs opacity-50 mt-2">
+                              Additional CLI arguments appended to all calls to this agent
+                            </p>
+                          </div>
+
+                          {/* Agent-specific configuration options (contextWindow, model, etc.) */}
+                          {agent.configOptions && agent.configOptions.length > 0 && agent.configOptions.map((option: any) => (
+                            <div
+                              key={option.key}
+                              className="p-3 rounded border"
+                              style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgMain }}
+                            >
+                              <label className="block text-xs font-medium mb-2" style={{ color: theme.colors.textDim }}>
+                                {option.label}
+                              </label>
+                              {option.type === 'number' && (
+                                <input
+                                  type="number"
+                                  value={agentConfigs[agent.id]?.[option.key] ?? option.default}
+                                  onChange={(e) => {
+                                    const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                                    const newConfig = {
+                                      ...agentConfigs[agent.id],
+                                      [option.key]: isNaN(value) ? 0 : value
+                                    };
+                                    setAgentConfigs(prev => ({
+                                      ...prev,
+                                      [agent.id]: newConfig
+                                    }));
+                                  }}
+                                  onBlur={() => {
+                                    const currentConfig = agentConfigs[agent.id] || {};
+                                    window.maestro.agents.setConfig(agent.id, currentConfig);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  placeholder={option.default?.toString() || '0'}
+                                  min={0}
+                                  className="w-full p-2 rounded border bg-transparent outline-none text-xs font-mono"
+                                  style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
+                                />
+                              )}
+                              {option.type === 'text' && (
+                                <input
+                                  type="text"
+                                  value={agentConfigs[agent.id]?.[option.key] ?? option.default}
+                                  onChange={(e) => {
+                                    const newConfig = {
+                                      ...agentConfigs[agent.id],
+                                      [option.key]: e.target.value
+                                    };
+                                    setAgentConfigs(prev => ({
+                                      ...prev,
+                                      [agent.id]: newConfig
+                                    }));
+                                  }}
+                                  onBlur={() => {
+                                    const currentConfig = agentConfigs[agent.id] || {};
+                                    window.maestro.agents.setConfig(agent.id, currentConfig);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  placeholder={option.default || ''}
+                                  className="w-full p-2 rounded border bg-transparent outline-none text-xs font-mono"
+                                  style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
+                                />
+                              )}
+                              {option.type === 'checkbox' && (
+                                <label className="flex items-center gap-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="checkbox"
+                                    checked={agentConfigs[agent.id]?.[option.key] ?? option.default}
+                                    onChange={(e) => {
+                                      const newConfig = {
+                                        ...agentConfigs[agent.id],
+                                        [option.key]: e.target.checked
+                                      };
+                                      setAgentConfigs(prev => ({
+                                        ...prev,
+                                        [agent.id]: newConfig
+                                      }));
+                                      window.maestro.agents.setConfig(agent.id, newConfig);
+                                    }}
+                                    className="w-4 h-4"
+                                    style={{ accentColor: theme.colors.accent }}
+                                  />
+                                  <span className="text-xs" style={{ color: theme.colors.textMain }}>Enabled</span>
+                                </label>
+                              )}
+                              <p className="text-xs opacity-50 mt-2">
+                                {option.description}
+                              </p>
+                            </div>
+                          ))}
                         </div>
-                        <p className="text-xs opacity-40 mt-1">
-                          Specify a custom path if the agent is not in your PATH
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -438,8 +644,23 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, defaultAgen
 export function EditAgentModal({ isOpen, onClose, onSave, theme, session, existingSessions }: EditAgentModalProps) {
   const [instanceName, setInstanceName] = useState('');
   const [nudgeMessage, setNudgeMessage] = useState('');
+  const [agent, setAgent] = useState<AgentConfig | null>(null);
+  const [agentConfig, setAgentConfig] = useState<Record<string, any>>({});
 
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Load agent info and config when modal opens
+  useEffect(() => {
+    if (isOpen && session) {
+      // Load agent definition to get configOptions
+      window.maestro.agents.detect().then((agents: AgentConfig[]) => {
+        const foundAgent = agents.find(a => a.id === session.toolType);
+        setAgent(foundAgent || null);
+      });
+      // Load agent config
+      window.maestro.agents.getConfig(session.toolType).then(setAgentConfig);
+    }
+  }, [isOpen, session]);
 
   // Populate form when session changes or modal opens
   useEffect(() => {
@@ -492,7 +713,13 @@ export function EditAgentModal({ isOpen, onClose, onSave, theme, session, existi
   if (!isOpen || !session) return null;
 
   // Get agent name for display
-  const agentName = session.toolType === 'claude-code' ? 'Claude Code' : session.toolType;
+  const agentNameMap: Record<string, string> = {
+    'claude-code': 'Claude Code',
+    'codex': 'Codex',
+    'opencode': 'OpenCode',
+    'aider': 'Aider',
+  };
+  const agentName = agentNameMap[session.toolType] || session.toolType;
 
   return (
     <div onKeyDown={handleKeyDown}>
@@ -589,6 +816,88 @@ export function EditAgentModal({ isOpen, onClose, onSave, theme, session, existi
               {nudgeMessage.length}/{NUDGE_MESSAGE_MAX_LENGTH} characters. This text is added to every message you send to the agent (not visible in chat).
             </p>
           </div>
+
+          {/* Agent-specific configuration options (contextWindow, model, etc.) */}
+          {agent?.configOptions && agent.configOptions.length > 0 && (
+            <div>
+              <label className="block text-xs font-bold opacity-70 uppercase mb-2" style={{ color: theme.colors.textMain }}>
+                {agentName} Settings
+              </label>
+              <div className="space-y-3">
+                {agent.configOptions.map((option: any) => (
+                  <div
+                    key={option.key}
+                    className="p-3 rounded border"
+                    style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgMain }}
+                  >
+                    <label className="block text-xs font-medium mb-2" style={{ color: theme.colors.textDim }}>
+                      {option.label}
+                    </label>
+                    {option.type === 'number' && (
+                      <input
+                        type="number"
+                        value={agentConfig[option.key] ?? option.default}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                          setAgentConfig(prev => ({
+                            ...prev,
+                            [option.key]: isNaN(value) ? 0 : value
+                          }));
+                        }}
+                        onBlur={() => {
+                          window.maestro.agents.setConfig(session.toolType, agentConfig);
+                        }}
+                        placeholder={option.default?.toString() || '0'}
+                        min={0}
+                        className="w-full p-2 rounded border bg-transparent outline-none text-xs font-mono"
+                        style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
+                      />
+                    )}
+                    {option.type === 'text' && (
+                      <input
+                        type="text"
+                        value={agentConfig[option.key] ?? option.default}
+                        onChange={(e) => {
+                          setAgentConfig(prev => ({
+                            ...prev,
+                            [option.key]: e.target.value
+                          }));
+                        }}
+                        onBlur={() => {
+                          window.maestro.agents.setConfig(session.toolType, agentConfig);
+                        }}
+                        placeholder={option.default || ''}
+                        className="w-full p-2 rounded border bg-transparent outline-none text-xs font-mono"
+                        style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
+                      />
+                    )}
+                    {option.type === 'checkbox' && (
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={agentConfig[option.key] ?? option.default}
+                          onChange={(e) => {
+                            const newConfig = {
+                              ...agentConfig,
+                              [option.key]: e.target.checked
+                            };
+                            setAgentConfig(newConfig);
+                            window.maestro.agents.setConfig(session.toolType, newConfig);
+                          }}
+                          className="w-4 h-4"
+                          style={{ accentColor: theme.colors.accent }}
+                        />
+                        <span className="text-xs" style={{ color: theme.colors.textMain }}>Enabled</span>
+                      </label>
+                    )}
+                    <p className="text-xs opacity-50 mt-2">
+                      {option.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
     </div>

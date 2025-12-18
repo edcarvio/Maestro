@@ -58,7 +58,7 @@ class MockWebServer {
    */
   start(): void {
     this.messageHandler.setCallbacks({
-      getSessionDetail: () => ({ state: 'idle', inputMode: 'ai', claudeSessionId: 'claude-123' }),
+      getSessionDetail: () => ({ state: 'idle', inputMode: 'ai', agentSessionId: 'claude-123' }),
       executeCommand: async (sessionId, command, inputMode) => {
         if (!this.executeCommandCallback) return false;
         return this.executeCommandCallback(sessionId, command, inputMode);
@@ -231,8 +231,8 @@ describe('Remote Control Sync - Integration Tests', () => {
         server.addClient(client);
 
         server.getBroadcastService().broadcastTabsChange('session-1', [
-          { id: 'tab-1', claudeSessionId: null, name: 'Tab 1', starred: false, inputValue: '', createdAt: Date.now(), state: 'idle' },
-          { id: 'tab-2', claudeSessionId: null, name: 'Tab 2', starred: false, inputValue: '', createdAt: Date.now(), state: 'idle' },
+          { id: 'tab-1', agentSessionId: null, name: 'Tab 1', starred: false, inputValue: '', createdAt: Date.now(), state: 'idle' },
+          { id: 'tab-2', agentSessionId: null, name: 'Tab 2', starred: false, inputValue: '', createdAt: Date.now(), state: 'idle' },
         ], 'tab-2');
 
         expect(client.sentMessages).toHaveLength(1);
@@ -491,8 +491,8 @@ describe('Remote Control Sync - Integration Tests', () => {
       server.setSelectTabCallback(async (sessionId, tabId) => {
         // Desktop processes the tab change and broadcasts to all web clients
         broadcastService.broadcastTabsChange(sessionId, [
-          { id: 'tab-1', claudeSessionId: null, name: 'Tab 1', starred: false, inputValue: '', createdAt: Date.now(), state: 'idle' },
-          { id: 'tab-2', claudeSessionId: null, name: 'Tab 2', starred: false, inputValue: '', createdAt: Date.now(), state: 'idle' },
+          { id: 'tab-1', agentSessionId: null, name: 'Tab 1', starred: false, inputValue: '', createdAt: Date.now(), state: 'idle' },
+          { id: 'tab-2', agentSessionId: null, name: 'Tab 2', starred: false, inputValue: '', createdAt: Date.now(), state: 'idle' },
         ], tabId);
         return true;
       });

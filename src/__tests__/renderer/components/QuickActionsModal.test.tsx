@@ -142,7 +142,7 @@ const createDefaultProps = (overrides: Partial<React.ComponentProps<typeof Quick
   setLogViewerOpen: vi.fn(),
   setProcessMonitorOpen: vi.fn(),
   setAgentSessionsOpen: vi.fn(),
-  setActiveClaudeSessionId: vi.fn(),
+  setActiveAgentSessionId: vi.fn(),
   setGitDiffPreview: vi.fn(),
   setGitLogOpen: vi.fn(),
   ...overrides,
@@ -531,7 +531,7 @@ describe('QuickActionsModal', () => {
 
       fireEvent.click(screen.getByText('View Agent Sessions for Test Session'));
 
-      expect(props.setActiveClaudeSessionId).toHaveBeenCalledWith(null);
+      expect(props.setActiveAgentSessionId).toHaveBeenCalledWith(null);
       expect(props.setAgentSessionsOpen).toHaveBeenCalledWith(true);
       expect(props.setQuickActionOpen).toHaveBeenCalledWith(false);
     });

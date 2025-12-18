@@ -18,7 +18,7 @@ let cachedClaudePath: string | null = null;
 export interface AgentResult {
   success: boolean;
   response?: string;
-  claudeSessionId?: string;
+  agentSessionId?: string;
   usageStats?: UsageStats;
   error?: string;
 }
@@ -162,7 +162,7 @@ export function getClaudeCommand(): string {
 export async function spawnAgent(
   cwd: string,
   prompt: string,
-  claudeSessionId?: string
+  agentSessionId?: string
 ): Promise<AgentResult> {
   return new Promise((resolve) => {
     const env: NodeJS.ProcessEnv = {
@@ -173,9 +173,9 @@ export async function spawnAgent(
     // Build args: base args + session handling + prompt
     const args = [...CLAUDE_ARGS];
 
-    if (claudeSessionId) {
+    if (agentSessionId) {
       // Resume an existing session (e.g., for synopsis generation)
-      args.push('--resume', claudeSessionId);
+      args.push('--resume', agentSessionId);
     } else {
       // Force a fresh, isolated session for each task execution
       // This prevents context bleeding between tasks in Auto Run
@@ -287,14 +287,14 @@ export async function spawnAgent(
         resolve({
           success: true,
           response: result,
-          claudeSessionId: sessionId,
+          agentSessionId: sessionId,
           usageStats,
         });
       } else {
         resolve({
           success: false,
           error: stderr || `Process exited with code ${code}`,
-          claudeSessionId: sessionId,
+          agentSessionId: sessionId,
           usageStats,
         });
       }

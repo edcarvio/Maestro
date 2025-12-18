@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, GitBranch, Bot, Bookmark } from 'lucide-react';
+import { Activity, GitBranch, Bot, Bookmark, AlertCircle } from 'lucide-react';
 import type { Session, Group, Theme } from '../types';
 import { getStatusColor } from '../utils/theme';
 
@@ -251,17 +251,29 @@ export function SessionItem({
           </div>
         )}
 
+        {/* Agent Error Indicator */}
+        {session.agentError && (
+          <div
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
+            style={{ backgroundColor: theme.colors.error + '30', color: theme.colors.error }}
+            title={`Error: ${session.agentError.message}`}
+          >
+            <AlertCircle className="w-2.5 h-2.5" />
+            ERR
+          </div>
+        )}
+
         {/* AI Status Indicator with Unread Badge */}
         <div className="relative">
           <div
             className={`w-2 h-2 rounded-full ${session.state === 'connecting' ? 'animate-pulse' : (session.state === 'busy' ? 'animate-pulse' : '')}`}
             style={
-              session.toolType === 'claude' && !session.claudeSessionId
+              session.toolType === 'claude' && !session.agentSessionId
                 ? { border: `1.5px solid ${theme.colors.textDim}`, backgroundColor: 'transparent' }
                 : { backgroundColor: getStatusColor(session.state, theme) }
             }
             title={
-              session.toolType === 'claude' && !session.claudeSessionId ? 'No active Claude session' :
+              session.toolType === 'claude' && !session.agentSessionId ? 'No active Claude session' :
               session.state === 'idle' ? 'Ready and waiting' :
               session.state === 'busy' ? (session.cliActivity ? `CLI: Running playbook "${session.cliActivity.playbookName}"` : 'Agent is thinking') :
               session.state === 'connecting' ? 'Attempting to establish connection' :

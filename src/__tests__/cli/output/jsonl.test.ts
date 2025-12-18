@@ -283,15 +283,15 @@ describe('jsonl output', () => {
       expect(parsed.usageStats).toEqual(usageStats);
     });
 
-    it('should include optional claudeSessionId', () => {
+    it('should include optional agentSessionId', () => {
       emitTaskComplete('README.md', 0, true, 'Done', 1000, {
-        claudeSessionId: 'claude-sess-abc123',
+        agentSessionId: 'claude-sess-abc123',
       });
 
       const output = consoleSpy.mock.calls[0][0];
       const parsed = JSON.parse(output);
 
-      expect(parsed.claudeSessionId).toBe('claude-sess-abc123');
+      expect(parsed.agentSessionId).toBe('claude-sess-abc123');
     });
 
     it('should include all optional fields together', () => {
@@ -304,7 +304,7 @@ describe('jsonl output', () => {
       emitTaskComplete('README.md', 0, true, 'All done', 2000, {
         fullResponse: 'Full response here',
         usageStats,
-        claudeSessionId: 'sess-xyz',
+        agentSessionId: 'sess-xyz',
       });
 
       const output = consoleSpy.mock.calls[0][0];
@@ -312,7 +312,7 @@ describe('jsonl output', () => {
 
       expect(parsed.fullResponse).toBe('Full response here');
       expect(parsed.usageStats).toEqual(usageStats);
-      expect(parsed.claudeSessionId).toBe('sess-xyz');
+      expect(parsed.agentSessionId).toBe('sess-xyz');
     });
 
     it('should work without optional fields', () => {
@@ -323,7 +323,7 @@ describe('jsonl output', () => {
 
       expect(parsed.fullResponse).toBeUndefined();
       expect(parsed.usageStats).toBeUndefined();
-      expect(parsed.claudeSessionId).toBeUndefined();
+      expect(parsed.agentSessionId).toBeUndefined();
     });
   });
 

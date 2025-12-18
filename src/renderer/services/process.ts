@@ -21,7 +21,7 @@ export interface ProcessExitHandler {
 }
 
 export interface ProcessSessionIdHandler {
-  (sessionId: string, claudeSessionId: string): void;
+  (sessionId: string, agentSessionId: string): void;
 }
 
 export const processService = {

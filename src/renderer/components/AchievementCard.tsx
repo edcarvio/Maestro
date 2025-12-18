@@ -126,7 +126,8 @@ function interpolateColor(color1: string, color2: string, t: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
-interface ClaudeGlobalStats {
+/** Global stats interface - compatible with both old Claude stats and new multi-provider stats */
+interface GlobalStatsSubset {
   totalSessions: number;
   totalMessages: number;
   totalInputTokens: number;
@@ -136,12 +137,15 @@ interface ClaudeGlobalStats {
   totalCostUsd: number;
   totalSizeBytes: number;
   isComplete?: boolean;
+  // Optional fields from new multi-provider interface
+  hasCostData?: boolean;
+  byProvider?: Record<string, unknown>;
 }
 
 interface AchievementCardProps {
   theme: Theme;
   autoRunStats: AutoRunStats;
-  globalStats?: ClaudeGlobalStats | null;
+  globalStats?: GlobalStatsSubset | null;
 }
 
 interface BadgeTooltipProps {

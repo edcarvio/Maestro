@@ -191,11 +191,12 @@ export function useSessionManager(): UseSessionManagerReturn {
 
     // Spawn AI process (terminal uses runCommand which spawns fresh shells per command)
     try {
-      // Spawn AI agent process (skip for Claude batch mode)
-      const isClaudeBatchMode = agentId === 'claude-code';
-      let aiSpawnResult = { pid: 0, success: true }; // Default for batch mode
+      // Check if agent requires a prompt to start (Codex, OpenCode) - skip eager spawn for those
+      const capabilities = await window.maestro.agents.getCapabilities(agentId);
+      let aiSpawnResult = { pid: 0, success: true }; // Default for agents that don't need eager spawn
 
-      if (!isClaudeBatchMode) {
+      if (!capabilities.requiresPromptToStart) {
+        // Spawn for agents that support interactive mode (Claude Code)
         aiSpawnResult = await window.maestro.process.spawn({
           sessionId: `${newId}-ai`,
           toolType: agentId,

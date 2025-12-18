@@ -7,6 +7,51 @@ import type { Session, Theme } from '../../../renderer/types';
 // Mock scrollIntoView since jsdom doesn't support it
 Element.prototype.scrollIntoView = vi.fn();
 
+// Mock useAgentCapabilities hook - return claude-code capabilities by default
+vi.mock('../../../renderer/hooks/useAgentCapabilities', () => ({
+  useAgentCapabilities: vi.fn(() => ({
+    capabilities: {
+      supportsResume: true,
+      supportsReadOnlyMode: true,
+      supportsJsonOutput: true,
+      supportsSessionId: true,
+      supportsImageInput: true,
+      supportsSlashCommands: true,
+      supportsSessionStorage: true,
+      supportsCostTracking: true,
+      supportsUsageStats: true,
+      supportsBatchMode: true,
+      supportsStreaming: true,
+      supportsResultMessages: true,
+      supportsModelSelection: false,
+      requiresPromptToStart: false,
+    },
+    loading: false,
+    error: null,
+    refresh: vi.fn(),
+    hasCapability: vi.fn((cap: string) => {
+      // Return true for claude-code capabilities
+      const capabilities: Record<string, boolean> = {
+        supportsResume: true,
+        supportsReadOnlyMode: true,
+        supportsJsonOutput: true,
+        supportsSessionId: true,
+        supportsImageInput: true,
+        supportsSlashCommands: true,
+        supportsSessionStorage: true,
+        supportsCostTracking: true,
+        supportsUsageStats: true,
+        supportsBatchMode: true,
+        supportsStreaming: true,
+        supportsResultMessages: true,
+        supportsModelSelection: false,
+        requiresPromptToStart: false,
+      };
+      return capabilities[cap] ?? false;
+    }),
+  })),
+}));
+
 // Mock child components to isolate InputArea testing
 vi.mock('../../../renderer/components/ThinkingStatusPill', () => ({
   ThinkingStatusPill: vi.fn(({ sessions, onSessionClick }) => (
@@ -57,7 +102,7 @@ const createMockSession = (overrides: Partial<Session> = {}): Session => ({
   aiTabs: [{
     id: 'tab-1',
     logs: [],
-    claudeSessionId: null,
+    agentSessionId: null,
     lastActivityAt: 0,
     scrollTop: 0,
     busyStartTime: null,
@@ -72,7 +117,7 @@ const createMockSession = (overrides: Partial<Session> = {}): Session => ({
   activeTabId: 'tab-1',
   shellLogs: [],
   usageStats: { inputTokens: 0, outputTokens: 0, totalCost: 0 },
-  claudeSessionId: null,
+  agentSessionId: null,
   isGitRepo: false,
   fileTree: [],
   fileExplorerExpanded: [],
@@ -183,16 +228,48 @@ describe('InputArea', () => {
       });
       render(<InputArea {...props} />);
 
-      expect(screen.getByPlaceholderText('Talking to MySession powered by Claude')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Talking to MySession powered by Claude Code')).toBeInTheDocument();
     });
 
-    it('shows attach image button in AI mode', () => {
+    it('shows attach image button in AI mode when agent supports image input', () => {
       const props = createDefaultProps({
         session: createMockSession({ inputMode: 'ai' }),
       });
       render(<InputArea {...props} />);
 
       expect(screen.getByTitle('Attach Image')).toBeInTheDocument();
+    });
+
+    it('hides attach image button when agent does not support image input', async () => {
+      // Mock capabilities to return false for supportsImageInput
+      const useAgentCapabilitiesMock = await import('../../../renderer/hooks/useAgentCapabilities');
+      vi.mocked(useAgentCapabilitiesMock.useAgentCapabilities).mockReturnValueOnce({
+        capabilities: {
+          supportsResume: true,
+          supportsReadOnlyMode: true,
+          supportsJsonOutput: true,
+          supportsSessionId: true,
+          supportsImageInput: false, // Not supported
+          supportsSlashCommands: true,
+          supportsSessionStorage: false,
+          supportsCostTracking: false,
+          supportsUsageStats: false,
+          supportsBatchMode: false,
+          supportsStreaming: true,
+          supportsResultMessages: true,
+        },
+        loading: false,
+        error: null,
+        refresh: vi.fn(),
+        hasCapability: vi.fn((cap: string) => cap !== 'supportsImageInput'),
+      });
+
+      const props = createDefaultProps({
+        session: createMockSession({ inputMode: 'ai', toolType: 'opencode' }),
+      });
+      render(<InputArea {...props} />);
+
+      expect(screen.queryByTitle('Attach Image')).not.toBeInTheDocument();
     });
 
     it('shows prompt composer button when onOpenPromptComposer is provided', () => {
@@ -217,6 +294,41 @@ describe('InputArea', () => {
       const toggle = screen.getByTitle(/Toggle read-only mode/);
       expect(toggle).toBeInTheDocument();
       expect(toggle).toHaveTextContent('Read-only');
+    });
+
+    it('hides read-only toggle when agent does not support read-only mode', async () => {
+      // Mock capabilities to return false for supportsReadOnlyMode
+      const useAgentCapabilitiesMock = await import('../../../renderer/hooks/useAgentCapabilities');
+      vi.mocked(useAgentCapabilitiesMock.useAgentCapabilities).mockReturnValueOnce({
+        capabilities: {
+          supportsResume: true,
+          supportsReadOnlyMode: false, // Not supported
+          supportsJsonOutput: true,
+          supportsSessionId: true,
+          supportsImageInput: true,
+          supportsSlashCommands: true,
+          supportsSessionStorage: false,
+          supportsCostTracking: false,
+          supportsUsageStats: false,
+          supportsBatchMode: false,
+          supportsStreaming: true,
+          supportsResultMessages: true,
+        },
+        loading: false,
+        error: null,
+        refresh: vi.fn(),
+        hasCapability: vi.fn((cap: string) => cap !== 'supportsReadOnlyMode'),
+      });
+
+      const onToggleTabReadOnlyMode = vi.fn();
+      const props = createDefaultProps({
+        session: createMockSession({ inputMode: 'ai', toolType: 'opencode' }),
+        onToggleTabReadOnlyMode,
+      });
+      render(<InputArea {...props} />);
+
+      // Read-only toggle should not be present
+      expect(screen.queryByTitle(/Toggle read-only mode/)).not.toBeInTheDocument();
     });
 
     it('shows save to history toggle when onToggleTabSaveToHistory is provided', () => {
@@ -556,6 +668,38 @@ describe('InputArea', () => {
 
       expect(setInputValue).toHaveBeenCalledWith('/clear');
       expect(setSlashCommandOpen).toHaveBeenCalledWith(false);
+    });
+
+    it('shows slash command autocomplete for all agents (built-in commands always available)', async () => {
+      // Slash commands are now always available regardless of agent capability
+      // Built-in commands like /clear are shown for all agents
+      const props = createDefaultProps({
+        session: createMockSession({ inputMode: 'ai', toolType: 'opencode' }),
+        slashCommandOpen: true,
+        inputValue: '/',
+      });
+      render(<InputArea {...props} />);
+
+      // Slash command autocomplete should be shown for all agents
+      expect(screen.getByText('/clear')).toBeInTheDocument();
+    });
+
+    it('opens slash command autocomplete when typing / for any agent', async () => {
+      // Slash commands are now always available regardless of supportsSlashCommands capability
+      const setSlashCommandOpen = vi.fn();
+      const setSelectedSlashCommandIndex = vi.fn();
+      const props = createDefaultProps({
+        session: createMockSession({ inputMode: 'ai', toolType: 'opencode' }),
+        setSlashCommandOpen,
+        setSelectedSlashCommandIndex,
+      });
+      render(<InputArea {...props} />);
+
+      // Type "/" to trigger slash command detection
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: '/' } });
+
+      // Should open slash command autocomplete for all agents
+      expect(setSlashCommandOpen).toHaveBeenCalledWith(true);
     });
   });
 

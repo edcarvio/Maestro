@@ -47,7 +47,7 @@ export interface LastResponsePreview {
  */
 export interface AITabData {
   id: string;
-  claudeSessionId: string | null;
+  agentSessionId: string | null;
   name: string | null;
   starred: boolean;
   inputValue: string;
@@ -72,7 +72,7 @@ export interface SessionData {
   groupEmoji: string | null;
   usageStats?: SessionUsageStats | null;
   lastResponse?: LastResponsePreview | null;
-  claudeSessionId?: string | null;
+  agentSessionId?: string | null;
   thinkingStartTime?: number | null;
   aiTabs?: AITabData[];
   activeTabId?: string;
@@ -96,7 +96,7 @@ export interface SessionDetail {
     outputTokens?: number;
     totalCost?: number;
   };
-  claudeSessionId?: string;
+  agentSessionId?: string;
   isGitRepo?: boolean;
   activeTabId?: string;
 }
@@ -108,7 +108,7 @@ export interface SessionDetail {
  */
 export interface LiveSessionInfo {
   sessionId: string;
-  claudeSessionId?: string;
+  agentSessionId?: string;
   enabledAt: number;
 }
 
@@ -194,7 +194,7 @@ export class ApiRoutes {
         const liveInfo = this.callbacks.getLiveSessionInfo?.(s.id);
         return {
           ...s,
-          claudeSessionId: liveInfo?.claudeSessionId || s.claudeSessionId,
+          agentSessionId: liveInfo?.agentSessionId || s.agentSessionId,
           liveEnabledAt: liveInfo?.enabledAt,
           isLive: this.callbacks.isSessionLive?.(s.id) || false,
         };
@@ -241,7 +241,7 @@ export class ApiRoutes {
       return {
         session: {
           ...session,
-          claudeSessionId: liveInfo?.claudeSessionId || session.claudeSessionId,
+          agentSessionId: liveInfo?.agentSessionId || session.agentSessionId,
           liveEnabledAt: liveInfo?.enabledAt,
           isLive: this.callbacks.isSessionLive?.(id) || false,
         },

@@ -101,7 +101,7 @@ export interface MobileSessionHandlers {
   onSessionAdded: (session: Session) => void;
   onSessionRemoved: (sessionId: string) => void;
   onActiveSessionChanged: (sessionId: string) => void;
-  onSessionOutput: (sessionId: string, data: string, source: 'ai' | 'terminal') => void;
+  onSessionOutput: (sessionId: string, data: string, source: 'ai' | 'terminal', tabId?: string) => void;
   onSessionExit: (sessionId: string, exitCode: number) => void;
   onUserInput: (sessionId: string, command: string, inputMode: 'ai' | 'terminal') => void;
   onThemeUpdate: (theme: Theme) => void;
@@ -193,11 +193,18 @@ export function useMobileSessionManagement(
 
   // Ref to track activeSessionId for use in callbacks (avoids stale closure issues)
   const activeSessionIdRef = useRef<string | null>(null);
+  // Ref to track activeTabId for use in callbacks (avoids stale closure issues)
+  const activeTabIdRef = useRef<string | null>(null);
 
   // Keep activeSessionIdRef in sync with state
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
   }, [activeSessionId]);
+
+  // Keep activeTabIdRef in sync with state
+  useEffect(() => {
+    activeTabIdRef.current = activeTabId;
+  }, [activeTabId]);
 
   // Get active session object
   const activeSession = useMemo(() => {
@@ -383,15 +390,23 @@ export function useMobileSessionManagement(
       webLogger.debug(`Desktop active session changed: ${sessionId}`, 'Mobile');
       setActiveSessionId(sessionId);
     },
-    onSessionOutput: (sessionId: string, data: string, source: 'ai' | 'terminal') => {
+    onSessionOutput: (sessionId: string, data: string, source: 'ai' | 'terminal', tabId?: string) => {
       // Real-time output from AI or terminal - append to session logs
       const currentActiveId = activeSessionIdRef.current;
-      console.log(`[MobileApp] onSessionOutput: session=${sessionId}, activeSession=${currentActiveId}, source=${source}, dataLen=${data?.length || 0}, match=${currentActiveId === sessionId}`);
+      const currentActiveTabId = activeTabIdRef.current;
+      console.log(`[MobileApp] onSessionOutput: session=${sessionId}, activeSession=${currentActiveId}, tabId=${tabId || 'none'}, activeTabId=${currentActiveTabId || 'none'}, source=${source}, dataLen=${data?.length || 0}`);
       webLogger.debug(`Session output: ${sessionId} (${source}) ${data.length} chars`, 'Mobile');
 
       // Only update if this is the active session
       if (currentActiveId !== sessionId) {
         console.log(`[MobileApp] Skipping output - not active session`);
+        return;
+      }
+
+      // For AI output with tabId, only update if this is the active tab
+      // This prevents output from newly created tabs appearing in the wrong tab's logs
+      if (source === 'ai' && tabId && currentActiveTabId && tabId !== currentActiveTabId) {
+        console.log(`[MobileApp] Skipping output - not active tab (output tab: ${tabId}, active tab: ${currentActiveTabId})`);
         return;
       }
 

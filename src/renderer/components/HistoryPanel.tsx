@@ -407,9 +407,9 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ entries, theme, reference
 interface HistoryPanelProps {
   session: Session;
   theme: Theme;
-  onJumpToClaudeSession?: (claudeSessionId: string) => void;
-  onResumeSession?: (claudeSessionId: string) => void;
-  onOpenSessionAsTab?: (claudeSessionId: string) => void;
+  onJumpToAgentSession?: (agentSessionId: string) => void;
+  onResumeSession?: (agentSessionId: string) => void;
+  onOpenSessionAsTab?: (agentSessionId: string) => void;
   onOpenAboutModal?: () => void;  // For opening About/achievements panel from history entries
 }
 
@@ -426,7 +426,7 @@ const LOAD_MORE_COUNT = 50;         // Entries to add when scrolling
 // Module-level storage for scroll positions (persists across session switches)
 const scrollPositionCache = new Map<string, number>();
 
-export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPanelProps>(function HistoryPanel({ session, theme, onJumpToClaudeSession, onResumeSession, onOpenSessionAsTab, onOpenAboutModal }, ref) {
+export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPanelProps>(function HistoryPanel({ session, theme, onJumpToAgentSession, onResumeSession, onOpenSessionAsTab, onOpenAboutModal }, ref) {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [activeFilters, setActiveFilters] = useState<Set<HistoryEntryType>>(new Set(['AUTO', 'USER']));
   const [isLoading, setIsLoading] = useState(true);
@@ -533,7 +533,7 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
       const responseMatch = entry.fullResponse?.toLowerCase().includes(searchLower);
       const promptMatch = entry.prompt?.toLowerCase().includes(searchLower);
       // Search by session ID (full ID or short octet form)
-      const sessionIdMatch = entry.claudeSessionId?.toLowerCase().includes(searchLower);
+      const sessionIdMatch = entry.agentSessionId?.toLowerCase().includes(searchLower);
       const sessionNameMatch = entry.sessionName?.toLowerCase().includes(searchLower);
       if (!summaryMatch && !responseMatch && !promptMatch && !sessionIdMatch && !sessionNameMatch) return false;
     }
@@ -996,11 +996,11 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
                     </span>
 
                     {/* Session Name or ID Octet (clickable) - opens session as new tab */}
-                    {entry.claudeSessionId && (
+                    {entry.agentSessionId && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onOpenSessionAsTab?.(entry.claudeSessionId!);
+                          onOpenSessionAsTab?.(entry.agentSessionId!);
                         }}
                         className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors hover:opacity-80 min-w-0 ${entry.sessionName ? '' : 'font-mono uppercase'}`}
                         style={{
@@ -1008,10 +1008,10 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
                           color: theme.colors.accent,
                           border: `1px solid ${theme.colors.accent}40`,
                         }}
-                        title={`Open session ${entry.sessionName || entry.claudeSessionId.split('-')[0]} as new tab`}
+                        title={`Open session ${entry.sessionName || entry.agentSessionId.split('-')[0]} as new tab`}
                       >
                         <span className="truncate">
-                          {entry.sessionName || entry.claudeSessionId.split('-')[0].toUpperCase()}
+                          {entry.sessionName || entry.agentSessionId.split('-')[0].toUpperCase()}
                         </span>
                         <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
                       </button>
@@ -1106,7 +1106,7 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
           theme={theme}
           entry={detailModalEntry}
           onClose={closeDetailModal}
-          onJumpToClaudeSession={onJumpToClaudeSession}
+          onJumpToAgentSession={onJumpToAgentSession}
           onResumeSession={onResumeSession}
           onDelete={handleDeleteEntry}
           onUpdate={async (entryId, updates) => {

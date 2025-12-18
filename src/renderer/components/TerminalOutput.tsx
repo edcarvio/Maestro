@@ -1473,12 +1473,13 @@ export const TerminalOutput = forwardRef<HTMLDivElement, TerminalOutputProps>((p
           </div>
         )}
 
-        {/* Queued items section - only show in AI mode */}
+        {/* Queued items section - only show in AI mode, filtered to active tab */}
         {session.inputMode === 'ai' && session.executionQueue && session.executionQueue.length > 0 && (
           <QueuedItemsList
             executionQueue={session.executionQueue}
             theme={theme}
             onRemoveQueuedItem={onRemoveQueuedItem}
+            activeTabId={activeTabId || undefined}
           />
         )}
 

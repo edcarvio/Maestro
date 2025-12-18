@@ -65,6 +65,7 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
   const { getProcessManager, getAgentDetector, agentConfigsStore, settingsStore } = deps;
 
   // Spawn a new process for a session
+  // Supports agent-specific argument builders for batch mode, JSON output, resume, read-only mode, YOLO mode
   ipcMain.handle(
     'process:spawn',
     withIpcErrorLogging(handlerOpts('spawn'), async (config: {
@@ -76,15 +77,88 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
       prompt?: string;
       shell?: string;
       images?: string[]; // Base64 data URLs for images
+      // Agent-specific spawn options (used to build args via agent config)
+      agentSessionId?: string;  // For session resume
+      readOnlyMode?: boolean;   // For read-only/plan mode
+      modelId?: string;         // For model selection
+      yoloMode?: boolean;       // For YOLO/full-access mode (bypasses confirmations)
     }) => {
       const processManager = requireProcessManager(getProcessManager);
       const agentDetector = requireDependency(getAgentDetector, 'Agent detector');
 
-      // Get agent definition to access config options
+      // Get agent definition to access config options and argument builders
       const agent = await agentDetector.getAgent(config.toolType);
+      logger.debug(`Spawn config received`, LOG_CONTEXT, {
+        configToolType: config.toolType,
+        configCommand: config.command,
+        agentId: agent?.id,
+        agentCommand: agent?.command,
+        agentPath: agent?.path,
+        hasAgentSessionId: !!config.agentSessionId
+      });
       let finalArgs = [...config.args];
 
-      // Build additional args from agent configuration
+      // ========================================================================
+      // Build args from agent argument builders (for multi-agent support)
+      // ========================================================================
+      if (agent) {
+        // For batch mode agents: prepend batch mode prefix (e.g., 'run' for OpenCode, 'exec' for Codex)
+        // This must come BEFORE base args to form: opencode run --format json ...
+        if (agent.batchModePrefix && config.prompt) {
+          finalArgs = [...agent.batchModePrefix, ...finalArgs];
+        }
+
+        // Add batch mode args if the agent has them and we're in batch mode (have a prompt)
+        // These are args that are only valid when using the batch subcommand (e.g., --skip-git-repo-check for Codex exec)
+        if (agent.batchModeArgs && config.prompt) {
+          finalArgs = [...finalArgs, ...agent.batchModeArgs];
+        }
+
+        // Add JSON output args if the agent supports it
+        // For Claude: already in base args (--output-format stream-json)
+        // For OpenCode: added here (--format json)
+        if (agent.jsonOutputArgs && !finalArgs.some(arg => agent.jsonOutputArgs!.includes(arg))) {
+          finalArgs = [...finalArgs, ...agent.jsonOutputArgs];
+        }
+
+        // Add working directory args for agents that support it
+        // For Codex, this adds -C <dir> to set the working directory
+        // IMPORTANT: Must come BEFORE resume subcommand (Codex: -C is not valid after 'resume')
+        if (agent.workingDirArgs && config.cwd) {
+          const workingDirArgArray = agent.workingDirArgs(config.cwd);
+          finalArgs = [...finalArgs, ...workingDirArgArray];
+        }
+
+        // Add read-only mode args if readOnlyMode is true
+        // For Codex: --sandbox read-only (must come before resume subcommand)
+        if (config.readOnlyMode && agent.readOnlyArgs) {
+          finalArgs = [...finalArgs, ...agent.readOnlyArgs];
+        }
+
+        // Add model selection args if modelId is provided
+        if (config.modelId && agent.modelArgs) {
+          const modelArgArray = agent.modelArgs(config.modelId);
+          finalArgs = [...finalArgs, ...modelArgArray];
+        }
+
+        // Add YOLO mode args if yoloMode is true (bypasses all confirmations)
+        // Note: For Claude Code, YOLO mode is always enabled via base args
+        // For Codex, this adds --dangerously-bypass-approvals-and-sandbox
+        if (config.yoloMode && agent.yoloModeArgs) {
+          finalArgs = [...finalArgs, ...agent.yoloModeArgs];
+        }
+
+        // Add session resume args if agentSessionId is provided
+        // IMPORTANT: Must come AFTER global options like -C, --sandbox (for Codex subcommand structure)
+        if (config.agentSessionId && agent.resumeArgs) {
+          const resumeArgArray = agent.resumeArgs(config.agentSessionId);
+          finalArgs = [...finalArgs, ...resumeArgArray];
+        }
+      }
+
+      // ========================================================================
+      // Build additional args from agent configuration (legacy support)
+      // ========================================================================
       if (agent && agent.configOptions) {
         const agentConfig = agentConfigsStore.get('configs', {})[config.toolType] || {};
 
@@ -102,31 +176,69 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
         }
       }
 
+      // ========================================================================
+      // Append custom CLI arguments from user configuration
+      // ========================================================================
+      const allConfigs = agentConfigsStore.get('configs', {});
+      const agentCustomArgs = allConfigs[config.toolType]?.customArgs;
+      if (agentCustomArgs && typeof agentCustomArgs === 'string') {
+        // Parse the custom args string - split on whitespace but respect quoted strings
+        const customArgsArray = agentCustomArgs.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+        // Remove surrounding quotes from quoted args
+        const cleanedArgs = customArgsArray.map(arg => {
+          if ((arg.startsWith('"') && arg.endsWith('"')) || (arg.startsWith("'") && arg.endsWith("'"))) {
+            return arg.slice(1, -1);
+          }
+          return arg;
+        });
+        if (cleanedArgs.length > 0) {
+          logger.debug(`Appending custom args for agent ${config.toolType}`, LOG_CONTEXT, { customArgs: cleanedArgs });
+          finalArgs = [...finalArgs, ...cleanedArgs];
+        }
+      }
+
       // If no shell is specified and this is a terminal session, use the default shell from settings
       const shellToUse = config.shell || (config.toolType === 'terminal' ? settingsStore.get('defaultShell', 'zsh') : undefined);
 
-      // Extract Claude session ID from --resume arg if present
+      // Extract session ID from args for logging (supports both --resume and --session flags)
       const resumeArgIndex = finalArgs.indexOf('--resume');
-      const claudeSessionId = resumeArgIndex !== -1 ? finalArgs[resumeArgIndex + 1] : undefined;
+      const sessionArgIndex = finalArgs.indexOf('--session');
+      const agentSessionId = resumeArgIndex !== -1
+        ? finalArgs[resumeArgIndex + 1]
+        : sessionArgIndex !== -1
+          ? finalArgs[sessionArgIndex + 1]
+          : config.agentSessionId;
 
       logger.info(`Spawning process: ${config.command}`, LOG_CONTEXT, {
         sessionId: config.sessionId,
         toolType: config.toolType,
         cwd: config.cwd,
         command: config.command,
+        fullCommand: `${config.command} ${finalArgs.join(' ')}`,
         args: finalArgs,
         requiresPty: agent?.requiresPty || false,
         shell: shellToUse,
-        ...(claudeSessionId && { claudeSessionId }),
+        ...(agentSessionId && { agentSessionId }),
+        ...(config.readOnlyMode && { readOnlyMode: true }),
+        ...(config.yoloMode && { yoloMode: true }),
+        ...(config.modelId && { modelId: config.modelId }),
         ...(config.prompt && { prompt: config.prompt.length > 500 ? config.prompt.substring(0, 500) + '...' : config.prompt })
       });
+
+      // Get contextWindow from agent config (for agents like OpenCode/Codex that need user configuration)
+      // Falls back to the agent's configOptions default (e.g., 200000 for Codex, 128000 for OpenCode)
+      const agentConfig = agentConfigsStore.get('configs', {})[config.toolType] || {};
+      const contextWindowOption = agent?.configOptions?.find(opt => opt.key === 'contextWindow');
+      const contextWindowDefault = contextWindowOption?.default ?? 0;
+      const contextWindow = typeof agentConfig.contextWindow === 'number' ? agentConfig.contextWindow : contextWindowDefault;
 
       const result = processManager.spawn({
         ...config,
         args: finalArgs,
         requiresPty: agent?.requiresPty,
         prompt: config.prompt,
-        shell: shellToUse
+        shell: shellToUse,
+        contextWindow, // Pass configured context window to process manager
       });
 
       logger.info(`Process spawned successfully`, LOG_CONTEXT, {

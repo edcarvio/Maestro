@@ -51,9 +51,9 @@ function getTabDisplayName(tab: AITab): string {
   if (tab.name) {
     return tab.name;
   }
-  if (tab.claudeSessionId) {
+  if (tab.agentSessionId) {
     // Return first octet of UUID in uppercase
-    return tab.claudeSessionId.split('-')[0].toUpperCase();
+    return tab.agentSessionId.split('-')[0].toUpperCase();
   }
   return 'New Session';
 }
@@ -101,7 +101,7 @@ function Tab({
     setIsHovered(true);
     // Only show overlay for tabs with an established Claude session
     // New/empty tabs don't have a session yet, so star/rename don't apply
-    if (!tab.claudeSessionId) return;
+    if (!tab.agentSessionId) return;
 
     // Open overlay after delay
     hoverTimeoutRef.current = setTimeout(() => {
@@ -146,8 +146,8 @@ function Tab({
 
   const handleCopySessionId = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (tab.claudeSessionId) {
-      navigator.clipboard.writeText(tab.claudeSessionId);
+    if (tab.agentSessionId) {
+      navigator.clipboard.writeText(tab.agentSessionId);
       setShowCopied(true);
       setTimeout(() => setShowCopied(false), 1500);
     }
@@ -216,7 +216,7 @@ function Tab({
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onDrop={onDrop}
-      title={tab.name || tab.claudeSessionId || 'New tab'}
+      title={tab.name || tab.agentSessionId || 'New tab'}
     >
       {/* Busy indicator - pulsing dot for tabs in write mode */}
       {tab.state === 'busy' && (
@@ -330,19 +330,19 @@ function Tab({
             )}
 
             {/* Session ID display */}
-            {tab.claudeSessionId && (
+            {tab.agentSessionId && (
               <div
                 className="px-3 py-2 text-[10px] font-mono"
                 style={{ color: theme.colors.textDim }}
               >
-                {tab.claudeSessionId}
+                {tab.agentSessionId}
               </div>
             )}
           </div>
 
           {/* Actions */}
           <div className="p-1">
-            {tab.claudeSessionId && (
+            {tab.agentSessionId && (
               <button
                 onClick={handleCopySessionId}
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-white/10 transition-colors"

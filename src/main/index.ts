@@ -11,7 +11,9 @@ import { tunnelManager } from './tunnel-manager';
 import { getThemeById } from './themes';
 import Store from 'electron-store';
 import { getHistoryManager } from './history-manager';
-import { registerGitHandlers, registerAutorunHandlers, registerPlaybooksHandlers, registerHistoryHandlers, registerAgentsHandlers, registerProcessHandlers, registerPersistenceHandlers, registerSystemHandlers, registerClaudeHandlers, setupLoggerEventForwarding } from './ipc/handlers';
+import { registerGitHandlers, registerAutorunHandlers, registerPlaybooksHandlers, registerHistoryHandlers, registerAgentsHandlers, registerProcessHandlers, registerPersistenceHandlers, registerSystemHandlers, registerClaudeHandlers, registerAgentSessionsHandlers, setupLoggerEventForwarding } from './ipc/handlers';
+import { initializeSessionStorages } from './storage';
+import { initializeOutputParsers } from './parsers';
 import { DEMO_MODE, DEMO_DATA_PATH } from './constants';
 import { initAutoUpdater } from './auto-updater';
 
@@ -131,7 +133,7 @@ interface ClaudeSessionOriginInfo {
   starred?: boolean;    // Whether the session is starred
 }
 interface ClaudeSessionOriginsData {
-  // Map of projectPath -> { claudeSessionId -> origin info }
+  // Map of projectPath -> { agentSessionId -> origin info }
   origins: Record<string, Record<string, ClaudeSessionOrigin | ClaudeSessionOriginInfo>>;
 }
 
@@ -199,7 +201,7 @@ function createWebServer(): WebServer {
       // Map aiTabs to web-safe format (strip logs to reduce payload)
       const aiTabs = s.aiTabs?.map((tab: any) => ({
         id: tab.id,
-        claudeSessionId: tab.claudeSessionId || null,
+        agentSessionId: tab.agentSessionId || null,
         name: tab.name || null,
         starred: tab.starred || false,
         inputValue: tab.inputValue || '',
@@ -221,7 +223,7 @@ function createWebServer(): WebServer {
         groupEmoji: group?.emoji || null,
         usageStats: s.usageStats || null,
         lastResponse,
-        claudeSessionId: s.claudeSessionId || null,
+        agentSessionId: s.agentSessionId || null,
         thinkingStartTime: s.thinkingStartTime || null,
         aiTabs,
         activeTabId: s.activeTabId || (aiTabs.length > 0 ? aiTabs[0].id : undefined),
@@ -256,7 +258,7 @@ function createWebServer(): WebServer {
       aiLogs,
       shellLogs: session.shellLogs || [],
       usageStats: session.usageStats,
-      claudeSessionId: session.claudeSessionId,
+      agentSessionId: session.agentSessionId,
       isGitRepo: session.isGitRepo,
       activeTabId: targetTabId,
     };
@@ -338,12 +340,12 @@ function createWebServer(): WebServer {
     // Look up the session to get Claude session ID for logging
     const sessions = sessionsStore.get('sessions', []);
     const session = sessions.find((s: any) => s.id === sessionId);
-    const claudeSessionId = session?.claudeSessionId || 'none';
+    const agentSessionId = session?.agentSessionId || 'none';
 
     // Forward to renderer - it will handle spawn, state, and everything else
     // This ensures web commands go through exact same code path as desktop commands
     // Pass inputMode so renderer uses the web's intended mode (avoids sync issues)
-    logger.info(`[Web → Renderer] Forwarding command | Maestro: ${sessionId} | Claude: ${claudeSessionId} | Mode: ${inputMode || 'auto'} | Command: ${command.substring(0, 100)}`, 'WebServer');
+    logger.info(`[Web → Renderer] Forwarding command | Maestro: ${sessionId} | Claude: ${agentSessionId} | Mode: ${inputMode || 'auto'} | Command: ${command.substring(0, 100)}`, 'WebServer');
     mainWindow.webContents.send('remote:executeCommand', sessionId, command, inputMode);
     return true;
   });
@@ -434,6 +436,17 @@ function createWebServer(): WebServer {
     }
 
     mainWindow.webContents.send('remote:closeTab', sessionId, tabId);
+    return true;
+  });
+
+  server.setRenameTabCallback(async (sessionId: string, tabId: string, newName: string) => {
+    logger.info(`[Web→Desktop] Rename tab callback invoked: session=${sessionId}, tab=${tabId}, newName=${newName}`, 'WebServer');
+    if (!mainWindow) {
+      logger.warn('mainWindow is null for renameTab', 'WebServer');
+      return false;
+    }
+
+    mainWindow.webContents.send('remote:renameTab', sessionId, tabId, newName);
     return true;
   });
 
@@ -782,6 +795,15 @@ function setupIpcHandlers() {
     getMainWindow: () => mainWindow,
   });
 
+  // Initialize output parsers for all agents (Codex, OpenCode, Claude Code)
+  // This must be called before any agent output is processed
+  initializeOutputParsers();
+
+  // Initialize session storages and register generic agent sessions handlers
+  // This provides the new window.maestro.agentSessions.* API
+  initializeSessionStorages();
+  registerAgentSessionsHandlers({ getMainWindow: () => mainWindow });
+
   // Setup logger event forwarding to renderer
   setupLoggerEventForwarding(() => mainWindow);
 
@@ -839,7 +861,7 @@ function setupIpcHandlers() {
   });
 
   // Live session management - toggle sessions as live/offline in web interface
-  ipcMain.handle('live:toggle', async (_, sessionId: string, claudeSessionId?: string) => {
+  ipcMain.handle('live:toggle', async (_, sessionId: string, agentSessionId?: string) => {
     if (!webServer) {
       throw new Error('Web server not initialized');
     }
@@ -866,8 +888,8 @@ function setupIpcHandlers() {
       return { live: false, url: null };
     } else {
       // Turn on live mode
-      logger.info(`Enabling live mode for session ${sessionId} (claude: ${claudeSessionId || 'none'})`, 'Live');
-      webServer.setSessionLive(sessionId, claudeSessionId);
+      logger.info(`Enabling live mode for session ${sessionId} (claude: ${agentSessionId || 'none'})`, 'Live');
+      webServer.setSessionLive(sessionId, agentSessionId);
       const url = webServer.getSessionUrl(sessionId);
       logger.info(`Session ${sessionId} is now live at ${url}`, 'Live');
       return { live: true, url };
@@ -986,6 +1008,37 @@ function setupIpcHandlers() {
   // extracted to src/main/ipc/handlers/system.ts
 
   // Claude Code sessions - extracted to src/main/ipc/handlers/claude.ts
+
+  // ==========================================================================
+  // Agent Error Handling API
+  // ==========================================================================
+
+  // Clear an error state for a session (called after recovery action)
+  ipcMain.handle('agent:clearError', async (_event, sessionId: string) => {
+    logger.debug('Clearing agent error for session', 'AgentError', { sessionId });
+    // Note: The actual error state is managed in the renderer.
+    // This handler is used to log the clear action and potentially
+    // perform any main process cleanup needed.
+    return { success: true };
+  });
+
+  // Retry the last operation after an error (optionally with modified parameters)
+  ipcMain.handle('agent:retryAfterError', async (_event, sessionId: string, options?: {
+    prompt?: string;
+    newSession?: boolean;
+  }) => {
+    logger.info('Retrying after agent error', 'AgentError', {
+      sessionId,
+      hasPrompt: !!options?.prompt,
+      newSession: options?.newSession || false,
+    });
+    // Note: The actual retry logic is handled in the renderer, which will:
+    // 1. Clear the error state
+    // 2. Optionally start a new session
+    // 3. Re-send the last command or the provided prompt
+    // This handler exists for logging and potential future main process coordination.
+    return { success: true };
+  });
 
   // Notification operations
   ipcMain.handle('notification:show', async (_event, title: string, body: string) => {
@@ -1562,14 +1615,20 @@ function setupProcessListeners() {
           return;
         }
 
-        // Extract base session ID from formats: {id}-ai-{tabId}, {id}-batch-{timestamp}, {id}-synopsis-{timestamp}
+        // Extract base session ID and tab ID from formats: {id}-ai-{tabId}, {id}-batch-{timestamp}, {id}-synopsis-{timestamp}
         const baseSessionId = sessionId.replace(/-ai-[^-]+$|-batch-\d+$|-synopsis-\d+$/, '');
         const isAiOutput = sessionId.includes('-ai-') || sessionId.includes('-batch-') || sessionId.includes('-synopsis-');
+
+        // Extract tab ID from session ID format: {id}-ai-{tabId}
+        const tabIdMatch = sessionId.match(/-ai-([^-]+)$/);
+        const tabId = tabIdMatch ? tabIdMatch[1] : undefined;
+
         const msgId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        console.log(`[WebBroadcast] Broadcasting session_output: msgId=${msgId}, session=${baseSessionId}, source=${isAiOutput ? 'ai' : 'terminal'}, dataLen=${data.length}`);
+        console.log(`[WebBroadcast] Broadcasting session_output: msgId=${msgId}, session=${baseSessionId}, tabId=${tabId || 'none'}, source=${isAiOutput ? 'ai' : 'terminal'}, dataLen=${data.length}`);
         webServer.broadcastToSessionClients(baseSessionId, {
           type: 'session_output',
           sessionId: baseSessionId,
+          tabId,
           data,
           source: isAiOutput ? 'ai' : 'terminal',
           timestamp: Date.now(),
@@ -1594,8 +1653,8 @@ function setupProcessListeners() {
       }
     });
 
-    processManager.on('session-id', (sessionId: string, claudeSessionId: string) => {
-      mainWindow?.webContents.send('process:session-id', sessionId, claudeSessionId);
+    processManager.on('session-id', (sessionId: string, agentSessionId: string) => {
+      mainWindow?.webContents.send('process:session-id', sessionId, agentSessionId);
     });
 
     // Handle slash commands from Claude Code init message
@@ -1621,8 +1680,34 @@ function setupProcessListeners() {
       cacheCreationInputTokens: number;
       totalCostUsd: number;
       contextWindow: number;
+      reasoningTokens?: number;  // Separate reasoning tokens (Codex o3/o4-mini)
     }) => {
       mainWindow?.webContents.send('process:usage', sessionId, usageStats);
+    });
+
+    // Handle agent errors (auth expired, token exhaustion, rate limits, etc.)
+    processManager.on('agent-error', (sessionId: string, agentError: {
+      type: string;
+      message: string;
+      recoverable: boolean;
+      agentId: string;
+      sessionId?: string;
+      timestamp: number;
+      raw?: {
+        exitCode?: number;
+        stderr?: string;
+        stdout?: string;
+        errorLine?: string;
+      };
+    }) => {
+      logger.info(`Agent error detected: ${agentError.type}`, 'AgentError', {
+        sessionId,
+        agentId: agentError.agentId,
+        errorType: agentError.type,
+        message: agentError.message,
+        recoverable: agentError.recoverable,
+      });
+      mainWindow?.webContents.send('agent:error', sessionId, agentError);
     });
   }
 }

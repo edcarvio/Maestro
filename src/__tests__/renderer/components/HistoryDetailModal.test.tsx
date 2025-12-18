@@ -260,11 +260,11 @@ describe('HistoryDetailModal', () => {
   });
 
   describe('Claude Session ID', () => {
-    it('should display session ID octet when claudeSessionId is present', () => {
+    it('should display session ID octet when agentSessionId is present', () => {
       render(
         <HistoryDetailModal
           theme={mockTheme}
-          entry={createMockEntry({ claudeSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv' })}
+          entry={createMockEntry({ agentSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv' })}
           onClose={mockOnClose}
         />
       );
@@ -278,7 +278,7 @@ describe('HistoryDetailModal', () => {
       render(
         <HistoryDetailModal
           theme={mockTheme}
-          entry={createMockEntry({ claudeSessionId: sessionId })}
+          entry={createMockEntry({ agentSessionId: sessionId })}
           onClose={mockOnClose}
         />
       );
@@ -298,7 +298,7 @@ describe('HistoryDetailModal', () => {
       render(
         <HistoryDetailModal
           theme={mockTheme}
-          entry={createMockEntry({ claudeSessionId: sessionId })}
+          entry={createMockEntry({ agentSessionId: sessionId })}
           onClose={mockOnClose}
         />
       );
@@ -313,11 +313,11 @@ describe('HistoryDetailModal', () => {
       vi.useFakeTimers(); // Restore fake timers
     });
 
-    it('should not display session ID elements when claudeSessionId is undefined', () => {
+    it('should not display session ID elements when agentSessionId is undefined', () => {
       render(
         <HistoryDetailModal
           theme={mockTheme}
-          entry={createMockEntry({ claudeSessionId: undefined })}
+          entry={createMockEntry({ agentSessionId: undefined })}
           onClose={mockOnClose}
         />
       );
@@ -328,11 +328,11 @@ describe('HistoryDetailModal', () => {
   });
 
   describe('Resume Session', () => {
-    it('should show Resume button when onResumeSession is provided and claudeSessionId exists', () => {
+    it('should show Resume button when onResumeSession is provided and agentSessionId exists', () => {
       render(
         <HistoryDetailModal
           theme={mockTheme}
-          entry={createMockEntry({ claudeSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv' })}
+          entry={createMockEntry({ agentSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv' })}
           onClose={mockOnClose}
           onResumeSession={mockOnResumeSession}
         />
@@ -346,7 +346,7 @@ describe('HistoryDetailModal', () => {
       render(
         <HistoryDetailModal
           theme={mockTheme}
-          entry={createMockEntry({ claudeSessionId: sessionId })}
+          entry={createMockEntry({ agentSessionId: sessionId })}
           onClose={mockOnClose}
           onResumeSession={mockOnResumeSession}
         />
@@ -362,7 +362,7 @@ describe('HistoryDetailModal', () => {
       render(
         <HistoryDetailModal
           theme={mockTheme}
-          entry={createMockEntry({ claudeSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv' })}
+          entry={createMockEntry({ agentSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv' })}
           onClose={mockOnClose}
         />
       );
@@ -1162,7 +1162,7 @@ describe('HistoryDetailModal', () => {
           theme={mockTheme}
           entry={createMockEntry({
             summary: '<script>alert("xss")</script>',
-            claudeSessionId: '<img src=x onerror=alert(1)>-test',
+            agentSessionId: '<img src=x onerror=alert(1)>-test',
           })}
           onClose={mockOnClose}
         />
@@ -1325,7 +1325,7 @@ describe('HistoryDetailModal', () => {
       render(
         <HistoryDetailModal
           theme={mockTheme}
-          entry={createMockEntry({ claudeSessionId: 'test-session-id' })}
+          entry={createMockEntry({ agentSessionId: 'test-session-id' })}
           onClose={mockOnClose}
         />
       );

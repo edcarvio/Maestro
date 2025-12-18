@@ -51,7 +51,7 @@ const createTestTheme = (overrides: Partial<Theme['colors']> = {}): Theme => ({
 const createTestTab = (overrides: Partial<AITab> = {}): AITab => ({
   id: `tab-${Math.random().toString(36).substr(2, 9)}`,
   name: '',
-  claudeSessionId: `${Math.random().toString(36).substr(2, 8)}-abcd-1234-5678-123456789abc`,
+  agentSessionId: `${Math.random().toString(36).substr(2, 8)}-abcd-1234-5678-123456789abc`,
   state: 'idle',
   logs: [],
   usageStats: {
@@ -86,7 +86,7 @@ describe('TabSwitcherModal', () => {
 
     // Reset the mocks for each test
     vi.mocked(window.maestro.claude.getAllNamedSessions).mockResolvedValue([]);
-    vi.mocked(window.maestro.claude.updateSessionName).mockResolvedValue(undefined);
+    vi.mocked(window.maestro.agentSessions.updateSessionName).mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -388,7 +388,7 @@ describe('TabSwitcherModal', () => {
       it('returns first UUID octet if no name', () => {
         const tab = createTestTab({
           name: '',
-          claudeSessionId: 'abc12345-1234-5678-9abc-123456789abc'
+          agentSessionId: 'abc12345-1234-5678-9abc-123456789abc'
         });
 
         renderWithLayerStack(
@@ -407,7 +407,7 @@ describe('TabSwitcherModal', () => {
       });
 
       it('returns "New Session" if no name or UUID', () => {
-        const tab = createTestTab({ name: '', claudeSessionId: undefined });
+        const tab = createTestTab({ name: '', agentSessionId: undefined });
 
         renderWithLayerStack(
           <TabSwitcherModal
@@ -426,10 +426,10 @@ describe('TabSwitcherModal', () => {
     });
 
     describe('getUuidPill', () => {
-      it('shows UUID pill when tab has both name and claudeSessionId', () => {
+      it('shows UUID pill when tab has both name and agentSessionId', () => {
         const tab = createTestTab({
           name: 'Named Tab',
-          claudeSessionId: 'def56789-1234-5678-9abc-123456789abc'
+          agentSessionId: 'def56789-1234-5678-9abc-123456789abc'
         });
 
         renderWithLayerStack(
@@ -448,10 +448,10 @@ describe('TabSwitcherModal', () => {
         expect(screen.getByText('DEF56789')).toBeInTheDocument();
       });
 
-      it('does not show UUID pill when no claudeSessionId', () => {
+      it('does not show UUID pill when no agentSessionId', () => {
         const tab = createTestTab({
           name: 'Named Tab',
-          claudeSessionId: undefined
+          agentSessionId: undefined
         });
 
         renderWithLayerStack(
@@ -473,7 +473,7 @@ describe('TabSwitcherModal', () => {
     });
 
     describe('getContextPercentage', () => {
-      it('returns 0 when no usageStats', () => {
+      it('hides context gauge when no usageStats', () => {
         const tab = createTestTab({ usageStats: undefined });
 
         renderWithLayerStack(
@@ -488,11 +488,11 @@ describe('TabSwitcherModal', () => {
           />
         );
 
-        // Should show 0%
-        expect(screen.getByText('0%')).toBeInTheDocument();
+        // Context gauge should not be rendered when contextWindow is not configured
+        expect(screen.queryByText(/^\d+%$/)).not.toBeInTheDocument();
       });
 
-      it('returns 0 when contextWindow is 0', () => {
+      it('hides context gauge when contextWindow is 0', () => {
         const tab = createTestTab({
           usageStats: {
             inputTokens: 1000,
@@ -516,7 +516,8 @@ describe('TabSwitcherModal', () => {
           />
         );
 
-        expect(screen.getByText('0%')).toBeInTheDocument();
+        // Context gauge should not be rendered when contextWindow is 0
+        expect(screen.queryByText(/^\d+%$/)).not.toBeInTheDocument();
       });
 
       it('calculates correct percentage', () => {
@@ -869,7 +870,7 @@ describe('TabSwitcherModal', () => {
 
       vi.mocked(window.maestro.claude.getAllNamedSessions).mockResolvedValue([
         {
-          claudeSessionId: 'closed-123-abc-def-789',
+          agentSessionId: 'closed-123-abc-def-789',
           projectPath: '/test',
           sessionName: 'Closed Session',
           starred: false,
@@ -928,7 +929,7 @@ describe('TabSwitcherModal', () => {
     it('shows "Closed" badge for closed named sessions', async () => {
       vi.mocked(window.maestro.claude.getAllNamedSessions).mockResolvedValue([
         {
-          claudeSessionId: 'closed-session-id',
+          agentSessionId: 'closed-session-id',
           projectPath: '/test',
           sessionName: 'Closed Session',
         },
@@ -961,12 +962,12 @@ describe('TabSwitcherModal', () => {
     it('filters named sessions by current project', async () => {
       vi.mocked(window.maestro.claude.getAllNamedSessions).mockResolvedValue([
         {
-          claudeSessionId: 'same-project-id',
+          agentSessionId: 'same-project-id',
           projectPath: '/test',
           sessionName: 'Same Project Session',
         },
         {
-          claudeSessionId: 'different-project-id',
+          agentSessionId: 'different-project-id',
           projectPath: '/other-project',
           sessionName: 'Different Project Session',
         },
@@ -1002,13 +1003,13 @@ describe('TabSwitcherModal', () => {
 
       vi.mocked(window.maestro.claude.getAllNamedSessions).mockResolvedValue([
         {
-          claudeSessionId: 'starred-closed-123',
+          agentSessionId: 'starred-closed-123',
           projectPath: '/test',
           sessionName: 'Starred Closed Session',
           starred: true,
         },
         {
-          claudeSessionId: 'unstarred-closed-456',
+          agentSessionId: 'unstarred-closed-456',
           projectPath: '/test',
           sessionName: 'Unstarred Closed Session',
           starred: false,
@@ -1080,7 +1081,7 @@ describe('TabSwitcherModal', () => {
 
       vi.mocked(window.maestro.claude.getAllNamedSessions).mockResolvedValue([
         {
-          claudeSessionId: 'starred-closed-abc',
+          agentSessionId: 'starred-closed-abc',
           projectPath: '/test',
           sessionName: 'Starred Closed',
           starred: true,
@@ -1168,11 +1169,11 @@ describe('TabSwitcherModal', () => {
       const tabs = [
         createTestTab({
           name: '',
-          claudeSessionId: 'abc12345-1234-5678-9abc-123456789abc'
+          agentSessionId: 'abc12345-1234-5678-9abc-123456789abc'
         }),
         createTestTab({
           name: '',
-          claudeSessionId: 'xyz98765-1234-5678-9abc-123456789abc'
+          agentSessionId: 'xyz98765-1234-5678-9abc-123456789abc'
         }),
       ];
 
@@ -1556,7 +1557,7 @@ describe('TabSwitcherModal', () => {
     it('calls onNamedSessionSelect when clicking a closed named session', async () => {
       vi.mocked(window.maestro.claude.getAllNamedSessions).mockResolvedValue([
         {
-          claudeSessionId: 'closed-abc-123',
+          agentSessionId: 'closed-abc-123',
           projectPath: '/test',
           sessionName: 'Closed Session',
           starred: true,
@@ -1603,8 +1604,8 @@ describe('TabSwitcherModal', () => {
   describe('named session sync', () => {
     it('syncs named open tabs on mount', async () => {
       const tabs = [
-        createTestTab({ name: 'Named Tab', claudeSessionId: 'session-123' }),
-        createTestTab({ name: '', claudeSessionId: 'unnamed-session' }),
+        createTestTab({ name: 'Named Tab', agentSessionId: 'session-123' }),
+        createTestTab({ name: '', agentSessionId: 'unnamed-session' }),
       ];
 
       renderWithLayerStack(
@@ -1621,7 +1622,7 @@ describe('TabSwitcherModal', () => {
 
       await waitFor(() => {
         // Should sync only the named tab
-        expect(window.maestro.claude.updateSessionName).toHaveBeenCalledWith(
+        expect(window.maestro.agentSessions.updateSessionName).toHaveBeenCalledWith(
           '/test/project',
           'session-123',
           'Named Tab'
@@ -1629,17 +1630,17 @@ describe('TabSwitcherModal', () => {
       });
 
       // Should NOT sync the unnamed tab (only 1 call total)
-      expect(window.maestro.claude.updateSessionName).toHaveBeenCalledTimes(1);
+      expect(window.maestro.agentSessions.updateSessionName).toHaveBeenCalledTimes(1);
     });
 
     it('handles sync errors gracefully', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      vi.mocked(window.maestro.claude.updateSessionName).mockRejectedValue(
+      vi.mocked(window.maestro.agentSessions.updateSessionName).mockRejectedValue(
         new Error('Sync failed')
       );
 
-      const tabs = [createTestTab({ name: 'Tab', claudeSessionId: 'abc' })];
+      const tabs = [createTestTab({ name: 'Tab', agentSessionId: 'abc' })];
 
       renderWithLayerStack(
         <TabSwitcherModal
@@ -2065,7 +2066,7 @@ describe('TabSwitcherModal', () => {
     });
 
     it('shows "sessions" in All Named mode', () => {
-      const tabs = [createTestTab({ name: 'TestTab', claudeSessionId: 'test-session-123' })];
+      const tabs = [createTestTab({ name: 'TestTab', agentSessionId: 'test-session-123' })];
 
       renderWithLayerStack(
         <TabSwitcherModal

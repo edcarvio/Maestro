@@ -20,6 +20,9 @@ export const MODAL_PRIORITIES = {
   /** Onboarding tour overlay - above wizard, guides new users */
   TOUR: 1050,
 
+  /** Agent error modal - critical, shows recovery options */
+  AGENT_ERROR: 1010,
+
   /** Confirmation dialogs - highest priority, always on top */
   CONFIRM: 1000,
 

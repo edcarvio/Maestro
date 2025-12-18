@@ -164,17 +164,17 @@ describe('substituteTemplateVariables', () => {
       expect(result).toBe('Group: ');
     });
 
-    it('should replace {{AGENT_SESSION_ID}} with claudeSessionId', () => {
+    it('should replace {{AGENT_SESSION_ID}} with agentSessionId', () => {
       const context = createTestContext({
-        session: createTestSession({ claudeSessionId: 'claude-session-789' }),
+        session: createTestSession({ agentSessionId: 'claude-session-789' }),
       });
       const result = substituteTemplateVariables('Agent: {{AGENT_SESSION_ID}}', context);
       expect(result).toBe('Agent: claude-session-789');
     });
 
-    it('should replace {{AGENT_SESSION_ID}} with empty string when claudeSessionId is undefined', () => {
+    it('should replace {{AGENT_SESSION_ID}} with empty string when agentSessionId is undefined', () => {
       const context = createTestContext({
-        session: createTestSession({ claudeSessionId: undefined }),
+        session: createTestSession({ agentSessionId: undefined }),
       });
       const result = substituteTemplateVariables('Agent: {{AGENT_SESSION_ID}}', context);
       expect(result).toBe('Agent: ');

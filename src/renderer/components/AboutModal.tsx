@@ -4,10 +4,10 @@ import type { Theme, Session, AutoRunStats } from '../types';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import pedramAvatar from '../assets/pedram-avatar.png';
 import { AchievementCard } from './AchievementCard';
-import { formatTokensCompact, formatSize } from '../utils/formatters';
+import { formatTokensCompact } from '../utils/formatters';
 import { Modal } from './ui/Modal';
 
-interface ClaudeGlobalStats {
+interface GlobalAgentStats {
   totalSessions: number;
   totalMessages: number;
   totalInputTokens: number;
@@ -15,8 +15,19 @@ interface ClaudeGlobalStats {
   totalCacheReadTokens: number;
   totalCacheCreationTokens: number;
   totalCostUsd: number;
+  /** Whether any provider contributed cost data */
+  hasCostData: boolean;
   totalSizeBytes: number;
   isComplete?: boolean;
+  /** Per-provider breakdown */
+  byProvider?: Record<string, {
+    sessions: number;
+    messages: number;
+    inputTokens: number;
+    outputTokens: number;
+    costUsd: number;
+    hasCostData: boolean;
+  }>;
 }
 
 interface AboutModalProps {
@@ -29,7 +40,7 @@ interface AboutModalProps {
 }
 
 export function AboutModal({ theme, sessions, autoRunStats, onClose, onOpenLeaderboardRegistration, isLeaderboardRegistered }: AboutModalProps) {
-  const [globalStats, setGlobalStats] = useState<ClaudeGlobalStats | null>(null);
+  const [globalStats, setGlobalStats] = useState<GlobalAgentStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [isStatsComplete, setIsStatsComplete] = useState(false);
   const badgeEscapeHandlerRef = useRef<(() => boolean) | null>(null);
@@ -38,10 +49,10 @@ export function AboutModal({ theme, sessions, autoRunStats, onClose, onOpenLeade
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  // Load global stats from all Claude projects on mount with streaming updates
+  // Load global stats from all providers on mount with streaming updates
   useEffect(() => {
     // Subscribe to streaming updates
-    const unsubscribe = window.maestro.claude.onGlobalStatsUpdate((stats) => {
+    const unsubscribe = window.maestro.agentSessions.onGlobalStatsUpdate((stats) => {
       setGlobalStats(stats);
       setLoading(false);
       if (stats.isComplete) {
@@ -50,8 +61,8 @@ export function AboutModal({ theme, sessions, autoRunStats, onClose, onOpenLeade
     });
 
     // Trigger the stats calculation (which will send streaming updates)
-    window.maestro.claude.getGlobalStats().catch((error) => {
-      console.error('Failed to load global Claude stats:', error);
+    window.maestro.agentSessions.getGlobalStats().catch((error) => {
+      console.error('Failed to load global agent stats:', error);
       setLoading(false);
       setIsStatsComplete(true);
     });
@@ -206,69 +217,67 @@ export function AboutModal({ theme, sessions, autoRunStats, onClose, onOpenLeade
                 <span className="text-xs" style={{ color: theme.colors.textDim }}>Loading stats...</span>
               </div>
             ) : globalStats ? (
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                {/* Sessions & Messages */}
-                <div className="flex justify-between">
-                  <span style={{ color: theme.colors.textDim }}>Sessions</span>
-                  <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatTokensCompact(globalStats.totalSessions)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span style={{ color: theme.colors.textDim }}>Messages</span>
-                  <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatTokensCompact(globalStats.totalMessages)}</span>
-                </div>
+              <div className="space-y-3 text-xs">
+                {/* Totals Grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Sessions & Messages */}
+                  <div className="flex justify-between">
+                    <span style={{ color: theme.colors.textDim }}>Sessions</span>
+                    <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatTokensCompact(globalStats.totalSessions)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span style={{ color: theme.colors.textDim }}>Messages</span>
+                    <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatTokensCompact(globalStats.totalMessages)}</span>
+                  </div>
 
-                {/* Tokens */}
-                <div className="flex justify-between">
-                  <span style={{ color: theme.colors.textDim }}>Input Tokens</span>
-                  <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatTokensCompact(globalStats.totalInputTokens)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span style={{ color: theme.colors.textDim }}>Output Tokens</span>
-                  <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatTokensCompact(globalStats.totalOutputTokens)}</span>
-                </div>
+                  {/* Tokens */}
+                  <div className="flex justify-between">
+                    <span style={{ color: theme.colors.textDim }}>Input Tokens</span>
+                    <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatTokensCompact(globalStats.totalInputTokens)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span style={{ color: theme.colors.textDim }}>Output Tokens</span>
+                    <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatTokensCompact(globalStats.totalOutputTokens)}</span>
+                  </div>
 
-                {/* Cache Tokens (if any) */}
-                {(globalStats.totalCacheReadTokens > 0 || globalStats.totalCacheCreationTokens > 0) && (
-                  <>
-                    <div className="flex justify-between">
-                      <span style={{ color: theme.colors.textDim }}>Cache Read</span>
-                      <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatTokensCompact(globalStats.totalCacheReadTokens)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span style={{ color: theme.colors.textDim }}>Cache Creation</span>
-                      <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatTokensCompact(globalStats.totalCacheCreationTokens)}</span>
-                    </div>
-                  </>
-                )}
-
-                {/* Active Time & Total Cost - merged into single line */}
-                <div className="flex justify-between col-span-2 pt-2 border-t" style={{ borderColor: theme.colors.border }}>
-                  {totalActiveTimeMs > 0 ? (
+                  {/* Cache Tokens (if any) */}
+                  {(globalStats.totalCacheReadTokens > 0 || globalStats.totalCacheCreationTokens > 0) && (
                     <>
-                      <span style={{ color: theme.colors.textDim }}>{formatDuration(totalActiveTimeMs)}</span>
-                      <span
-                        className={`font-mono font-bold ${!isStatsComplete ? 'animate-pulse' : ''}`}
-                        style={{ color: theme.colors.success }}
-                      >
-                        ${globalStats.totalCostUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
+                      <div className="flex justify-between">
+                        <span style={{ color: theme.colors.textDim }}>Cache Read</span>
+                        <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatTokensCompact(globalStats.totalCacheReadTokens)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span style={{ color: theme.colors.textDim }}>Cache Creation</span>
+                        <span className="font-mono font-bold" style={{ color: theme.colors.textMain }}>{formatTokensCompact(globalStats.totalCacheCreationTokens)}</span>
+                      </div>
                     </>
-                  ) : (
-                    <>
-                      <span style={{ color: theme.colors.textDim }}>Total Cost</span>
-                      <span
-                        className={`font-mono font-bold ${!isStatsComplete ? 'animate-pulse' : ''}`}
-                        style={{ color: theme.colors.success }}
-                      >
-                        ${globalStats.totalCostUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </>
+                  )}
+
+                  {/* Active Time & Total Cost - show cost only if we have cost data */}
+                  {(totalActiveTimeMs > 0 || globalStats.hasCostData) && (
+                    <div className="flex justify-between col-span-2 pt-2 border-t" style={{ borderColor: theme.colors.border }}>
+                      {totalActiveTimeMs > 0 && (
+                        <span style={{ color: theme.colors.textDim }}>{formatDuration(totalActiveTimeMs)}</span>
+                      )}
+                      {!totalActiveTimeMs && globalStats.hasCostData && (
+                        <span style={{ color: theme.colors.textDim }}>Total Cost</span>
+                      )}
+                      {globalStats.hasCostData && (
+                        <span
+                          className={`font-mono font-bold ${!isStatsComplete ? 'animate-pulse' : ''}`}
+                          style={{ color: theme.colors.success }}
+                        >
+                          ${globalStats.totalCostUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
             ) : (
               <div className="text-xs text-center py-2" style={{ color: theme.colors.textDim }}>
-                No Claude sessions found
+                No sessions found
               </div>
             )}
           </div>

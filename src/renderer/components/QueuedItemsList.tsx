@@ -10,6 +10,7 @@ interface QueuedItemsListProps {
   executionQueue: QueuedItem[];
   theme: Theme;
   onRemoveQueuedItem?: (itemId: string) => void;
+  activeTabId?: string;  // If provided, only show queued items for this tab
 }
 
 /**
@@ -24,7 +25,12 @@ export const QueuedItemsList = memo(({
   executionQueue,
   theme,
   onRemoveQueuedItem,
+  activeTabId,
 }: QueuedItemsListProps) => {
+  // Filter to only show items for the active tab if activeTabId is provided
+  const filteredQueue = activeTabId
+    ? executionQueue.filter(item => item.tabId === activeTabId)
+    : executionQueue;
   // Queue removal confirmation state
   const [queueRemoveConfirmId, setQueueRemoveConfirmId] = useState<string | null>(null);
 
@@ -66,7 +72,7 @@ export const QueuedItemsList = memo(({
     setQueueRemoveConfirmId(null);
   }, [onRemoveQueuedItem, queueRemoveConfirmId]);
 
-  if (!executionQueue || executionQueue.length === 0) {
+  if (!filteredQueue || filteredQueue.length === 0) {
     return null;
   }
 
@@ -79,13 +85,13 @@ export const QueuedItemsList = memo(({
           className="text-xs font-bold tracking-wider"
           style={{ color: theme.colors.warning }}
         >
-          QUEUED ({executionQueue.length})
+          QUEUED ({filteredQueue.length})
         </span>
         <div className="flex-1 h-px" style={{ backgroundColor: theme.colors.border }} />
       </div>
 
       {/* Queued items */}
-      {executionQueue.map((item) => {
+      {filteredQueue.map((item) => {
         const displayText = item.type === 'command' ? item.command : item.text || '';
         const isLongMessage = displayText.length > 200;
         const isQueuedExpanded = expandedQueuedMessages.has(item.id);

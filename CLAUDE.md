@@ -45,6 +45,16 @@ src/
 │   ├── process-manager.ts  # Process spawning (PTY + child_process)
 │   ├── preload.ts          # Secure IPC bridge
 │   ├── agent-detector.ts   # Agent detection and configuration
+│   ├── agent-capabilities.ts # Agent capability definitions
+│   ├── agent-session-storage.ts # Session storage interface
+│   ├── parsers/            # Agent output parsers
+│   │   ├── agent-output-parser.ts  # Parser interface
+│   │   ├── claude-output-parser.ts # Claude Code parser
+│   │   ├── opencode-output-parser.ts # OpenCode parser
+│   │   └── error-patterns.ts # Error detection patterns
+│   ├── storage/            # Session storage implementations
+│   │   ├── claude-session-storage.ts
+│   │   └── opencode-session-storage.ts
 │   ├── tunnel-manager.ts   # Cloudflare tunnel support
 │   ├── web-server.ts       # Fastify server for web/mobile interface
 │   └── utils/execFile.ts   # Safe command execution
@@ -91,7 +101,10 @@ src/
 | Add template variable | `src/shared/templateVariables.ts`, `src/renderer/utils/templateVariables.ts` |
 | Modify system prompts | `src/prompts/*.md` (wizard, Auto Run, etc.) |
 | Add CLI command | `src/cli/commands/`, `src/cli/index.ts` |
-| Configure agent | `src/main/agent-detector.ts` |
+| Configure agent | `src/main/agent-detector.ts`, `src/main/agent-capabilities.ts` |
+| Add agent output parser | `src/main/parsers/`, `src/main/parsers/index.ts` |
+| Add agent session storage | `src/main/storage/`, `src/main/agent-session-storage.ts` |
+| Add agent error patterns | `src/main/parsers/error-patterns.ts` |
 | Add playbook feature | `src/cli/services/playbooks.ts` |
 | Modify wizard flow | `src/renderer/components/Wizard/` (see Onboarding Wizard section) |
 | Add tour step | `src/renderer/components/Wizard/tour/tourSteps.ts` |
@@ -187,7 +200,7 @@ interface AITab {
   id: string;
   name: string;
   logs: LogEntry[];           // Tab-specific history
-  claudeSessionId?: string;   // Claude session continuity
+  agentSessionId?: string;    // Agent session continuity
 }
 
 // Tab operations
@@ -309,13 +322,17 @@ interface Session {
   // Command History
   aiCommandHistory?: string[];  // AI input history
   shellCommandHistory?: string[]; // Terminal input history
+
+  // Error Handling (NEW)
+  agentError?: AgentError;        // Current agent error (auth, tokens, rate limit, etc.)
+  agentErrorPaused?: boolean;     // Input blocked while error modal shown
 }
 
 interface AITab {
   id: string;
   name: string;
   logs: LogEntry[];             // Tab-specific conversation history
-  claudeSessionId?: string;     // Claude session for this tab
+  agentSessionId?: string;      // Agent session for this tab
   scrollTop?: number;
   draftInput?: string;
 }
@@ -334,9 +351,11 @@ The `window.maestro` API exposes:
 - `shells` - Detect available shells
 - `logger` - System logging
 
-### Agent & Claude
-- `agents` - Detect, get, config, refresh, custom paths
-- `claude` - List/read/search Claude Code sessions, global stats
+### Agent & Agent Sessions
+- `agents` - Detect, get, config, refresh, custom paths, getCapabilities
+- `agentSessions` - Generic agent session storage API (list, read, search, delete)
+- `agentError` - Agent error handling (clearError, retryAfterError)
+- `claude` - (Deprecated) Claude Code sessions - use `agentSessions` instead
 
 ### Git Integration
 - `git` - Status, diff, isRepo, numstat, branches, tags, info
@@ -389,12 +408,34 @@ window.maestro.history = {
 | ID | Name | Status | Notes |
 |----|------|--------|-------|
 | `claude-code` | Claude Code | Active | Primary agent, uses `--print --verbose --output-format stream-json` |
+| `opencode` | OpenCode | Stub | Output parser implemented, session storage stub ready |
 | `terminal` | Terminal | Internal | Hidden from UI, used for shell sessions |
 | `openai-codex` | OpenAI Codex | Planned | Coming soon |
 | `gemini-cli` | Gemini CLI | Planned | Coming soon |
 | `qwen3-coder` | Qwen3 Coder | Planned | Coming soon |
 
-Additional `ToolType` values (`aider`, `opencode`, `claude`) are defined in types but not yet implemented in `agent-detector.ts`.
+Additional `ToolType` values (`aider`, `claude`) are defined in types but not yet implemented in `agent-detector.ts`.
+
+### Agent Capabilities
+
+Each agent declares capabilities that control UI feature availability. See `src/main/agent-capabilities.ts` for the full interface.
+
+| Capability | Description | UI Feature Controlled |
+|------------|-------------|----------------------|
+| `supportsResume` | Can resume previous sessions | Resume button |
+| `supportsReadOnlyMode` | Has plan/read-only mode | Read-only toggle |
+| `supportsJsonOutput` | Emits structured JSON | Output parsing |
+| `supportsSessionId` | Emits session ID | Session ID pill |
+| `supportsImageInput` | Accepts image attachments | Attach image button |
+| `supportsSlashCommands` | Has discoverable commands | Slash autocomplete |
+| `supportsSessionStorage` | Persists browsable sessions | Sessions browser |
+| `supportsCostTracking` | Reports token costs | Cost widget |
+| `supportsUsageStats` | Reports token counts | Context window widget |
+| `supportsBatchMode` | Runs per-message | Batch processing |
+| `supportsStreaming` | Streams output | Real-time display |
+| `supportsResultMessages` | Distinguishes final result | Message classification |
+
+For detailed agent integration guide, see [AGENT_SUPPORT.md](AGENT_SUPPORT.md).
 
 ## Onboarding Wizard
 

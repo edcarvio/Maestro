@@ -67,7 +67,7 @@ function createMockAITab(overrides: Partial<AITab> = {}): AITab {
     id: 'tab-1',
     name: 'Tab 1',
     state: 'idle',
-    claudeSessionId: null,
+    agentSessionId: null,
     starred: false,
     logs: [],
     inputValue: '',
@@ -84,7 +84,7 @@ function createThinkingSession(overrides: Partial<Session> = {}): Session {
     busySource: 'ai',
     thinkingStartTime: Date.now() - 30000, // 30 seconds ago
     currentCycleTokens: 1500,
-    claudeSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv',
+    agentSessionId: 'abc12345-def6-7890-ghij-klmnopqrstuv',
     ...overrides,
   });
 }
@@ -291,7 +291,7 @@ describe('ThinkingStatusPill', () => {
   describe('getSessionDisplayName (via UI)', () => {
     it('uses namedSessions lookup when available', () => {
       const session = createThinkingSession({
-        claudeSessionId: 'abc12345-def6',
+        agentSessionId: 'abc12345-def6',
       });
       render(
         <ThinkingStatusPill
@@ -308,11 +308,11 @@ describe('ThinkingStatusPill', () => {
       const tab = createMockAITab({
         state: 'busy',
         name: 'My Tab Name',
-        claudeSessionId: 'def67890-ghi',
+        agentSessionId: 'def67890-ghi',
       });
       const session = createThinkingSession({
         aiTabs: [tab],
-        claudeSessionId: undefined,
+        agentSessionId: undefined,
       });
       render(
         <ThinkingStatusPill
@@ -328,12 +328,12 @@ describe('ThinkingStatusPill', () => {
       const tab = createMockAITab({
         state: 'busy',
         name: '', // Empty name
-        claudeSessionId: 'xyz98765-abc',
+        agentSessionId: 'xyz98765-abc',
       });
       const session = createThinkingSession({
         name: 'My Session',
         aiTabs: [tab],
-        claudeSessionId: undefined,
+        agentSessionId: undefined,
       });
       render(
         <ThinkingStatusPill
@@ -347,10 +347,10 @@ describe('ThinkingStatusPill', () => {
       expect(buttons.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('uses session name when tab has no claudeSessionId', () => {
+    it('uses session name when tab has no agentSessionId', () => {
       const session = createThinkingSession({
         name: 'Session Name',
-        claudeSessionId: 'sess1234-5678',
+        agentSessionId: 'sess1234-5678',
         aiTabs: undefined,
       });
       render(
@@ -418,7 +418,7 @@ describe('ThinkingStatusPill', () => {
     it('creates correct tooltip with all info', () => {
       const session = createThinkingSession({
         name: 'Test Name',
-        claudeSessionId: 'abc12345',
+        agentSessionId: 'abc12345',
       });
       render(
         <ThinkingStatusPill
@@ -440,7 +440,7 @@ describe('ThinkingStatusPill', () => {
       const session = createThinkingSession({
         id: 'session-123',
         name: 'Click Test Session',
-        claudeSessionId: 'claude-456',
+        agentSessionId: 'claude-456',
       });
       render(
         <ThinkingStatusPill
@@ -466,13 +466,13 @@ describe('ThinkingStatusPill', () => {
         id: 'tab-999',
         state: 'busy',
         name: 'Active Tab',
-        claudeSessionId: 'tab-claude-id',
+        agentSessionId: 'tab-claude-id',
       });
       const session = createThinkingSession({
         id: 'session-abc',
         name: 'Tab Test Session',
         aiTabs: [tab],
-        claudeSessionId: undefined,
+        agentSessionId: undefined,
       });
       render(
         <ThinkingStatusPill
@@ -952,11 +952,11 @@ describe('ThinkingStatusPill', () => {
         id: 'busy-tab',
         name: 'Busy Tab',
         state: 'busy',
-        claudeSessionId: 'busy-claude-id',
+        agentSessionId: 'busy-claude-id',
       });
       const session = createThinkingSession({
         aiTabs: [idleTab, busyTab],
-        claudeSessionId: undefined,
+        agentSessionId: undefined,
       });
       render(
         <ThinkingStatusPill
@@ -1039,7 +1039,7 @@ describe('ThinkingStatusPill', () => {
     });
 
     it('applies accent color to Claude ID button', () => {
-      const session = createThinkingSession({ name: 'Accent Test', claudeSessionId: 'test-id' });
+      const session = createThinkingSession({ name: 'Accent Test', agentSessionId: 'test-id' });
       render(
         <ThinkingStatusPill
           sessions={[session]}
@@ -1160,7 +1160,7 @@ describe('ThinkingStatusPill', () => {
     it('re-renders when namedSessions changes for thinking session', () => {
       const session = createThinkingSession({
         name: 'Named Test Session',
-        claudeSessionId: 'abc12345',
+        agentSessionId: 'abc12345',
       });
 
       const { rerender } = render(
@@ -1189,10 +1189,10 @@ describe('ThinkingStatusPill', () => {
   });
 
   describe('edge cases', () => {
-    it('handles session with no claudeSessionId', () => {
+    it('handles session with no agentSessionId', () => {
       const session = createThinkingSession({
         name: 'No Claude ID Session',
-        claudeSessionId: undefined,
+        agentSessionId: undefined,
         aiTabs: undefined,
       });
       render(
@@ -1201,7 +1201,7 @@ describe('ThinkingStatusPill', () => {
           theme={mockTheme}
         />
       );
-      // Should still render with session name (appears in both places when no claudeSessionId)
+      // Should still render with session name (appears in both places when no agentSessionId)
       const elements = screen.getAllByText('No Claude ID Session');
       expect(elements.length).toBeGreaterThanOrEqual(1);
     });
@@ -1456,7 +1456,7 @@ describe('ThinkingStatusPill', () => {
     it('should re-render when namedSessions mapping changes', () => {
       // This test ensures the memo comparator handles namedSessions correctly
       const thinkingSession = createThinkingSession({
-        claudeSessionId: 'claude-abc123',
+        agentSessionId: 'claude-abc123',
       });
 
       const { rerender } = render(

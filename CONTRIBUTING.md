@@ -425,12 +425,14 @@ Based on capabilities, these UI features are automatically enabled/disabled:
 
 ### Supported Agents Reference
 
-| Agent | Resume | Read-Only | JSON | Images | Sessions | Cost |
-|-------|--------|-----------|------|--------|----------|------|
-| Claude Code | ✅ `--resume` | ✅ `--permission-mode plan` | ✅ | ✅ | ✅ `~/.claude/` | ✅ |
-| OpenCode | ✅ `--session` | ✅ `--agent plan` | ✅ | ✅ | TBD | ❌ (local) |
-| Gemini CLI | TBD | TBD | TBD | TBD | TBD | ✅ |
-| Codex | TBD | TBD | TBD | TBD | TBD | ✅ |
+| Agent | Resume | Read-Only | JSON | Images | Sessions | Cost | Status |
+|-------|--------|-----------|------|--------|----------|------|--------|
+| Claude Code | ✅ `--resume` | ✅ `--permission-mode plan` | ✅ | ✅ | ✅ `~/.claude/` | ✅ | ✅ Complete |
+| OpenCode | ✅ `--session` | ✅ `--agent plan` | ✅ | ✅ | Stub | ❌ (local) | 🔄 Stub Ready |
+| Gemini CLI | TBD | TBD | TBD | TBD | TBD | ✅ | 📋 Planned |
+| Codex | TBD | TBD | TBD | TBD | TBD | ✅ | 📋 Planned |
+
+For detailed implementation guide, see [AGENT_SUPPORT.md](AGENT_SUPPORT.md).
 
 ## Code Style
 

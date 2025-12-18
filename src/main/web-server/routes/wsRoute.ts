@@ -29,7 +29,7 @@ const LOG_CONTEXT = 'WebServer:WS';
  */
 export interface LiveSessionInfo {
   sessionId: string;
-  claudeSessionId?: string;
+  agentSessionId?: string;
   enabledAt: number;
 }
 
@@ -53,7 +53,7 @@ export interface WsSessionData {
   state: string;
   inputMode: string;
   cwd: string;
-  claudeSessionId?: string | null;
+  agentSessionId?: string | null;
   [key: string]: unknown;
 }
 
@@ -135,7 +135,7 @@ export class WsRoute {
           const liveInfo = this.callbacks.getLiveSessionInfo?.(s.id);
           return {
             ...s,
-            claudeSessionId: liveInfo?.claudeSessionId || s.claudeSessionId,
+            agentSessionId: liveInfo?.agentSessionId || s.agentSessionId,
             liveEnabledAt: liveInfo?.enabledAt,
             isLive: this.callbacks.isSessionLive?.(s.id) || false,
           };

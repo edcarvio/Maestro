@@ -7,19 +7,19 @@ import { FormInput } from './ui/FormInput';
 interface RenameTabModalProps {
   theme: Theme;
   initialName: string;
-  claudeSessionId?: string | null;
+  agentSessionId?: string | null;
   onClose: () => void;
   onRename: (newName: string) => void;
 }
 
 export function RenameTabModal(props: RenameTabModalProps) {
-  const { theme, initialName, claudeSessionId, onClose, onRename } = props;
+  const { theme, initialName, agentSessionId, onClose, onRename } = props;
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(initialName);
 
   // Generate placeholder with UUID octet if available
-  const placeholder = claudeSessionId
-    ? `Rename ${claudeSessionId.split('-')[0].toUpperCase()}...`
+  const placeholder = agentSessionId
+    ? `Rename ${agentSessionId.split('-')[0].toUpperCase()}...`
     : 'Enter tab name...';
 
   const handleRename = () => {

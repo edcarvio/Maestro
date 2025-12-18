@@ -46,7 +46,7 @@ export interface TaskCompleteEvent extends JsonlEvent {
   fullResponse?: string;
   elapsedMs: number;
   usageStats?: UsageStats;
-  claudeSessionId?: string;
+  agentSessionId?: string;
 }
 
 export interface DocumentCompleteEvent extends JsonlEvent {
@@ -171,7 +171,7 @@ export function emitTaskComplete(
   options?: {
     fullResponse?: string;
     usageStats?: UsageStats;
-    claudeSessionId?: string;
+    agentSessionId?: string;
   }
 ): void {
   emitJsonl({

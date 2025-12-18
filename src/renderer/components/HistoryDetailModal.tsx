@@ -29,8 +29,8 @@ interface HistoryDetailModalProps {
   theme: Theme;
   entry: HistoryEntry;
   onClose: () => void;
-  onJumpToClaudeSession?: (claudeSessionId: string) => void;
-  onResumeSession?: (claudeSessionId: string) => void;
+  onJumpToAgentSession?: (agentSessionId: string) => void;
+  onResumeSession?: (agentSessionId: string) => void;
   onDelete?: (entryId: string) => void;
   onUpdate?: (entryId: string, updates: { validated?: boolean }) => Promise<boolean>;
   // Navigation props for prev/next
@@ -50,7 +50,7 @@ export function HistoryDetailModal({
   theme,
   entry,
   onClose,
-  onJumpToClaudeSession,
+  onJumpToAgentSession,
   onResumeSession,
   onDelete,
   onUpdate,
@@ -234,12 +234,12 @@ export function HistoryDetailModal({
             </span>
 
             {/* Session ID Octet - copyable */}
-            {entry.claudeSessionId && (
+            {entry.agentSessionId && (
               <div className="flex items-center gap-2">
                 {/* Copy button */}
                 <button
                   onClick={async () => {
-                    await navigator.clipboard.writeText(entry.claudeSessionId!);
+                    await navigator.clipboard.writeText(entry.agentSessionId!);
                     setCopiedSessionId(true);
                     setTimeout(() => setCopiedSessionId(false), 2000);
                   }}
@@ -249,9 +249,9 @@ export function HistoryDetailModal({
                     color: theme.colors.accent,
                     border: `1px solid ${theme.colors.accent}40`
                   }}
-                  title={`Copy session ID: ${entry.claudeSessionId}`}
+                  title={`Copy session ID: ${entry.agentSessionId}`}
                 >
-                  {entry.claudeSessionId.split('-')[0].toUpperCase()}
+                  {entry.agentSessionId.split('-')[0].toUpperCase()}
                   {copiedSessionId ? (
                     <Check className="w-2.5 h-2.5" />
                   ) : (
@@ -262,7 +262,7 @@ export function HistoryDetailModal({
                 {onResumeSession && (
                   <button
                     onClick={() => {
-                      onResumeSession(entry.claudeSessionId!);
+                      onResumeSession(entry.agentSessionId!);
                       onClose();
                     }}
                     className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase transition-colors hover:opacity-80"
@@ -271,7 +271,7 @@ export function HistoryDetailModal({
                       color: theme.colors.success,
                       border: `1px solid ${theme.colors.success}40`
                     }}
-                    title={`Resume session ${entry.claudeSessionId}`}
+                    title={`Resume session ${entry.agentSessionId}`}
                   >
                     <Play className="w-2.5 h-2.5" />
                     Resume

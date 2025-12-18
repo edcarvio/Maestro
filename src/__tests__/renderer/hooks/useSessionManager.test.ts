@@ -57,7 +57,7 @@ const createMockGroup = (overrides: Partial<Group> = {}): Group => ({
 // Helper to create a mock AI tab
 const createMockAITab = (overrides: Partial<AITab> = {}): AITab => ({
   id: `tab-${Date.now()}-${Math.random()}`,
-  claudeSessionId: null,
+  agentSessionId: null,
   name: null,
   starred: false,
   logs: [],
@@ -95,6 +95,22 @@ describe('useSessionManager', () => {
           command: 'claude',
           args: ['--print'],
           available: true,
+        }),
+        getCapabilities: vi.fn().mockResolvedValue({
+          supportsResume: true,
+          supportsReadOnlyMode: true,
+          supportsJsonOutput: true,
+          supportsSessionId: true,
+          supportsImageInput: true,
+          supportsSlashCommands: true,
+          supportsSessionStorage: true,
+          supportsCostTracking: true,
+          supportsUsageStats: true,
+          supportsBatchMode: true,
+          supportsStreaming: true,
+          supportsResultMessages: true,
+          supportsModelSelection: false,
+          requiresPromptToStart: false,
         }),
       },
       process: {
@@ -538,7 +554,7 @@ describe('useSessionManager', () => {
       expect(typeof result.current.createNewSession).toBe('function');
     });
 
-    it('should create a new session for claude-code (batch mode)', async () => {
+    it('should create a new session for claude-code (spawns process)', async () => {
       vi.mocked(window.maestro.agents.get).mockResolvedValue({
         id: 'claude-code',
         name: 'Claude Code',
@@ -560,8 +576,8 @@ describe('useSessionManager', () => {
         expect(result.current.sessions[0].name).toBe('New Session');
         expect(result.current.sessions[0].cwd).toBe('/test/path');
         expect(result.current.sessions[0].toolType).toBe('claude-code');
-        // Batch mode skips spawning, so pid should be 0
-        expect(result.current.sessions[0].aiPid).toBe(0);
+        // Claude Code has requiresPromptToStart: false, so it spawns immediately
+        expect(result.current.sessions[0].aiPid).toBe(12345);
       });
     });
 

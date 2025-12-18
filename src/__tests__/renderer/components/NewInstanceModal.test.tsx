@@ -21,6 +21,15 @@ vi.mock('lucide-react', () => ({
   RefreshCw: ({ className }: { className?: string }) => (
     <span data-testid="refresh-icon" className={className}>🔄</span>
   ),
+  ChevronRight: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+    <span data-testid="chevron-right-icon" className={className} style={style}>▶</span>
+  ),
+  Check: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+    <span data-testid="check-icon" className={className} style={style}>✓</span>
+  ),
+  AlertCircle: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+    <span data-testid="alert-circle-icon" className={className} style={style}>⚠</span>
+  ),
 }));
 
 // Mock layer stack context
@@ -210,6 +219,12 @@ describe('NewInstanceModal', () => {
         existingSessions={[]}
         />
       );
+
+      // Wait for agents to load, then click to expand
+      await waitFor(() => {
+        expect(screen.getByText('Claude Code')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText('Claude Code'));
 
       await waitFor(() => {
         expect(screen.getByText('/usr/bin/claude')).toBeInTheDocument();
@@ -436,7 +451,7 @@ describe('NewInstanceModal', () => {
         expect(screen.getByText('Claude Code')).toBeInTheDocument();
       });
 
-      const refreshButton = screen.getByTitle('Refresh detection (shows debug info if not found)');
+      const refreshButton = screen.getByTitle('Refresh detection');
       await act(async () => {
         fireEvent.click(refreshButton);
       });
@@ -478,7 +493,7 @@ describe('NewInstanceModal', () => {
         expect(screen.getByText('Claude Code')).toBeInTheDocument();
       });
 
-      const refreshButton = screen.getByTitle('Refresh detection (shows debug info if not found)');
+      const refreshButton = screen.getByTitle('Refresh detection');
       await act(async () => {
         fireEvent.click(refreshButton);
       });
@@ -524,7 +539,7 @@ describe('NewInstanceModal', () => {
         expect(screen.getByText('Claude Code')).toBeInTheDocument();
       });
 
-      const refreshButton = screen.getByTitle('Refresh detection (shows debug info if not found)');
+      const refreshButton = screen.getByTitle('Refresh detection');
       await act(async () => {
         fireEvent.click(refreshButton);
       });
@@ -1270,6 +1285,12 @@ describe('NewInstanceModal', () => {
         />
       );
 
+      // Wait for agents to load, then click to expand
+      await waitFor(() => {
+        expect(screen.getByText('Claude Code')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText('Claude Code'));
+
       await waitFor(() => {
         expect(screen.getByPlaceholderText('/path/to/claude')).toBeInTheDocument();
         expect(screen.getByText('Custom Path (optional)')).toBeInTheDocument();
@@ -1295,6 +1316,12 @@ describe('NewInstanceModal', () => {
         />
       );
 
+      // Wait for agents to load, then click to expand
+      await waitFor(() => {
+        expect(screen.getByText('Claude Code')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText('Claude Code'));
+
       await waitFor(() => {
         const customPathInput = screen.getByPlaceholderText('/path/to/claude');
         expect(customPathInput).toHaveValue('/custom/path/to/claude');
@@ -1316,6 +1343,12 @@ describe('NewInstanceModal', () => {
         existingSessions={[]}
         />
       );
+
+      // Wait for agents to load, then click to expand
+      await waitFor(() => {
+        expect(screen.getByText('Claude Code')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText('Claude Code'));
 
       await waitFor(() => {
         expect(screen.getByPlaceholderText('/path/to/claude')).toBeInTheDocument();
@@ -1350,6 +1383,12 @@ describe('NewInstanceModal', () => {
         />
       );
 
+      // Wait for agents to load, then click to expand
+      await waitFor(() => {
+        expect(screen.getByText('Claude Code')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText('Claude Code'));
+
       await waitFor(() => {
         expect(screen.getByText('Clear')).toBeInTheDocument();
       });
@@ -1376,6 +1415,12 @@ describe('NewInstanceModal', () => {
         existingSessions={[]}
         />
       );
+
+      // Wait for agents to load, then click to expand
+      await waitFor(() => {
+        expect(screen.getByText('Claude Code')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText('Claude Code'));
 
       await waitFor(() => {
         expect(screen.getByPlaceholderText('/path/to/claude')).toBeInTheDocument();
@@ -1438,10 +1483,10 @@ describe('NewInstanceModal', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByTitle('Refresh detection (shows debug info if not found)')).toBeInTheDocument();
+        expect(screen.getByTitle('Refresh detection')).toBeInTheDocument();
       });
 
-      const refreshButton = screen.getByTitle('Refresh detection (shows debug info if not found)');
+      const refreshButton = screen.getByTitle('Refresh detection');
       await act(async () => {
         fireEvent.click(refreshButton);
       });
@@ -1608,9 +1653,11 @@ describe('NewInstanceModal', () => {
       });
     });
 
-    it('should have tabindex=-1 for unavailable agents', async () => {
+    it('should have tabindex=-1 for unsupported agents (coming soon)', async () => {
+      // Note: tabIndex is based on isSupported (in SUPPORTED_AGENTS), not availability
+      // gemini-cli is not in SUPPORTED_AGENTS so it should have tabIndex=-1
       vi.mocked(window.maestro.agents.detect).mockResolvedValue([
-        createAgentConfig({ id: 'claude-code', name: 'Claude Code', available: false }),
+        createAgentConfig({ id: 'gemini-cli', name: 'Gemini CLI', available: false }),
       ]);
 
       render(
@@ -1625,7 +1672,7 @@ describe('NewInstanceModal', () => {
       );
 
       await waitFor(() => {
-        const option = screen.getByRole('option', { name: /Claude Code/i });
+        const option = screen.getByRole('option', { name: /Gemini CLI/i });
         expect(option).toHaveAttribute('tabIndex', '-1');
       });
     });
@@ -1713,10 +1760,10 @@ describe('NewInstanceModal', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByTitle('Refresh detection (shows debug info if not found)')).toBeInTheDocument();
+        expect(screen.getByTitle('Refresh detection')).toBeInTheDocument();
       });
 
-      const refreshButton = screen.getByTitle('Refresh detection (shows debug info if not found)');
+      const refreshButton = screen.getByTitle('Refresh detection');
       await act(async () => {
         fireEvent.click(refreshButton);
       });

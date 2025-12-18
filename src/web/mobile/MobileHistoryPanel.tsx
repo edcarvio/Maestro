@@ -174,7 +174,7 @@ function HistoryCard({ entry, onSelect }: HistoryCardProps) {
         </span>
 
         {/* Claude session ID octet (if available) */}
-        {entry.claudeSessionId && (
+        {entry.agentSessionId && (
           <span
             style={{
               fontSize: '10px',
@@ -186,7 +186,7 @@ function HistoryCard({ entry, onSelect }: HistoryCardProps) {
               flexShrink: 0,
             }}
           >
-            {entry.claudeSessionId.split('-')[0].toUpperCase()}
+            {entry.agentSessionId.split('-')[0].toUpperCase()}
           </span>
         )}
 
@@ -377,7 +377,7 @@ function HistoryDetailView({ entry, onClose }: HistoryDetailViewProps) {
           </span>
 
           {/* Claude session ID */}
-          {entry.claudeSessionId && (
+          {entry.agentSessionId && (
             <span
               style={{
                 fontSize: '11px',
@@ -389,7 +389,7 @@ function HistoryDetailView({ entry, onClose }: HistoryDetailViewProps) {
                 flexShrink: 0,
               }}
             >
-              {entry.claudeSessionId.split('-')[0].toUpperCase()}
+              {entry.agentSessionId.split('-')[0].toUpperCase()}
             </span>
           )}
 

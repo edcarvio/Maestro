@@ -667,19 +667,8 @@ export default function MaestroConsole() {
         // Mark sessions as loaded for splash screen coordination
         setSessionsLoaded(true);
 
-        // If no sessions were loaded, check for wizard resume state or open wizard
-        if (!hasSessionsLoaded) {
-          // Check if there's a saved wizard state to resume
-          const savedResumeState = await loadResumeState();
-          if (savedResumeState) {
-            // Show resume dialog instead of opening wizard directly
-            setWizardResumeState(savedResumeState);
-            setWizardResumeModalOpen(true);
-          } else {
-            // No resume state, start fresh wizard
-            openWizardModal();
-          }
-        }
+        // When no sessions exist, we show EmptyStateView which lets users
+        // choose between "New Agent" or "Wizard" - no auto-opening wizard
       }
     };
     loadSessionsAndGroups();

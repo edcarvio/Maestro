@@ -14,13 +14,10 @@
  *   RUN_INTEGRATION_TESTS=true npm test -- group-chat-integration
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { spawn } from 'child_process';
 import { promisify } from 'util';
 import { exec } from 'child_process';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as os from 'os';
 
 const execAsync = promisify(exec);
 
@@ -420,30 +417,26 @@ Is ${number2} correct? Reply with just "correct" or "incorrect".`;
     expect(verifyResult.response?.toLowerCase()).toContain('correct');
   }, TEST_TIMEOUT);
 
-  it('moderator orchestrates file creation across participants', async () => {
+  it('moderator orchestrates code generation and review workflow', async () => {
     if (availableAgents.length < 3) {
       console.log('Skipping: need at least 3 agents for orchestration test');
       return;
     }
 
     const [coder, reviewer] = participants.slice(0, 2);
-    const testDir = path.join(os.tmpdir(), `group-chat-test-${Date.now()}`);
-    fs.mkdirSync(testDir, { recursive: true });
 
     console.log(`\n🎭 Moderator-Orchestrated Workflow:`);
     console.log(`  Moderator: ${moderator.name}`);
     console.log(`  Coder: ${coder.name}`);
     console.log(`  Reviewer: ${reviewer.name}`);
-    console.log(`  Test directory: ${testDir}`);
 
-    try {
-      // Step 1: User asks moderator to coordinate a task
-      console.log(`\n  Step 1: Moderator plans the workflow...`);
-      const planPrompt = `You are a moderator coordinating a group chat with two participants:
+    // Step 1: User asks moderator to coordinate a task
+    console.log(`\n  Step 1: Moderator plans the workflow...`);
+    const planPrompt = `You are a moderator coordinating a group chat with two participants:
 - @Coder: writes code
 - @Reviewer: reviews code
 
-The user asked: "Create a simple add function and have it reviewed."
+The user asked: "Write a simple add function and have it reviewed."
 
 Plan how you will coordinate this. Your response must include:
 1. Which participant you'll ask first (use @mention)
@@ -453,78 +446,74 @@ Format your response as:
 DELEGATE_TO: [Coder or Reviewer]
 TASK: [what to ask them]`;
 
-      const planResult = await runAgent(moderator, planPrompt);
-      console.log(`  Moderator's plan: ${planResult.response?.substring(0, 200) || '[no response]'}`);
+    const planResult = await runAgent(moderator, planPrompt);
+    console.log(`  Moderator's plan: ${planResult.response?.substring(0, 200) || '[no response]'}`);
 
-      expect(planResult.exitCode).toBe(0);
-      expect(planResult.response).toBeTruthy();
-      // Moderator should delegate to Coder first
-      expect(planResult.response?.toLowerCase()).toMatch(/coder|code/i);
+    expect(planResult.exitCode).toBe(0);
+    expect(planResult.response).toBeTruthy();
+    // Moderator should delegate to Coder first
+    expect(planResult.response?.toLowerCase()).toMatch(/coder|code/i);
 
-      // Step 2: Coder creates the file
-      console.log(`\n  Step 2: Coder writes the function...`);
-      const codePrompt = `You are a coder in a group chat. The moderator asked you to create a simple add function.
+    // Step 2: Coder writes the function (output only, no file creation)
+    console.log(`\n  Step 2: Coder writes the function...`);
+    const codePrompt = `You are a coder in a group chat. The moderator asked you to write a simple JavaScript add function.
 
-Create a file called "math.js" in ${testDir} with a simple add function that takes two numbers and returns their sum.
+Write a simple add function that takes two numbers and returns their sum.
+Output ONLY the code, nothing else. No explanation, no markdown fences.`;
 
-After creating the file, respond with just: CREATED: math.js`;
+    const codeResult = await runAgent(coder, codePrompt);
+    const generatedCode = codeResult.response || '';
+    console.log(`  Coder's code: ${generatedCode.substring(0, 150)}`);
 
-      const codeResult = await runAgent(coder, codePrompt);
-      console.log(`  Coder response: ${codeResult.response?.substring(0, 150) || '[no response]'}`);
+    expect(codeResult.exitCode).toBe(0);
+    expect(generatedCode).toBeTruthy();
+    // Should contain function-like code
+    expect(generatedCode).toMatch(/function|add|=>|\+|return/i);
 
-      expect(codeResult.exitCode).toBe(0);
+    // Step 3: Moderator routes to reviewer with the code
+    console.log(`\n  Step 3: Moderator asks reviewer to check the code...`);
+    const reviewRequestPrompt = `You are a moderator. The Coder wrote this code:
 
-      // Check if file was created
-      const mathFile = path.join(testDir, 'math.js');
-      const fileExists = fs.existsSync(mathFile);
-      console.log(`  File created: ${fileExists}`);
+${generatedCode.substring(0, 300)}
 
-      if (fileExists) {
-        const content = fs.readFileSync(mathFile, 'utf-8');
-        console.log(`  File content: ${content.substring(0, 100)}`);
-        expect(content).toMatch(/function|add|=>/);
-      }
+Ask the Reviewer to check if this code is correct.
+Respond with what you would say to @Reviewer. Be brief.`;
 
-      // Step 3: Moderator routes to reviewer
-      console.log(`\n  Step 3: Moderator asks reviewer to check the work...`);
-      const reviewRequestPrompt = `You are a moderator. The Coder has finished creating math.js.
-Now ask the Reviewer to check if the file exists and looks correct.
-Respond with what you would say to @Reviewer.`;
+    const reviewRequestResult = await runAgent(moderator, reviewRequestPrompt);
+    console.log(`  Moderator to reviewer: ${reviewRequestResult.response?.substring(0, 150) || '[no response]'}`);
 
-      const reviewRequestResult = await runAgent(moderator, reviewRequestPrompt);
-      console.log(`  Moderator to reviewer: ${reviewRequestResult.response?.substring(0, 150) || '[no response]'}`);
+    expect(reviewRequestResult.exitCode).toBe(0);
 
-      // Step 4: Reviewer checks the work
-      console.log(`\n  Step 4: Reviewer verifies the file...`);
-      const reviewPrompt = `You are a code reviewer in a group chat. The moderator asked you to review math.js in ${testDir}.
+    // Step 4: Reviewer evaluates the code
+    console.log(`\n  Step 4: Reviewer evaluates the code...`);
+    const reviewPrompt = `You are a code reviewer in a group chat. The moderator asked you to review this JavaScript add function:
 
-Check if the file exists and contains a valid add function.
-Respond with: REVIEW: [PASS or FAIL] - [brief reason]`;
+${generatedCode.substring(0, 300)}
 
-      const reviewResult = await runAgent(reviewer, reviewPrompt);
-      console.log(`  Reviewer verdict: ${reviewResult.response?.substring(0, 150) || '[no response]'}`);
+Evaluate if this code correctly adds two numbers.
+Respond with exactly: REVIEW: [PASS or FAIL] - [one sentence reason]`;
 
-      expect(reviewResult.exitCode).toBe(0);
+    const reviewResult = await runAgent(reviewer, reviewPrompt);
+    console.log(`  Reviewer verdict: ${reviewResult.response?.substring(0, 150) || '[no response]'}`);
 
-      // Step 5: Moderator summarizes to user
-      console.log(`\n  Step 5: Moderator reports back to user...`);
-      const summaryPrompt = `You are a moderator. The workflow is complete:
-- Coder created math.js with an add function
-- Reviewer checked the file: "${reviewResult.response?.substring(0, 100)}"
+    expect(reviewResult.exitCode).toBe(0);
+    expect(reviewResult.response).toBeTruthy();
+    // Reviewer should give a verdict
+    expect(reviewResult.response?.toLowerCase()).toMatch(/pass|fail|correct|incorrect|valid|invalid/i);
+
+    // Step 5: Moderator summarizes to user
+    console.log(`\n  Step 5: Moderator reports back to user...`);
+    const summaryPrompt = `You are a moderator. The workflow is complete:
+- Coder wrote: ${generatedCode.substring(0, 100)}
+- Reviewer said: "${reviewResult.response?.substring(0, 100)}"
 
 Summarize the outcome for the user in one sentence. Start with "RESULT:"`;
 
-      const summaryResult = await runAgent(moderator, summaryPrompt);
-      console.log(`  Final summary: ${summaryResult.response?.substring(0, 150) || '[no response]'}`);
+    const summaryResult = await runAgent(moderator, summaryPrompt);
+    console.log(`  Final summary: ${summaryResult.response?.substring(0, 150) || '[no response]'}`);
 
-      expect(summaryResult.exitCode).toBe(0);
-      expect(summaryResult.response?.toLowerCase()).toMatch(/result|complete|success|created|pass/i);
-
-    } finally {
-      // Cleanup
-      fs.rmSync(testDir, { recursive: true, force: true });
-      console.log(`  Cleaned up test directory`);
-    }
+    expect(summaryResult.exitCode).toBe(0);
+    expect(summaryResult.response?.toLowerCase()).toMatch(/result|complete|success|pass|add|function/i);
   }, TEST_TIMEOUT);
 });
 

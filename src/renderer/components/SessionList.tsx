@@ -1991,8 +1991,9 @@ export function SessionList(props: SessionListProps) {
           {/* Flexible spacer to push group chats to bottom */}
           <div className="flex-grow min-h-4" />
 
-          {/* GROUP CHATS SECTION */}
-          {onNewGroupChat && onOpenGroupChat && onRenameGroupChat && onDeleteGroupChat && (
+          {/* GROUP CHATS SECTION - Only show when at least 2 AI agents exist */}
+          {onNewGroupChat && onOpenGroupChat && onRenameGroupChat && onDeleteGroupChat &&
+           sessions.filter(s => s.toolType !== 'terminal').length >= 2 && (
             <GroupChatList
               theme={theme}
               groupChats={groupChats}

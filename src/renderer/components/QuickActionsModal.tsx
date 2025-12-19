@@ -305,8 +305,8 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     { id: 'goToHistory', label: 'Go to History Tab', shortcut: shortcuts.goToHistory, action: () => { setRightPanelOpen(true); setActiveRightTab('history'); setQuickActionOpen(false); } },
     { id: 'goToAutoRun', label: 'Go to Auto Run Tab', shortcut: shortcuts.goToAutoRun, action: () => { setRightPanelOpen(true); setActiveRightTab('autorun'); setQuickActionOpen(false); } },
     ...(setFuzzyFileSearchOpen ? [{ id: 'fuzzyFileSearch', label: 'Fuzzy File Search', shortcut: shortcuts.fuzzyFileSearch, action: () => { setFuzzyFileSearchOpen(true); setQuickActionOpen(false); } }] : []),
-    // Group Chat commands
-    ...(onNewGroupChat ? [{ id: 'newGroupChat', label: 'New Group Chat', action: () => { onNewGroupChat(); setQuickActionOpen(false); } }] : []),
+    // Group Chat commands - only show when at least 2 AI agents exist
+    ...(onNewGroupChat && sessions.filter(s => s.toolType !== 'terminal').length >= 2 ? [{ id: 'newGroupChat', label: 'New Group Chat', action: () => { onNewGroupChat(); setQuickActionOpen(false); } }] : []),
     ...(activeGroupChatId && onCloseGroupChat ? [{ id: 'closeGroupChat', label: 'Close Group Chat', action: () => { onCloseGroupChat(); setQuickActionOpen(false); } }] : []),
     ...(activeGroupChatId && onDeleteGroupChat && groupChats ? [{ id: 'deleteGroupChat', label: `Remove Group Chat: ${groupChats.find(c => c.id === activeGroupChatId)?.name || 'Group Chat'}`, shortcut: shortcuts.killInstance, action: () => { onDeleteGroupChat(activeGroupChatId); setQuickActionOpen(false); } }] : []),
     // Debug commands - only visible when user types "debug"

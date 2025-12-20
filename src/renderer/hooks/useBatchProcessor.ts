@@ -5,6 +5,7 @@ import { getBadgeForTime, getNextBadge, formatTimeRemaining } from '../constants
 import { autorunSynopsisPrompt } from '../../prompts';
 import { parseSynopsis } from '../../shared/synopsis';
 import { formatElapsedTime } from '../../shared/formatters';
+import { gitService } from '../services/git';
 
 // Debounce delay for batch state updates (Quick Win 1)
 const BATCH_STATE_DEBOUNCE_MS = 200;
@@ -551,7 +552,7 @@ ${docList}
     let gitBranch: string | undefined;
     if (session.isGitRepo) {
       try {
-        const status = await window.maestro.git.getStatus(effectiveCwd);
+        const status = await gitService.getStatus(effectiveCwd);
         gitBranch = status.branch;
       } catch {
         // Ignore git errors - branch will be empty string
@@ -1369,7 +1370,7 @@ ${docList}
       ? `Level ${currentBadge?.level || 0} → ${nextBadge.level}: ${formatTimeRemaining(projectedCumulativeTime, nextBadge)}`
       : currentBadge
         ? `Level ${currentBadge.level} (${currentBadge.name}) - Maximum level achieved!`
-        : 'Level 0 → 1: ' + formatTimeRemaining(0, getBadgeForTime(0) || undefined);
+        : 'Level 0 → 1: ' + formatTimeRemaining(0, getBadgeForTime(0));
 
     // Build summary with stall info if applicable
     const stalledSuffix = stalledCount > 0 ? ` (${stalledCount} stalled)` : '';

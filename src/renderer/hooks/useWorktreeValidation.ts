@@ -24,6 +24,7 @@
 
 import { useState, useEffect } from 'react';
 import type { WorktreeValidationState } from '../types';
+import { hasUncommittedChanges } from '../../shared/gitUtils';
 
 /**
  * Dependencies required by the hook
@@ -151,16 +152,15 @@ export function useWorktreeValidation({
 
         // If there's a branch mismatch and it's the same repo, check for uncommitted changes
         // This helps warn users that checkout will fail if there are uncommitted changes
-        let hasUncommittedChanges = false;
+        let hasChanges = false;
         if (branchMismatch && sameRepo) {
           try {
             // Use git status to check for uncommitted changes in the worktree
             const statusResult = await window.maestro.git.status(worktreePath);
-            // If there's any output from git status --porcelain, there are changes
-            hasUncommittedChanges = statusResult.stdout.trim().length > 0;
+            hasChanges = hasUncommittedChanges(statusResult.stdout);
           } catch {
             // If we can't check, assume no uncommitted changes
-            hasUncommittedChanges = false;
+            hasChanges = false;
           }
         }
 
@@ -171,7 +171,7 @@ export function useWorktreeValidation({
           currentBranch: worktreeInfoResult.currentBranch,
           branchMismatch,
           sameRepo,
-          hasUncommittedChanges,
+          hasUncommittedChanges: hasChanges,
           error: !sameRepo ? 'This path contains a worktree for a different repository' : undefined,
         });
       } catch (error) {

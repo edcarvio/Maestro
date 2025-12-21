@@ -16,6 +16,7 @@ import { remarkFileLinks } from '../utils/remarkFileLinks';
 import remarkFrontmatter from 'remark-frontmatter';
 import { remarkFrontmatterTable } from '../utils/remarkFrontmatterTable';
 import type { FileNode } from '../types/fileTree';
+import { isImageFile } from '../../shared/gitUtils';
 
 interface FileStats {
   size: number;
@@ -87,13 +88,6 @@ const getLanguageFromFilename = (filename: string): string => {
     'xml': 'xml',
   };
   return languageMap[ext || ''] || 'text';
-};
-
-// Check if file is an image
-const isImageFile = (filename: string): boolean => {
-  const ext = filename.split('.').pop()?.toLowerCase();
-  const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico'];
-  return imageExtensions.includes(ext || '');
 };
 
 // Check if content appears to be binary (contains null bytes or high concentration of non-printable chars)

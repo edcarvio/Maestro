@@ -220,6 +220,8 @@ export function parseGitTags(stdout: string): string[] {
  *
  * @param stdout - Raw stdout from `git rev-parse --abbrev-ref HEAD`
  * @returns Trimmed branch name or empty string
+ *
+ * @internal Currently used only in tests; available for future use
  */
 export function cleanBranchName(stdout: string): string {
   return stdout?.trim() || '';
@@ -230,6 +232,8 @@ export function cleanBranchName(stdout: string): string {
  *
  * @param stdout - Raw stdout from git commands returning paths
  * @returns Trimmed path or empty string
+ *
+ * @internal Currently used only in tests; available for future use
  */
 export function cleanGitPath(stdout: string): string {
   return stdout?.trim() || '';

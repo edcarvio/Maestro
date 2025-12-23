@@ -558,4 +558,158 @@ index 1234567..abcdefg 100644
       });
     });
   });
+
+  describe('git:branches', () => {
+    it('should return array of branch names', async () => {
+      vi.mocked(execFile.execFileNoThrow).mockResolvedValue({
+        stdout: 'main\nfeature/awesome\nfix/bug-123\n',
+        stderr: '',
+        exitCode: 0,
+      });
+
+      const handler = handlers.get('git:branches');
+      const result = await handler!({} as any, '/test/repo');
+
+      expect(execFile.execFileNoThrow).toHaveBeenCalledWith(
+        'git',
+        ['branch', '-a', '--format=%(refname:short)'],
+        '/test/repo'
+      );
+      expect(result).toEqual({
+        branches: ['main', 'feature/awesome', 'fix/bug-123'],
+      });
+    });
+
+    it('should deduplicate local and remote branches', async () => {
+      // When a branch exists both locally and on origin
+      vi.mocked(execFile.execFileNoThrow).mockResolvedValue({
+        stdout: 'main\norigin/main\nfeature/foo\norigin/feature/foo\ndevelop\n',
+        stderr: '',
+        exitCode: 0,
+      });
+
+      const handler = handlers.get('git:branches');
+      const result = await handler!({} as any, '/test/repo');
+
+      // parseGitBranches removes 'origin/' prefix and deduplicates
+      expect(result).toEqual({
+        branches: ['main', 'feature/foo', 'develop'],
+      });
+    });
+
+    it('should filter out HEAD from branch list', async () => {
+      vi.mocked(execFile.execFileNoThrow).mockResolvedValue({
+        stdout: 'main\nHEAD\norigin/HEAD\nfeature/test\n',
+        stderr: '',
+        exitCode: 0,
+      });
+
+      const handler = handlers.get('git:branches');
+      const result = await handler!({} as any, '/test/repo');
+
+      // parseGitBranches filters out HEAD
+      expect(result).toEqual({
+        branches: ['main', 'feature/test'],
+      });
+    });
+
+    it('should return empty array when no branches exist', async () => {
+      vi.mocked(execFile.execFileNoThrow).mockResolvedValue({
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+      });
+
+      const handler = handlers.get('git:branches');
+      const result = await handler!({} as any, '/test/repo');
+
+      expect(result).toEqual({
+        branches: [],
+      });
+    });
+
+    it('should return empty array with stderr when not a git repo', async () => {
+      vi.mocked(execFile.execFileNoThrow).mockResolvedValue({
+        stdout: '',
+        stderr: 'fatal: not a git repository',
+        exitCode: 128,
+      });
+
+      const handler = handlers.get('git:branches');
+      const result = await handler!({} as any, '/not/a/repo');
+
+      expect(result).toEqual({
+        branches: [],
+        stderr: 'fatal: not a git repository',
+      });
+    });
+  });
+
+  describe('git:tags', () => {
+    it('should return array of tag names', async () => {
+      vi.mocked(execFile.execFileNoThrow).mockResolvedValue({
+        stdout: 'v1.0.0\nv1.1.0\nv2.0.0-beta\n',
+        stderr: '',
+        exitCode: 0,
+      });
+
+      const handler = handlers.get('git:tags');
+      const result = await handler!({} as any, '/test/repo');
+
+      expect(execFile.execFileNoThrow).toHaveBeenCalledWith(
+        'git',
+        ['tag', '--list'],
+        '/test/repo'
+      );
+      expect(result).toEqual({
+        tags: ['v1.0.0', 'v1.1.0', 'v2.0.0-beta'],
+      });
+    });
+
+    it('should handle tags with special characters', async () => {
+      vi.mocked(execFile.execFileNoThrow).mockResolvedValue({
+        stdout: 'release/1.0\nhotfix-2023.01.15\nmy_tag_v1\n',
+        stderr: '',
+        exitCode: 0,
+      });
+
+      const handler = handlers.get('git:tags');
+      const result = await handler!({} as any, '/test/repo');
+
+      expect(result).toEqual({
+        tags: ['release/1.0', 'hotfix-2023.01.15', 'my_tag_v1'],
+      });
+    });
+
+    it('should return empty array when no tags exist', async () => {
+      vi.mocked(execFile.execFileNoThrow).mockResolvedValue({
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+      });
+
+      const handler = handlers.get('git:tags');
+      const result = await handler!({} as any, '/test/repo');
+
+      expect(result).toEqual({
+        tags: [],
+      });
+    });
+
+    it('should return empty array with stderr when not a git repo', async () => {
+      vi.mocked(execFile.execFileNoThrow).mockResolvedValue({
+        stdout: '',
+        stderr: 'fatal: not a git repository',
+        exitCode: 128,
+      });
+
+      const handler = handlers.get('git:tags');
+      const result = await handler!({} as any, '/not/a/repo');
+
+      expect(result).toEqual({
+        tags: [],
+        stderr: 'fatal: not a git repository',
+      });
+    });
+  });
 });

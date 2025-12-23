@@ -249,18 +249,33 @@ export function MergeSessionModal({
   const allItems = useMemo((): SessionListItem[] => {
     const items: SessionListItem[] = [];
 
+    // Build a map of session IDs to names for parent lookups
+    const sessionNameMap = new Map<string, string>();
     for (const session of allSessions) {
-      // Skip the source session from appearing in target list
-      if (session.id === sourceSession.id) continue;
+      sessionNameMap.set(session.id, getSessionDisplayName(session));
+    }
 
-      // Add session header (if it has tabs)
+    for (const session of allSessions) {
+      // Add session tabs (if it has tabs)
       if (session.aiTabs.length > 0) {
+        // Build display name - prefix worktree children with parent name
+        let displayName = getSessionDisplayName(session);
+        if (session.parentSessionId) {
+          const parentName = sessionNameMap.get(session.parentSessionId);
+          if (parentName) {
+            displayName = `${parentName}: ${displayName}`;
+          }
+        }
+
         for (const tab of session.aiTabs) {
+          // Skip the source tab itself (but allow other tabs in same session)
+          if (session.id === sourceSession.id && tab.id === sourceTabId) continue;
+
           items.push({
             type: 'tab',
             sessionId: session.id,
             tabId: tab.id,
-            sessionName: getSessionDisplayName(session),
+            sessionName: displayName,
             tabName: getTabDisplayName(tab),
             agentSessionId: tab.agentSessionId || undefined,
             estimatedTokens: estimateTokens(tab.logs),
@@ -272,8 +287,15 @@ export function MergeSessionModal({
       }
     }
 
+    // Sort alphabetically by session name, then by tab name
+    items.sort((a, b) => {
+      const sessionCompare = a.sessionName.localeCompare(b.sessionName);
+      if (sessionCompare !== 0) return sessionCompare;
+      return (a.tabName || '').localeCompare(b.tabName || '');
+    });
+
     return items;
-  }, [allSessions, sourceSession.id]);
+  }, [allSessions, sourceSession.id, sourceTabId]);
 
   // Filter items based on search query
   const filteredItems = useMemo((): SessionListItem[] => {

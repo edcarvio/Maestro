@@ -404,13 +404,13 @@ export function useMergeSession(): UseMergeSessionResult {
           tokensSaved,
         };
       } else {
-        // Return merged logs for caller to apply to existing session/tab
-        // The MergeResult interface has fields for new session, but we use
-        // a different approach here - store merged logs and let caller handle it
+        // Merge into existing target tab - return merged logs for caller to apply
         result = {
           success: true,
           tokensSaved,
-          // Caller should use mergedLogs from closure or we need to extend result
+          mergedLogs, // Include merged logs for the caller to apply
+          targetSessionId: targetSession.id,
+          targetTabId: targetTab.id,
         };
       }
 
@@ -538,84 +538,130 @@ export function useMergeSessionWithSessions(
       options,
     });
 
-    if (result.success && options.createNewSession && result.newSessionId) {
-      // If a new session was created, we need to actually create it in state
-      // The createMergedSession in startMerge only creates the session object,
-      // we need to spawn the agent process and add it to state
+    if (result.success) {
+      if (options.createNewSession && result.newSessionId) {
+        // If a new session was created, we need to actually create it in state
+        // The createMergedSession in startMerge only creates the session object,
+        // we need to spawn the agent process and add it to state
 
-      // Get the source tab for merged logs
-      const sourceTab = sourceSession.aiTabs.find(t => t.id === sourceTabId);
-      const targetTab = targetTabId
-        ? targetSession.aiTabs.find(t => t.id === targetTabId)
-        : getActiveTab(targetSession);
+        // Get the source tab for merged logs
+        const sourceTab = sourceSession.aiTabs.find(t => t.id === sourceTabId);
+        const targetTab = targetTabId
+          ? targetSession.aiTabs.find(t => t.id === targetTabId)
+          : getActiveTab(targetSession);
 
-      if (sourceTab && targetTab) {
-        // Create merged session with proper initialization
-        const mergedName = generateMergedSessionName(
-          sourceSession,
-          sourceTab,
-          targetSession,
-          targetTab
-        );
+        if (sourceTab && targetTab) {
+          // Create merged session with proper initialization
+          const mergedName = generateMergedSessionName(
+            sourceSession,
+            sourceTab,
+            targetSession,
+            targetTab
+          );
 
-        // Extract and merge logs (simplified - actual implementation uses groomed logs)
-        const sourceContext = extractTabContext(
-          sourceTab,
-          getSessionDisplayName(sourceSession),
-          sourceSession
-        );
-        const targetContext = extractTabContext(
-          targetTab,
-          getSessionDisplayName(targetSession),
-          targetSession
-        );
-        const mergedLogs = [...sourceContext.logs, ...targetContext.logs].sort(
-          (a, b) => a.timestamp - b.timestamp
-        );
+          // Extract and merge logs (simplified - actual implementation uses groomed logs)
+          const sourceContext = extractTabContext(
+            sourceTab,
+            getSessionDisplayName(sourceSession),
+            sourceSession
+          );
+          const targetContext = extractTabContext(
+            targetTab,
+            getSessionDisplayName(targetSession),
+            targetSession
+          );
+          const mergedLogs = [...sourceContext.logs, ...targetContext.logs].sort(
+            (a, b) => a.timestamp - b.timestamp
+          );
 
-        const { session: newSession } = createMergedSession({
-          name: mergedName,
-          projectRoot: sourceSession.projectRoot,
-          toolType: sourceSession.toolType,
-          mergedLogs,
-          groupId: sourceSession.groupId,
-        });
+          const { session: newSession } = createMergedSession({
+            name: mergedName,
+            projectRoot: sourceSession.projectRoot,
+            toolType: sourceSession.toolType,
+            mergedLogs,
+            groupId: sourceSession.groupId,
+          });
 
-        // Add new session to state
-        setSessions(prev => [...prev, newSession]);
+          // Add new session to state
+          setSessions(prev => [...prev, newSession]);
+
+          // Log merge operation to history
+          const sourceNames = [
+            getSessionDisplayName(sourceSession),
+            getSessionDisplayName(targetSession),
+          ].filter((name, i, arr) => arr.indexOf(name) === i); // Dedupe if same session
+
+          try {
+            await window.maestro.history.add({
+              id: generateId(),
+              type: 'AUTO',
+              timestamp: Date.now(),
+              summary: `Merged contexts from ${sourceNames.join(', ')}`,
+              sessionId: newSession.id,
+              projectPath: sourceSession.projectRoot,
+              sessionName: mergedName,
+            });
+          } catch (historyError) {
+            // Non-critical: log but don't fail the merge operation
+            console.warn('Failed to log merge operation to history:', historyError);
+          }
+
+          // Notify caller with session ID and name for notification purposes
+          if (onSessionCreated) {
+            onSessionCreated(newSession.id, mergedName);
+          }
+
+          // Return result with the actual new session ID
+          return {
+            ...result,
+            newSessionId: newSession.id,
+            newTabId: newSession.activeTabId,
+          };
+        }
+      } else if (result.mergedLogs && result.targetSessionId && result.targetTabId) {
+        // Merge into existing tab - apply the merged logs to the target tab
+        setSessions(prev => prev.map(session => {
+          if (session.id !== result.targetSessionId) return session;
+
+          return {
+            ...session,
+            aiTabs: session.aiTabs.map(tab => {
+              if (tab.id !== result.targetTabId) return tab;
+
+              // Prepend source logs to target tab's logs
+              return {
+                ...tab,
+                logs: result.mergedLogs!,
+              };
+            }),
+          };
+        }));
 
         // Log merge operation to history
         const sourceNames = [
           getSessionDisplayName(sourceSession),
           getSessionDisplayName(targetSession),
-        ].filter((name, i, arr) => arr.indexOf(name) === i); // Dedupe if same session
+        ].filter((name, i, arr) => arr.indexOf(name) === i);
 
         try {
           await window.maestro.history.add({
             id: generateId(),
             type: 'AUTO',
             timestamp: Date.now(),
-            summary: `Merged contexts from ${sourceNames.join(', ')}`,
-            sessionId: newSession.id,
-            projectPath: sourceSession.projectRoot,
-            sessionName: mergedName,
+            summary: `Merged context from ${getSessionDisplayName(sourceSession)} into ${getSessionDisplayName(targetSession)}`,
+            sessionId: result.targetSessionId,
+            projectPath: targetSession.projectRoot,
+            sessionName: getSessionDisplayName(targetSession),
           });
         } catch (historyError) {
-          // Non-critical: log but don't fail the merge operation
           console.warn('Failed to log merge operation to history:', historyError);
         }
 
-        // Notify caller with session ID and name for notification purposes
-        if (onSessionCreated) {
-          onSessionCreated(newSession.id, mergedName);
-        }
-
-        // Return result with the actual new session ID
-        return {
-          ...result,
-          newSessionId: newSession.id,
-          newTabId: newSession.activeTabId,
-        };
+        console.log('[MergeSession] Merged logs into target tab:', {
+          targetSessionId: result.targetSessionId,
+          targetTabId: result.targetTabId,
+          mergedLogCount: result.mergedLogs.length,
+        });
       }
     }
 

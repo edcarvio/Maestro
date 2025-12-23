@@ -1,17 +1,7 @@
-import React, { memo, useState, useCallback } from 'react';
-import { Activity, GitBranch, Bot, Bookmark, AlertCircle, Copy, Check } from 'lucide-react';
+import React, { memo } from 'react';
+import { Activity, GitBranch, Bot, Bookmark, AlertCircle } from 'lucide-react';
 import type { Session, Group, Theme } from '../types';
 import { getStatusColor } from '../utils/theme';
-
-/**
- * Get a truncated display version of an agent session ID.
- * Returns first 8 characters for most formats.
- */
-function getTruncatedSessionId(sessionId: string | null | undefined): string | undefined {
-  if (!sessionId) return undefined;
-  // Return first 8 chars for display
-  return sessionId.slice(0, 8).toUpperCase();
-}
 
 // ============================================================================
 // SessionItem - Unified session item component for all list contexts
@@ -94,23 +84,6 @@ export const SessionItem = memo(function SessionItem({
   onStartRename,
   onToggleBookmark,
 }: SessionItemProps) {
-  // Track copy feedback state
-  const [showCopied, setShowCopied] = useState(false);
-
-  // Get the active tab's session ID for display
-  const activeTab = session.aiTabs?.find(tab => tab.id === session.activeTabId);
-  const activeSessionId = activeTab?.agentSessionId;
-  const truncatedId = getTruncatedSessionId(activeSessionId);
-
-  // Handle click-to-copy session ID
-  const handleCopySessionId = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (activeSessionId) {
-      navigator.clipboard.writeText(activeSessionId);
-      setShowCopied(true);
-      setTimeout(() => setShowCopied(false), 1500);
-    }
-  }, [activeSessionId]);
   // Determine if we show the GIT/LOCAL badge (not shown in bookmark variant, terminal sessions, or worktree variant)
   const showGitLocalBadge = variant !== 'bookmark' && variant !== 'worktree' && session.toolType !== 'terminal';
 
@@ -196,31 +169,6 @@ export const SessionItem = memo(function SessionItem({
               </div>
             )}
             <Activity className="w-3 h-3" /> {session.toolType}
-
-            {/* Session ID badge - click to copy full ID */}
-            {truncatedId && (
-              <button
-                onClick={handleCopySessionId}
-                className="flex items-center gap-0.5 px-1 py-0.5 rounded font-mono text-[9px] hover:bg-white/10 transition-colors group/sid"
-                style={{
-                  backgroundColor: showCopied ? theme.colors.accent + '30' : theme.colors.bgActivity,
-                  color: showCopied ? theme.colors.accent : theme.colors.textDim
-                }}
-                title={`Click to copy: ${activeSessionId}`}
-              >
-                {showCopied ? (
-                  <>
-                    <Check className="w-2.5 h-2.5" />
-                    <span>Copied</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-2.5 h-2.5 opacity-0 group-hover/sid:opacity-100 transition-opacity" />
-                    <span>{truncatedId}</span>
-                  </>
-                )}
-              </button>
-            )}
 
             {/* Group badge (only in bookmark variant when session belongs to a group) */}
             {variant === 'bookmark' && group && (

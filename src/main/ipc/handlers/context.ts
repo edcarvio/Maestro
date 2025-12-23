@@ -77,6 +77,9 @@ const GROOMING_TIMEOUT_MS = 5 * 60 * 1000;
 export function registerContextHandlers(deps: ContextHandlerDependencies): void {
   const { getProcessManager, getAgentDetector } = deps;
 
+  logger.info('Registering context IPC handlers', LOG_CONTEXT);
+  console.log('[ContextMerge] Registering context IPC handlers (v2 with response collection)');
+
   // Get context from a stored agent session
   ipcMain.handle(
     'context:getStoredSession',
@@ -134,6 +137,7 @@ export function registerContextHandlers(deps: ContextHandlerDependencies): void 
           projectRoot,
           agentType,
         });
+        console.log('[ContextMerge] Creating grooming session:', groomerSessionId, 'for', agentType);
 
         // Get agent configuration
         const agent = await agentDetector.getAgent(agentType);
@@ -186,21 +190,24 @@ export function registerContextHandlers(deps: ContextHandlerDependencies): void 
           groomerSessionId,
           pid: spawnResult.pid,
         });
+        console.log('[ContextMerge] Grooming session created, pid:', spawnResult.pid);
 
         return groomerSessionId;
       }
     )
   );
 
-  // Send grooming prompt to a session
-  ipcMain.handle(
-    'context:sendGroomingPrompt',
-    withIpcErrorLogging(
-      handlerOpts('sendGroomingPrompt'),
-      async (sessionId: string, prompt: string): Promise<string> => {
+  // Send grooming prompt to a session and wait for the response
+  console.log('[ContextMerge] About to register context:sendGroomingPrompt handler');
+  try {
+    ipcMain.handle(
+      'context:sendGroomingPrompt',
+      withIpcErrorLogging(
+        handlerOpts('sendGroomingPrompt'),
+        async (sessionId: string, prompt: string): Promise<string> => {
         const processManager = requireDependency(getProcessManager, 'Process manager');
 
-        logger.debug('Sending grooming prompt', LOG_CONTEXT, {
+        logger.info('Sending grooming prompt', LOG_CONTEXT, {
           sessionId,
           promptLength: prompt.length,
         });
@@ -211,26 +218,149 @@ export function registerContextHandlers(deps: ContextHandlerDependencies): void 
           throw new Error(`No active grooming session found: ${sessionId}`);
         }
 
-        // Write the prompt to the process
-        const success = processManager.write(sessionId, prompt + '\n');
-        if (!success) {
-          throw new Error(`Failed to write prompt to grooming session: ${sessionId}`);
-        }
+        // Create a promise that collects the response and resolves when complete
+        return new Promise<string>((resolve, reject) => {
+          let responseBuffer = '';
+          let lastDataTime = Date.now();
+          let idleCheckInterval: NodeJS.Timeout | null = null;
+          let resolved = false;
 
-        // For batch mode agents, we need to wait for the response
-        // The renderer will handle collecting the response via onData events
-        // This handler just sends the prompt and returns success
+          // Track chunks received for logging
+          let chunkCount = 0;
 
-        logger.info('Grooming prompt sent successfully', LOG_CONTEXT, {
-          sessionId,
-          promptLength: prompt.length,
+          const cleanup = () => {
+            if (idleCheckInterval) {
+              clearInterval(idleCheckInterval);
+              idleCheckInterval = null;
+            }
+            processManager.off('data', onData);
+            processManager.off('exit', onExit);
+            processManager.off('agent-error', onError);
+          };
+
+          const finishWithResponse = (reason: string) => {
+            if (resolved) return;
+            resolved = true;
+            cleanup();
+
+            logger.info('Grooming response collected', LOG_CONTEXT, {
+              sessionId,
+              responseLength: responseBuffer.length,
+              chunkCount,
+              reason,
+            });
+
+            resolve(responseBuffer);
+          };
+
+          const onData = (eventSessionId: string, data: string) => {
+            if (eventSessionId !== sessionId) return;
+
+            chunkCount++;
+            responseBuffer += data;
+            lastDataTime = Date.now();
+
+            // Log progress periodically
+            if (chunkCount % 10 === 0 || chunkCount === 1) {
+              logger.debug('Grooming data received', LOG_CONTEXT, {
+                sessionId,
+                chunkCount,
+                totalLength: responseBuffer.length,
+              });
+              console.log('[ContextMerge] Data chunk', chunkCount, 'received, total length:', responseBuffer.length);
+            }
+          };
+
+          const onExit = (eventSessionId: string, exitCode: number) => {
+            if (eventSessionId !== sessionId) return;
+
+            logger.info('Grooming session exited', LOG_CONTEXT, {
+              sessionId,
+              exitCode,
+              responseLength: responseBuffer.length,
+            });
+
+            // Process exited - return whatever we collected
+            finishWithResponse(`process exited with code ${exitCode}`);
+          };
+
+          const onError = (eventSessionId: string, error: unknown) => {
+            if (eventSessionId !== sessionId) return;
+
+            cleanup();
+            if (!resolved) {
+              resolved = true;
+              const errorMsg = error instanceof Error ? error.message : String(error);
+              logger.error('Grooming session error', LOG_CONTEXT, {
+                sessionId,
+                error: errorMsg,
+              });
+              reject(new Error(`Grooming session error: ${errorMsg}`));
+            }
+          };
+
+          // Listen for events
+          processManager.on('data', onData);
+          processManager.on('exit', onExit);
+          processManager.on('agent-error', onError);
+
+          // Write the prompt to the process
+          const success = processManager.write(sessionId, prompt + '\n');
+          if (!success) {
+            cleanup();
+            reject(new Error(`Failed to write prompt to grooming session: ${sessionId}`));
+            return;
+          }
+
+          logger.debug('Grooming prompt written to process', LOG_CONTEXT, {
+            sessionId,
+            promptLength: prompt.length,
+          });
+          console.log('[ContextMerge] Prompt written to process, waiting for response...');
+
+          // Set up idle check - if no data for 5 seconds and we have content, consider it done
+          // This handles cases where the process doesn't cleanly exit
+          const IDLE_TIMEOUT_MS = 5000;
+          const MIN_RESPONSE_LENGTH = 100; // Minimum response length to consider valid
+
+          idleCheckInterval = setInterval(() => {
+            const idleTime = Date.now() - lastDataTime;
+
+            if (idleTime > IDLE_TIMEOUT_MS && responseBuffer.length >= MIN_RESPONSE_LENGTH) {
+              logger.info('Grooming idle timeout reached with valid response', LOG_CONTEXT, {
+                sessionId,
+                idleTime,
+                responseLength: responseBuffer.length,
+              });
+              finishWithResponse('idle timeout with content');
+            }
+          }, 1000);
+
+          // Overall timeout - 2 minutes max
+          setTimeout(() => {
+            if (!resolved) {
+              logger.warn('Grooming overall timeout reached', LOG_CONTEXT, {
+                sessionId,
+                responseLength: responseBuffer.length,
+              });
+
+              if (responseBuffer.length > 0) {
+                finishWithResponse('overall timeout with content');
+              } else {
+                cleanup();
+                resolved = true;
+                reject(new Error('Grooming session timed out with no response'));
+              }
+            }
+          }, GROOMING_TIMEOUT_MS);
         });
-
-        // Return session ID for the renderer to track response
-        return sessionId;
       }
     )
   );
+    console.log('[ContextMerge] Successfully registered context:sendGroomingPrompt handler');
+  } catch (error) {
+    console.error('[ContextMerge] Failed to register context:sendGroomingPrompt handler:', error);
+  }
 
   // Cleanup grooming session
   ipcMain.handle(

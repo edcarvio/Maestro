@@ -12,7 +12,7 @@ import { tunnelManager } from './tunnel-manager';
 import { getThemeById } from './themes';
 import Store from 'electron-store';
 import { getHistoryManager } from './history-manager';
-import { registerGitHandlers, registerAutorunHandlers, registerPlaybooksHandlers, registerHistoryHandlers, registerAgentsHandlers, registerProcessHandlers, registerPersistenceHandlers, registerSystemHandlers, registerClaudeHandlers, registerAgentSessionsHandlers, registerGroupChatHandlers, registerDebugHandlers, registerSpeckitHandlers, setupLoggerEventForwarding, cleanupAllGroomingSessions, getActiveGroomingSessionCount } from './ipc/handlers';
+import { registerGitHandlers, registerAutorunHandlers, registerPlaybooksHandlers, registerHistoryHandlers, registerAgentsHandlers, registerProcessHandlers, registerPersistenceHandlers, registerSystemHandlers, registerClaudeHandlers, registerAgentSessionsHandlers, registerGroupChatHandlers, registerDebugHandlers, registerSpeckitHandlers, registerContextHandlers, setupLoggerEventForwarding, cleanupAllGroomingSessions, getActiveGroomingSessionCount } from './ipc/handlers';
 import { groupChatEmitters } from './ipc/handlers/groupChat';
 import { routeModeratorResponse, routeAgentResponse, setGetSessionsCallback, setGetCustomEnvVarsCallback, setGetAgentConfigCallback, markParticipantResponded, spawnModeratorSynthesis, getGroupChatReadOnlyState } from './group-chat/group-chat-router';
 import { updateParticipant, loadGroupChat, updateGroupChat } from './group-chat/group-chat-storage';
@@ -961,6 +961,13 @@ function setupIpcHandlers() {
 
   // Register Spec Kit handlers (no dependencies needed)
   registerSpeckitHandlers();
+
+  // Register Context Merge handlers for session context transfer and grooming
+  registerContextHandlers({
+    getMainWindow: () => mainWindow,
+    getProcessManager: () => processManager,
+    getAgentDetector: () => agentDetector,
+  });
 
   // Set up callback for group chat router to lookup sessions for auto-add @mentions
   setGetSessionsCallback(() => {

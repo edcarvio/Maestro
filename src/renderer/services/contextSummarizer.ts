@@ -125,7 +125,9 @@ export class ContextSummarizationService {
         message: 'Starting summarization session...',
       });
 
+      console.log('[ContextSummarizer] Creating summarization session for project:', request.projectRoot);
       const summarizationSessionId = await this.createSummarizationSession(request.projectRoot);
+      console.log('[ContextSummarizer] Session created:', summarizationSessionId);
 
       onProgress({
         stage: 'summarizing',
@@ -135,7 +137,9 @@ export class ContextSummarizationService {
 
       // Stage 3: Send summarization prompt and get response
       const prompt = this.buildSummarizationPrompt(formattedContext);
+      console.log('[ContextSummarizer] Sending prompt, length:', prompt.length);
       const summarizedText = await this.sendSummarizationPrompt(summarizationSessionId, prompt);
+      console.log('[ContextSummarizer] Received response, length:', summarizedText?.length || 0);
 
       onProgress({
         stage: 'summarizing',
@@ -305,10 +309,13 @@ Please provide a comprehensive but compacted summary of the above conversation, 
    */
   private async sendSummarizationPrompt(sessionId: string, prompt: string): Promise<string> {
     try {
+      console.log('[ContextSummarizer] Calling IPC sendGroomingPrompt for session:', sessionId);
       const response = await window.maestro.context.sendGroomingPrompt(sessionId, prompt);
+      console.log('[ContextSummarizer] IPC returned, response length:', response?.length || 0);
       return response || '';
-    } catch {
-      throw new Error('Context summarization IPC not available. IPC handlers must be configured.');
+    } catch (error) {
+      console.error('[ContextSummarizer] IPC error:', error);
+      throw new Error(`Context summarization failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

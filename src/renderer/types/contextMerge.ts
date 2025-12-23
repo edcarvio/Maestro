@@ -54,14 +54,20 @@ export interface MergeRequest {
 export interface MergeResult {
   /** Whether the merge completed successfully */
   success: boolean;
-  /** ID of the newly created Maestro session (on success) */
+  /** ID of the newly created Maestro session (on success with createNewSession) */
   newSessionId?: string;
-  /** ID of the active tab in the new session (on success) */
+  /** ID of the active tab in the new session (on success with createNewSession) */
   newTabId?: string;
   /** Error message if the merge failed */
   error?: string;
   /** Estimated tokens saved by grooming/deduplication */
   tokensSaved?: number;
+  /** Merged logs when merging into existing tab (createNewSession=false) */
+  mergedLogs?: LogEntry[];
+  /** Target session ID when merging into existing tab */
+  targetSessionId?: string;
+  /** Target tab ID when merging into existing tab */
+  targetTabId?: string;
 }
 
 /**

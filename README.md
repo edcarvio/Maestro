@@ -201,6 +201,8 @@ All these screenshots were captured in the them "Pedurple". For screenshots of o
 | New Agent | `Cmd+N` | `Ctrl+N` |
 | Kill Agent | `Cmd+Shift+Backspace` | `Ctrl+Shift+Backspace` |
 | Move Agent to Group | `Cmd+Shift+M` | `Ctrl+Shift+M` |
+| Merge Sessions | `Cmd+Shift+M` | `Ctrl+Shift+M` |
+| Send to Agent | `Cmd+Shift+A` | `Ctrl+Shift+A` |
 | Previous Agent | `Cmd+[` | `Ctrl+[` |
 | Next Agent | `Cmd+]` | `Ctrl+]` |
 | Jump to Agent (1-9, 0=10th) | `Opt+Cmd+NUMBER` | `Alt+Ctrl+NUMBER` |
@@ -617,6 +619,66 @@ Since Auto Runs can execute in parallel across multiple Maestro sessions, achiev
 But let's be real—getting to Level 11 is going to take some serious hacking. You'll need a well-orchestrated fleet of agents running around the clock, carefully crafted playbooks that loop indefinitely, and the infrastructure to keep it all humming. It's the ultimate test of your Maestro skills.
 
 The achievement panel shows your current rank, progress to the next level, and total accumulated time. Each rank includes flavor text and information about a legendary conductor who exemplifies that level of mastery.
+
+## Context Management
+
+Context management lets you combine or transfer conversation history between sessions and agents, enabling powerful workflows where you can:
+
+- **Merge sessions** — Combine context from multiple conversations into one
+- **Transfer to other agents** — Send your context to a different AI agent (e.g., Claude Code → Codex)
+
+### Merging Sessions
+
+Combine context from multiple sessions or tabs into one:
+
+1. **Right-click** a tab → **"Merge With..."**, or
+2. Press `Cmd+Shift+M` (Mac) / `Ctrl+Shift+M` (Windows/Linux)
+3. Search for or select the target session/tab
+4. Review the merge preview showing estimated token count
+5. Click **"Merge Contexts"**
+
+The merged context creates a new tab in the target session with conversation history from both sources. Use this to consolidate related conversations or bring context from an older session into a current one.
+
+**What gets merged:**
+- Full conversation history (user messages and AI responses)
+- Token estimates are shown before merge to help you stay within context limits
+
+**Tips:**
+- You can merge tabs within the same session or across different sessions
+- Large merges (100k+ tokens) will show a warning but still proceed
+- Self-merge (same tab to itself) is prevented
+
+### Sending to Another Agent
+
+Transfer your context to a different AI agent:
+
+1. **Right-click** a tab → **"Send to Agent..."**, or
+2. Press `Cmd+Shift+A` (Mac) / `Ctrl+Shift+A` (Windows/Linux)
+3. Select the target agent (only available/installed agents are shown)
+4. Optionally enable **context grooming** to optimize the context for the target agent
+5. A new session opens with the transferred context
+
+**Context Grooming:**
+When transferring between different agent types, the context can be automatically "groomed" to:
+- Remove agent-specific artifacts and formatting
+- Condense verbose output while preserving key information
+- Optimize for the target agent's capabilities
+
+Grooming is enabled by default but can be skipped for faster transfers.
+
+**Use Cases:**
+- Start a task in Claude Code, then hand off to Codex for a different perspective
+- Transfer a debugging session to an agent with different tool access
+- Move context to an agent pointing at a different project directory
+
+### Keyboard Shortcuts
+
+| Action | macOS | Windows/Linux |
+|--------|-------|---------------|
+| Merge Sessions | `Cmd+Shift+M` | `Ctrl+Shift+M` |
+| Send to Agent | `Cmd+Shift+A` | `Ctrl+Shift+A` |
+
+These shortcuts are also available in the Command Palette (`Cmd+K` / `Ctrl+K`) as "Merge with another session" and "Send to another agent".
 
 ## Command Line Interface
 

@@ -8549,6 +8549,31 @@ export default function MaestroConsole() {
             }));
           }
         }
+        tabShowThinking={activeGroupChatId ? false : (activeSession ? getActiveTab(activeSession)?.showThinking ?? false : false)}
+        onToggleTabShowThinking={activeGroupChatId ? undefined : () => {
+          if (!activeSession) return;
+          const activeTab = getActiveTab(activeSession);
+          if (!activeTab) return;
+          setSessions(prev => prev.map(s => {
+            if (s.id !== activeSession.id) return s;
+            return {
+              ...s,
+              aiTabs: s.aiTabs.map(tab => {
+                if (tab.id !== activeTab.id) return tab;
+                if (tab.showThinking) {
+                  // Turn off - clear thinking logs
+                  return {
+                    ...tab,
+                    showThinking: false,
+                    logs: tab.logs.filter(log => log.source !== 'thinking'),
+                  };
+                }
+                return { ...tab, showThinking: true };
+              })
+            };
+          }));
+        }}
+        supportsThinking={!activeGroupChatId && hasActiveSessionCapability('supportsThinkingDisplay')}
         enterToSend={enterToSendAI}
         onToggleEnterToSend={() => setEnterToSendAI(!enterToSendAI)}
       />

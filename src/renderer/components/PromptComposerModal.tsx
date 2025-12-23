@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, PenLine, Send, ImageIcon, History, Eye, Keyboard } from 'lucide-react';
+import { X, PenLine, Send, ImageIcon, History, Eye, Keyboard, Brain } from 'lucide-react';
 import type { Theme } from '../types';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
@@ -23,6 +23,9 @@ interface PromptComposerModalProps {
   onToggleTabSaveToHistory?: () => void;
   tabReadOnlyMode?: boolean;
   onToggleTabReadOnlyMode?: () => void;
+  tabShowThinking?: boolean;
+  onToggleTabShowThinking?: () => void;
+  supportsThinking?: boolean;
   enterToSend?: boolean;
   onToggleEnterToSend?: () => void;
 }
@@ -43,6 +46,9 @@ export function PromptComposerModal({
   onToggleTabSaveToHistory,
   tabReadOnlyMode = false,
   onToggleTabReadOnlyMode,
+  tabShowThinking = false,
+  onToggleTabShowThinking,
+  supportsThinking = false,
   enterToSend = false,
   onToggleEnterToSend
 }: PromptComposerModalProps) {
@@ -360,6 +366,25 @@ export function PromptComposerModal({
               >
                 <Eye className="w-3 h-3" />
                 <span>Read-only</span>
+              </button>
+            )}
+
+            {/* Show Thinking toggle - for agents that support it */}
+            {supportsThinking && onToggleTabShowThinking && (
+              <button
+                onClick={onToggleTabShowThinking}
+                className={`flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-full cursor-pointer transition-all ${
+                  tabShowThinking ? '' : 'opacity-40 hover:opacity-70'
+                }`}
+                style={{
+                  backgroundColor: tabShowThinking ? `${theme.colors.accentText}25` : 'transparent',
+                  color: tabShowThinking ? theme.colors.accentText : theme.colors.textDim,
+                  border: tabShowThinking ? `1px solid ${theme.colors.accentText}50` : '1px solid transparent'
+                }}
+                title="Show Thinking - Stream AI reasoning in real-time"
+              >
+                <Brain className="w-3 h-3" />
+                <span>Thinking</span>
               </button>
             )}
 

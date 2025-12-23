@@ -62,7 +62,7 @@ export interface FileArtifact {
 export interface LogEntry {
   id: string;
   timestamp: number;
-  source: 'stdout' | 'stderr' | 'system' | 'user' | 'ai' | 'error' | 'thinking';
+  source: 'stdout' | 'stderr' | 'system' | 'user' | 'ai' | 'error' | 'thinking' | 'tool';
   text: string;
   interactive?: boolean;
   options?: string[];
@@ -78,6 +78,14 @@ export interface LogEntry {
   readOnly?: boolean;
   // For error entries - stores the full AgentError for "View Details" functionality
   agentError?: AgentError;
+  // For tool execution entries - stores tool state and details
+  metadata?: {
+    toolState?: {
+      status?: 'running' | 'completed' | 'error';
+      input?: unknown;
+      output?: unknown;
+    };
+  };
 }
 
 // Queued item for the session-level execution queue

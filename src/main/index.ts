@@ -14,8 +14,9 @@ import Store from 'electron-store';
 import { getHistoryManager } from './history-manager';
 import { registerGitHandlers, registerAutorunHandlers, registerPlaybooksHandlers, registerHistoryHandlers, registerAgentsHandlers, registerProcessHandlers, registerPersistenceHandlers, registerSystemHandlers, registerClaudeHandlers, registerAgentSessionsHandlers, registerGroupChatHandlers, registerDebugHandlers, registerSpeckitHandlers, registerContextHandlers, setupLoggerEventForwarding, cleanupAllGroomingSessions, getActiveGroomingSessionCount } from './ipc/handlers';
 import { groupChatEmitters } from './ipc/handlers/groupChat';
-import { routeModeratorResponse, routeAgentResponse, setGetSessionsCallback, setGetCustomEnvVarsCallback, setGetAgentConfigCallback, markParticipantResponded, spawnModeratorSynthesis, getGroupChatReadOnlyState } from './group-chat/group-chat-router';
+import { routeModeratorResponse, routeAgentResponse, setGetSessionsCallback, setGetCustomEnvVarsCallback, setGetAgentConfigCallback, markParticipantResponded, spawnModeratorSynthesis, getGroupChatReadOnlyState, respawnParticipantWithRecovery } from './group-chat/group-chat-router';
 import { updateParticipant, loadGroupChat, updateGroupChat } from './group-chat/group-chat-storage';
+import { needsSessionRecovery, initiateSessionRecovery } from './group-chat/session-recovery';
 import { initializeSessionStorages } from './storage';
 import { initializeOutputParsers, getOutputParser } from './parsers';
 import { DEMO_MODE, DEMO_DATA_PATH } from './constants';
@@ -2150,11 +2151,55 @@ function setupProcessListeners() {
 
         if (bufferedOutput) {
           console.log(`[GroupChat:Debug] Raw buffered output preview: "${bufferedOutput.substring(0, 300)}${bufferedOutput.length > 300 ? '...' : ''}"`);
+
+          // Handle session recovery and normal processing in an async IIFE
           void (async () => {
+            // Check if this is a session_not_found error - if so, recover and retry
+            const chat = await loadGroupChat(groupChatId);
+            const agentType = chat?.participants.find(p => p.name === participantName)?.agentId;
+
+            if (needsSessionRecovery(bufferedOutput, agentType)) {
+              console.log(`[GroupChat:Debug] Session not found error detected for ${participantName} - initiating recovery`);
+              logger.info('[GroupChat] Session recovery needed', 'ProcessListener', { groupChatId, participantName });
+
+              // Clear the buffer first
+              groupChatOutputBuffers.delete(sessionId);
+
+              // Initiate recovery (clears agentSessionId)
+              await initiateSessionRecovery(groupChatId, participantName);
+
+              // Re-spawn the participant with recovery context
+              if (processManager && agentDetector) {
+                console.log(`[GroupChat:Debug] Re-spawning ${participantName} with recovery context...`);
+                try {
+                  await respawnParticipantWithRecovery(
+                    groupChatId,
+                    participantName,
+                    processManager,
+                    agentDetector
+                  );
+                  console.log(`[GroupChat:Debug] Successfully re-spawned ${participantName} for recovery`);
+                  // Don't mark as responded yet - the recovery spawn will complete and trigger this
+                } catch (respawnErr) {
+                  console.error(`[GroupChat:Debug] Failed to respawn ${participantName}:`, respawnErr);
+                  logger.error('[GroupChat] Failed to respawn participant for recovery', 'ProcessListener', {
+                    error: String(respawnErr),
+                    participant: participantName,
+                  });
+                  // Mark as responded since recovery failed
+                  markAndMaybeSynthesize();
+                }
+              } else {
+                console.log(`[GroupChat:Debug] Cannot respawn - processManager or agentDetector not available`);
+                markAndMaybeSynthesize();
+              }
+              console.log(`[GroupChat:Debug] ===============================================`);
+              return;
+            }
+
+            // Normal processing - parse and route the response
             try {
-              const chat = await loadGroupChat(groupChatId);
               console.log(`[GroupChat:Debug] Chat loaded for participant parsing: ${chat?.name || 'null'}`);
-              const agentType = chat?.participants.find(p => p.name === participantName)?.agentId;
               console.log(`[GroupChat:Debug] Agent type for parsing: ${agentType}`);
               const parsedText = extractTextFromStreamJson(bufferedOutput, agentType);
               console.log(`[GroupChat:Debug] Parsed text length: ${parsedText.length}`);

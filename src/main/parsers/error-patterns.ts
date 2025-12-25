@@ -195,6 +195,24 @@ export const CLAUDE_ERROR_PATTERNS: AgentErrorPatterns = {
       recoverable: true,
     },
   ],
+
+  session_not_found: [
+    {
+      pattern: /no conversation found with session id/i,
+      message: 'Session not found. The session may have been deleted.',
+      recoverable: true,
+    },
+    {
+      pattern: /session.*not found/i,
+      message: 'Session not found. Starting fresh conversation.',
+      recoverable: true,
+    },
+    {
+      pattern: /invalid.*session.*id/i,
+      message: 'Invalid session ID. Starting fresh conversation.',
+      recoverable: true,
+    },
+  ],
 };
 
 // ============================================================================
@@ -290,6 +308,19 @@ export const OPENCODE_ERROR_PATTERNS: AgentErrorPatterns = {
     {
       pattern: /\bpanic\b/i,
       message: 'The agent encountered a critical error.',
+      recoverable: true,
+    },
+  ],
+
+  session_not_found: [
+    {
+      pattern: /session.*not found/i,
+      message: 'Session not found. Starting fresh conversation.',
+      recoverable: true,
+    },
+    {
+      pattern: /invalid.*session/i,
+      message: 'Invalid session. Starting fresh conversation.',
       recoverable: true,
     },
   ],
@@ -431,6 +462,19 @@ export const CODEX_ERROR_PATTERNS: AgentErrorPatterns = {
       recoverable: true,
     },
   ],
+
+  session_not_found: [
+    {
+      pattern: /session.*not found/i,
+      message: 'Session not found. Starting fresh conversation.',
+      recoverable: true,
+    },
+    {
+      pattern: /invalid.*session/i,
+      message: 'Invalid session. Starting fresh conversation.',
+      recoverable: true,
+    },
+  ],
 };
 
 // ============================================================================
@@ -469,6 +513,7 @@ export function matchErrorPattern(
     'rate_limited',
     'network_error',
     'permission_denied',
+    'session_not_found',
     'agent_crashed',
   ];
 

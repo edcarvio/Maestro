@@ -251,7 +251,8 @@ function SessionContextMenu({
       {((hasWorktreeChildren || session.isGitRepo) && !session.parentSessionId && (onQuickCreateWorktree || onConfigureWorktrees)) && (
         <>
           <div className="my-1 border-t" style={{ borderColor: theme.colors.border }} />
-          {onQuickCreateWorktree && (
+          {/* Only show Create Worktree if worktrees have been configured */}
+          {onQuickCreateWorktree && session.worktreeConfig && (
             <button
               onClick={() => {
                 onQuickCreateWorktree();

@@ -130,13 +130,14 @@ export interface AgentConfig {
  * Used to determine appropriate recovery actions and UI display.
  */
 export type AgentErrorType =
-  | 'auth_expired'      // API key invalid, token expired, login required
-  | 'token_exhaustion'  // Context window full, max tokens reached
-  | 'rate_limited'      // Too many requests, quota exceeded
-  | 'network_error'     // Connection failed, timeout
-  | 'agent_crashed'     // Process exited unexpectedly
-  | 'permission_denied' // Agent lacks required permissions
-  | 'unknown';          // Unrecognized error
+  | 'auth_expired'        // API key invalid, token expired, login required
+  | 'token_exhaustion'    // Context window full, max tokens reached
+  | 'rate_limited'        // Too many requests, quota exceeded
+  | 'network_error'       // Connection failed, timeout
+  | 'agent_crashed'       // Process exited unexpectedly
+  | 'permission_denied'   // Agent lacks required permissions
+  | 'session_not_found'   // Session was deleted or doesn't exist
+  | 'unknown';            // Unrecognized error
 
 /**
  * Structured error information from an AI agent.

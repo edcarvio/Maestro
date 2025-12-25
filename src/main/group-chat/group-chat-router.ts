@@ -975,3 +975,137 @@ Review the agent responses above. Either:
     groupChatEmitters.emitStateChange?.(groupChatId, 'idle');
   }
 }
+
+/**
+ * Re-spawn a participant with session recovery context.
+ *
+ * This is called when a participant's session was not found (deleted out of band).
+ * It builds rich context including the agent's prior statements and re-spawns
+ * the participant to continue the conversation.
+ *
+ * @param groupChatId - The group chat ID
+ * @param participantName - The participant who needs recovery
+ * @param processManager - The process manager for spawning
+ * @param agentDetector - The agent detector for agent configuration
+ */
+export async function respawnParticipantWithRecovery(
+  groupChatId: string,
+  participantName: string,
+  processManager: IProcessManager,
+  agentDetector: AgentDetector
+): Promise<void> {
+  console.log(`[GroupChat:Debug] ========== RESPAWN WITH RECOVERY ==========`);
+  console.log(`[GroupChat:Debug] Group Chat: ${groupChatId}`);
+  console.log(`[GroupChat:Debug] Participant: ${participantName}`);
+
+  // Import buildRecoveryContext here to avoid circular dependencies
+  const { buildRecoveryContext } = await import('./session-recovery');
+
+  // Load the chat and find the participant
+  const chat = await loadGroupChat(groupChatId);
+  if (!chat) {
+    throw new Error(`Group chat not found: ${groupChatId}`);
+  }
+
+  const participant = chat.participants.find(p => p.name === participantName);
+  if (!participant) {
+    throw new Error(`Participant not found: ${participantName}`);
+  }
+
+  // Get the agent configuration
+  const agent = await agentDetector.getAgent(participant.agentId);
+  if (!agent || !agent.available) {
+    throw new Error(`Agent not available: ${participant.agentId}`);
+  }
+
+  // Build recovery context with the agent's prior statements
+  const recoveryContext = await buildRecoveryContext(groupChatId, participantName, 30);
+  console.log(`[GroupChat:Debug] Recovery context length: ${recoveryContext.length}`);
+
+  // Get the read-only state
+  const readOnly = getGroupChatReadOnlyState(groupChatId);
+
+  // Get chat history for additional context
+  const chatHistory = await readLog(chat.logPath);
+  const historyContext = chatHistory.slice(-15).map(m =>
+    `[${m.from}]: ${m.content.substring(0, 500)}${m.content.length > 500 ? '...' : ''}`
+  ).join('\n');
+
+  // Find matching session for cwd
+  const sessions = getSessionsCallback?.() || [];
+  const matchingSession = sessions.find(s =>
+    mentionMatches(s.name, participantName) || s.name === participantName
+  );
+  const cwd = matchingSession?.cwd || process.env.HOME || '/tmp';
+
+  // Build the prompt with recovery context
+  const readOnlyNote = readOnly
+    ? '\n\n**READ-ONLY MODE:** Do not make any file changes. Only analyze, review, or provide information.'
+    : '';
+  const readOnlyLabel = readOnly ? ' (READ-ONLY MODE)' : '';
+  const readOnlyInstruction = readOnly
+    ? ' Remember: READ-ONLY mode is active, do not modify any files.'
+    : ' If you need to perform any actions, do so and report your findings.';
+
+  const groupChatFolder = getGroupChatDir(groupChatId);
+
+  // Build the recovery prompt - includes standard prompt plus recovery context
+  const basePrompt = groupChatParticipantRequestPrompt
+    .replace(/\{\{PARTICIPANT_NAME\}\}/g, participantName)
+    .replace(/\{\{GROUP_CHAT_NAME\}\}/g, chat.name)
+    .replace(/\{\{READ_ONLY_NOTE\}\}/g, readOnlyNote)
+    .replace(/\{\{GROUP_CHAT_FOLDER\}\}/g, groupChatFolder)
+    .replace(/\{\{HISTORY_CONTEXT\}\}/g, historyContext)
+    .replace(/\{\{READ_ONLY_LABEL\}\}/g, readOnlyLabel)
+    .replace(/\{\{MESSAGE\}\}/g, 'Please continue from where you left off based on the recovery context below.')
+    .replace(/\{\{READ_ONLY_INSTRUCTION\}\}/g, readOnlyInstruction);
+
+  // Prepend recovery context
+  const fullPrompt = `${recoveryContext}\n\n${basePrompt}`;
+  console.log(`[GroupChat:Debug] Full recovery prompt length: ${fullPrompt.length}`);
+
+  // Create a unique session ID for this recovery spawn
+  const sessionId = `group-chat-${groupChatId}-participant-${participantName}-recovery-${Date.now()}`;
+  console.log(`[GroupChat:Debug] Recovery session ID: ${sessionId}`);
+
+  // Build args - note: no agentSessionId since we're starting fresh
+  const agentConfigValues = getAgentConfigCallback?.(participant.agentId) || {};
+  const baseArgs = buildAgentArgs(agent, {
+    baseArgs: [...agent.args],
+    prompt: fullPrompt,
+    cwd,
+    readOnlyMode: readOnly ?? false,
+    // No agentSessionId - we're starting fresh after session recovery
+  });
+
+  const configResolution = applyAgentConfigOverrides(agent, baseArgs, {
+    agentConfigValues,
+    sessionCustomModel: matchingSession?.customModel,
+    sessionCustomArgs: matchingSession?.customArgs,
+    sessionCustomEnvVars: matchingSession?.customEnvVars,
+  });
+
+  // Emit participant state change to show this participant is working
+  groupChatEmitters.emitParticipantState?.(groupChatId, participantName, 'working');
+
+  // Spawn the recovery process
+  const spawnCommand = agent.path || agent.command;
+  console.log(`[GroupChat:Debug] Recovery spawn command: ${spawnCommand}`);
+  console.log(`[GroupChat:Debug] Recovery spawn args count: ${configResolution.args.length}`);
+
+  const spawnResult = processManager.spawn({
+    sessionId,
+    toolType: participant.agentId,
+    cwd,
+    command: spawnCommand,
+    args: configResolution.args,
+    readOnlyMode: readOnly ?? false,
+    prompt: fullPrompt,
+    contextWindow: getContextWindowValue(agent, agentConfigValues),
+    customEnvVars: configResolution.effectiveCustomEnvVars ?? getCustomEnvVarsCallback?.(participant.agentId),
+    noPromptSeparator: agent.noPromptSeparator,
+  });
+
+  console.log(`[GroupChat:Debug] Recovery spawn result: ${JSON.stringify(spawnResult)}`);
+  console.log(`[GroupChat:Debug] =============================================`);
+}

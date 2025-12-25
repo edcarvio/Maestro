@@ -396,8 +396,10 @@ export function NewInstanceModal({ isOpen, onClose, onCreate, theme, existingSes
       // Pass sourceSession to loadAgents to handle pre-fill AFTER agents are loaded
       // This prevents the race condition where loadAgents would overwrite pre-filled values
       loadAgents(sourceSession);
-      // Keep all agents collapsed by default (unless duplicating - handled in loadAgents)
-      if (!sourceSession) {
+      // Keep all agents collapsed by default, or expand when duplicating to show custom config
+      if (sourceSession) {
+        setExpandedAgent(sourceSession.toolType);
+      } else {
         setExpandedAgent(null);
       }
       // Reset warning acknowledgment when modal opens

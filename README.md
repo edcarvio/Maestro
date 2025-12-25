@@ -713,10 +713,10 @@ The CLI is bundled with Maestro as a JavaScript file. Create a shell wrapper to 
 
 ```bash
 # macOS (after installing Maestro.app)
-echo '#!/bin/bash\nnode "/Applications/Maestro.app/Contents/Resources/maestro-cli.js" "$@"' | sudo tee /usr/local/bin/maestro-cli && sudo chmod +x /usr/local/bin/maestro-cli
+printf '#!/bin/bash\nnode "/Applications/Maestro.app/Contents/Resources/maestro-cli.js" "$@"\n' | sudo tee /usr/local/bin/maestro-cli && sudo chmod +x /usr/local/bin/maestro-cli
 
 # Linux (deb/rpm installs to /opt)
-echo '#!/bin/bash\nnode "/opt/Maestro/resources/maestro-cli.js" "$@"' | sudo tee /usr/local/bin/maestro-cli && sudo chmod +x /usr/local/bin/maestro-cli
+printf '#!/bin/bash\nnode "/opt/Maestro/resources/maestro-cli.js" "$@"\n' | sudo tee /usr/local/bin/maestro-cli && sudo chmod +x /usr/local/bin/maestro-cli
 
 # Windows (PowerShell as Administrator) - create a batch file
 @"

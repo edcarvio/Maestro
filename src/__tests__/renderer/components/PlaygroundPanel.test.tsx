@@ -416,7 +416,10 @@ describe('PlaygroundPanel', () => {
     it('displays badge level dropdown', () => {
       render(<PlaygroundPanel theme={mockTheme} themeMode="dark" onClose={mockOnClose} />);
 
-      expect(screen.getByRole('combobox')).toBeInTheDocument();
+      // Get the badge level dropdown within the Standing Ovation Test section
+      const standingOvationSection = screen.getByText('Standing Ovation Test').closest('div');
+      const select = standingOvationSection!.querySelector('select');
+      expect(select).toBeInTheDocument();
     });
 
     it('displays new record checkbox', () => {
@@ -436,9 +439,10 @@ describe('PlaygroundPanel', () => {
     it('standing ovation receives correct badge level', () => {
       render(<PlaygroundPanel theme={mockTheme} themeMode="dark" onClose={mockOnClose} />);
 
-      // Change to level 2
-      const select = screen.getByRole('combobox');
-      fireEvent.change(select, { target: { value: '2' } });
+      // Change to level 2 using the Standing Ovation Test section's dropdown
+      const standingOvationSection = screen.getByText('Standing Ovation Test').closest('div')?.parentElement;
+      const select = standingOvationSection!.querySelector('select');
+      fireEvent.change(select!, { target: { value: '2' } });
 
       fireEvent.click(screen.getByRole('button', { name: /Trigger Standing Ovation/ }));
 

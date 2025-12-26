@@ -94,6 +94,11 @@ interface QuickActionsModalProps {
   autoRunSelectedDocument?: string | null;
   autoRunCompletedTaskCount?: number;
   onAutoRunResetTasks?: () => void;
+  // Tab close operations
+  onCloseAllTabs?: () => void;
+  onCloseOtherTabs?: () => void;
+  onCloseTabsLeft?: () => void;
+  onCloseTabsRight?: () => void;
 }
 
 export function QuickActionsModal(props: QuickActionsModalProps) {
@@ -112,7 +117,8 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     groupChats, onNewGroupChat, onOpenGroupChat, onCloseGroupChat, onDeleteGroupChat, activeGroupChatId,
     hasActiveSessionCapability, onOpenMergeSession, onOpenSendToAgent, onOpenCreatePR,
     onSummarizeAndContinue, canSummarizeActiveTab,
-    autoRunSelectedDocument, autoRunCompletedTaskCount, onAutoRunResetTasks
+    autoRunSelectedDocument, autoRunCompletedTaskCount, onAutoRunResetTasks,
+    onCloseAllTabs, onCloseOtherTabs, onCloseTabsLeft, onCloseTabsRight
   } = props;
 
   const [search, setSearch] = useState('');
@@ -293,6 +299,17 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     ...(isAiMode && onToggleReadOnlyMode ? [{ id: 'toggleReadOnly', label: 'Toggle Read-Only Mode', shortcut: tabShortcuts?.toggleReadOnlyMode, action: () => { onToggleReadOnlyMode(); setQuickActionOpen(false); } }] : []),
     ...(isAiMode && onToggleTabShowThinking ? [{ id: 'toggleShowThinking', label: 'Toggle Show Thinking', shortcut: tabShortcuts?.toggleShowThinking, action: () => { onToggleTabShowThinking(); setQuickActionOpen(false); } }] : []),
     ...(isAiMode && onToggleMarkdownEditMode ? [{ id: 'toggleMarkdown', label: 'Toggle Edit/Preview', shortcut: shortcuts.toggleMarkdownMode, subtext: markdownEditMode ? 'Currently in edit mode' : 'Currently in preview mode', action: () => { onToggleMarkdownEditMode(); setQuickActionOpen(false); } }] : []),
+    // Tab close operations
+    ...(isAiMode && activeSession?.aiTabs && activeSession.aiTabs.length > 0 && onCloseAllTabs ? [{ id: 'closeAllTabs', label: 'Close All Tabs', shortcut: tabShortcuts?.closeAllTabs, subtext: `Close all ${activeSession.aiTabs.length} tabs (creates new tab)`, action: () => { onCloseAllTabs(); setQuickActionOpen(false); } }] : []),
+    ...(isAiMode && activeSession?.aiTabs && activeSession.aiTabs.length > 1 && onCloseOtherTabs ? [{ id: 'closeOtherTabs', label: 'Close Other Tabs', shortcut: tabShortcuts?.closeOtherTabs, subtext: `Keep only current tab, close ${activeSession.aiTabs.length - 1} others`, action: () => { onCloseOtherTabs(); setQuickActionOpen(false); } }] : []),
+    ...(isAiMode && activeSession && (() => {
+      const activeTabIndex = activeSession.aiTabs.findIndex(t => t.id === activeSession.activeTabId);
+      return activeTabIndex > 0;
+    })() && onCloseTabsLeft ? [{ id: 'closeTabsLeft', label: 'Close Tabs to Left', shortcut: tabShortcuts?.closeTabsLeft, action: () => { onCloseTabsLeft(); setQuickActionOpen(false); } }] : []),
+    ...(isAiMode && activeSession && (() => {
+      const activeTabIndex = activeSession.aiTabs.findIndex(t => t.id === activeSession.activeTabId);
+      return activeTabIndex < activeSession.aiTabs.length - 1;
+    })() && onCloseTabsRight ? [{ id: 'closeTabsRight', label: 'Close Tabs to Right', shortcut: tabShortcuts?.closeTabsRight, action: () => { onCloseTabsRight(); setQuickActionOpen(false); } }] : []),
     ...(activeSession ? [{ id: 'clearTerminal', label: 'Clear Terminal History', action: () => {
       setSessions(prev => prev.map(s =>
         s.id === activeSessionId ? { ...s, shellLogs: [] } : s

@@ -670,6 +670,16 @@ export function TabBar({
   // Can always close tabs - closing the last one creates a fresh new tab
   const canClose = true;
 
+  // Count unread tabs for the filter toggle tooltip
+  const unreadCount = tabs.filter(t => t.hasUnread).length;
+
+  // Filter tabs based on unread filter state
+  // When filter is on, show: unread tabs + active tab + tabs with drafts
+  // The active tab disappears from the filtered list when user navigates away from it
+  const displayedTabs = showUnreadOnly
+    ? tabs.filter(t => t.hasUnread || t.id === activeTabId || hasDraft(t))
+    : tabs;
+
   const handleDragStart = useCallback((tabId: string, e: React.DragEvent) => {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', tabId);

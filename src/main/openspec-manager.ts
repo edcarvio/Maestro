@@ -313,7 +313,7 @@ function parseAgentsMd(content: string): Record<string, string> {
 
   for (const [sectionId, markers] of Object.entries(SECTION_MARKERS)) {
     let inSection = false;
-    let sectionLines: string[] = [];
+    const sectionLines: string[] = [];
 
     for (const line of lines) {
       if (!inSection && markers.start.test(line)) {

@@ -436,6 +436,7 @@ export class AgentDetector {
         `${home}/.npm-global/bin`,     // npm global with custom prefix
         `${home}/bin`,                 // User bin directory
         `${home}/.claude/local`,       // Claude local install location
+        `${home}/.opencode/bin`,       // OpenCode installer default location
         '/usr/bin',
         '/bin',
         '/usr/sbin',
@@ -566,6 +567,8 @@ export class AgentDetector {
         path.join(home, '.npm-global', 'bin', 'codex'),
       ],
       opencode: [
+        // OpenCode installer default location
+        path.join(home, '.opencode', 'bin', 'opencode'),
         // Go install location
         path.join(home, 'go', 'bin', 'opencode'),
         // User local bin

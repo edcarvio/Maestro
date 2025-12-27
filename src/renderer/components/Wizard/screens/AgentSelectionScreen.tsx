@@ -716,11 +716,20 @@ export function AgentSelectionScreen({ theme }: AgentSelectionScreenProps): JSX.
               customPath={customPath}
               onCustomPathChange={setCustomPath}
               onCustomPathBlur={async () => {
-                // Wizard state is already updated via setCustomPath - just refresh detection
+                // Sync custom path to agent detector before refreshing detection
+                // This ensures the detector uses the custom path when checking availability
+                if (configuringAgentId) {
+                  const pathToSet = customPath.trim() || null;
+                  await window.maestro.agents.setCustomPath(configuringAgentId, pathToSet);
+                }
                 await refreshAgentDetection();
               }}
               onCustomPathClear={async () => {
                 setCustomPath('');
+                // Clear custom path in agent detector before refreshing
+                if (configuringAgentId) {
+                  await window.maestro.agents.setCustomPath(configuringAgentId, null);
+                }
                 await refreshAgentDetection();
               }}
               customArgs={customArgs}

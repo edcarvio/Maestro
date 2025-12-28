@@ -107,8 +107,9 @@ function compareVersions(a: string, b: string): number {
 
 /**
  * Fetch all releases from GitHub API
+ * @param includePrerelease - If true, include beta/rc/alpha releases. Default: false (stable only)
  */
-async function fetchReleases(): Promise<Release[]> {
+async function fetchReleases(includePrerelease: boolean = false): Promise<Release[]> {
   const response = await fetch(RELEASES_URL, {
     headers: {
       'Accept': 'application/vnd.github.v3+json',
@@ -122,10 +123,20 @@ async function fetchReleases(): Promise<Release[]> {
 
   const releases = (await response.json()) as Release[];
 
-  // Filter out drafts, prereleases, and tags with prerelease suffixes (-rc, -beta, -alpha)
+  // Filter out drafts (always excluded)
+  // Filter out prereleases and prerelease suffixes (-rc, -beta, -alpha) unless includePrerelease is true
   const prereleasePattern = /-(rc|beta|alpha|dev|canary)/i;
   return releases
-    .filter(r => !r.draft && !r.prerelease && !prereleasePattern.test(r.tag_name))
+    .filter(r => {
+      // Always filter out drafts
+      if (r.draft) return false;
+
+      // If including prereleases, allow all non-draft releases
+      if (includePrerelease) return true;
+
+      // Otherwise, filter out prereleases and releases with prerelease suffixes
+      return !r.prerelease && !prereleasePattern.test(r.tag_name);
+    })
     .sort((a, b) => compareVersions(b.tag_name, a.tag_name));
 }
 
@@ -153,12 +164,14 @@ function getNewerReleases(currentVersion: string, releases: Release[]): Release[
 
 /**
  * Check for updates
+ * @param currentVersion - The current app version
+ * @param includePrerelease - If true, include beta/rc/alpha releases. Default: false (stable only)
  */
-export async function checkForUpdates(currentVersion: string): Promise<UpdateCheckResult> {
+export async function checkForUpdates(currentVersion: string, includePrerelease: boolean = false): Promise<UpdateCheckResult> {
   const releasesUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`;
 
   try {
-    const allReleases = await fetchReleases();
+    const allReleases = await fetchReleases(includePrerelease);
 
     if (allReleases.length === 0) {
       return {

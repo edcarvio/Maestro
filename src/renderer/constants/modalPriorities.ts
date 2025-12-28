@@ -32,6 +32,9 @@ export const MODAL_PRIORITIES = {
   /** Confirmation dialogs - highest priority, always on top */
   CONFIRM: 1000,
 
+  /** Gist publish confirmation modal - high priority */
+  GIST_PUBLISH: 980,
+
   /** Playbook delete confirmation - high priority, appears on top of BatchRunner */
   PLAYBOOK_DELETE_CONFIRM: 950,
 

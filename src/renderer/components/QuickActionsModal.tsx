@@ -100,6 +100,10 @@ interface QuickActionsModalProps {
   onCloseOtherTabs?: () => void;
   onCloseTabsLeft?: () => void;
   onCloseTabsRight?: () => void;
+  // Gist publishing
+  isFilePreviewOpen?: boolean;
+  ghCliAvailable?: boolean;
+  onPublishGist?: () => void;
   // OpenSpec commands
   onInjectOpenSpecPrompt?: (prompt: string) => void;
 }
@@ -122,6 +126,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
     onSummarizeAndContinue, canSummarizeActiveTab,
     autoRunSelectedDocument, autoRunCompletedTaskCount, onAutoRunResetTasks,
     onCloseAllTabs, onCloseOtherTabs, onCloseTabsLeft, onCloseTabsRight,
+    isFilePreviewOpen, ghCliAvailable, onPublishGist,
     onInjectOpenSpecPrompt
   } = props;
 
@@ -400,6 +405,16 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
       }
     }] : []),
     ...(setFuzzyFileSearchOpen ? [{ id: 'fuzzyFileSearch', label: 'Fuzzy File Search', shortcut: shortcuts.fuzzyFileSearch, action: () => { setFuzzyFileSearchOpen(true); setQuickActionOpen(false); } }] : []),
+    // Publish document as GitHub Gist - only when file preview is open, gh CLI is available, and not in edit mode
+    ...(isFilePreviewOpen && ghCliAvailable && onPublishGist && !markdownEditMode ? [{
+      id: 'publishGist',
+      label: 'Publish Document as GitHub Gist',
+      subtext: 'Share current file as a public or secret gist',
+      action: () => {
+        onPublishGist();
+        setQuickActionOpen(false);
+      }
+    }] : []),
     // Group Chat commands - only show when at least 2 AI agents exist
     ...(onNewGroupChat && sessions.filter(s => s.toolType !== 'terminal').length >= 2 ? [{ id: 'newGroupChat', label: 'New Group Chat', action: () => { onNewGroupChat(); setQuickActionOpen(false); } }] : []),
     ...(activeGroupChatId && onCloseGroupChat ? [{ id: 'closeGroupChat', label: 'Close Group Chat', action: () => { onCloseGroupChat(); setQuickActionOpen(false); } }] : []),

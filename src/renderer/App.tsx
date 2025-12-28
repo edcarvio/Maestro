@@ -18,6 +18,7 @@ import { AppOverlays } from './components/AppOverlays';
 import { PlaygroundPanel } from './components/PlaygroundPanel';
 import { DebugWizardModal } from './components/DebugWizardModal';
 import { DebugPackageModal } from './components/DebugPackageModal';
+import { GistPublishModal } from './components/GistPublishModal';
 import { MaestroWizard, useWizard, WizardResumeModal, AUTO_RUN_FOLDER_NAME } from './components/Wizard';
 import { TourOverlay } from './components/Wizard/tour';
 import { CONDUCTOR_BADGES, getBadgeForTime } from './constants/conductorBadges';
@@ -36,6 +37,7 @@ import {
   useDebouncedPersistence,
   // Session management
   useActivityTracker,
+  useHandsOnTimeTracker,
   useNavigationHistory,
   useSessionNavigation,
   useSortedSessions,
@@ -272,11 +274,12 @@ function MaestroConsoleInner() {
     audioFeedbackCommand, setAudioFeedbackCommand,
     toastDuration, setToastDuration,
     checkForUpdatesOnStartup, setCheckForUpdatesOnStartup,
+    enableBetaUpdates, setEnableBetaUpdates,
     crashReportingEnabled, setCrashReportingEnabled,
     shortcuts, setShortcuts,
     tabShortcuts, setTabShortcuts,
     customAICommands, setCustomAICommands,
-    globalStats: _globalStats, updateGlobalStats,
+    globalStats, updateGlobalStats,
     autoRunStats, recordAutoRunComplete, updateAutoRunProgress, acknowledgeBadge, getUnacknowledgedBadgeLevel,
     usageStats, updateUsageStats,
     tourCompleted: _tourCompleted, setTourCompleted,
@@ -384,6 +387,10 @@ function MaestroConsoleInner() {
   const [flatFileList, setFlatFileList] = useState<any[]>([]);
   const [fileTreeFilter, setFileTreeFilter] = useState('');
   const [fileTreeFilterOpen, setFileTreeFilterOpen] = useState(false);
+
+  // GitHub CLI availability (for gist publishing)
+  const [ghCliAvailable, setGhCliAvailable] = useState(false);
+  const [gistPublishModalOpen, setGistPublishModalOpen] = useState(false);
 
   // Note: Git Diff State, Tour Overlay State, and Git Log Viewer State are now from ModalContext
 
@@ -745,17 +752,22 @@ function MaestroConsoleInner() {
   // Use a ref to prevent duplicate execution in React Strict Mode
   const sessionLoadStarted = useRef(false);
   useEffect(() => {
+    console.log('[App] Session load useEffect triggered');
     // Guard against duplicate execution in React Strict Mode
     if (sessionLoadStarted.current) {
+      console.log('[App] Session load already started, skipping');
       return;
     }
     sessionLoadStarted.current = true;
+    console.log('[App] Starting loadSessionsAndGroups');
 
     const loadSessionsAndGroups = async () => {
       let _hasSessionsLoaded = false;
 
       try {
+        console.log('[App] About to call sessions.getAll()');
         const savedSessions = await window.maestro.sessions.getAll();
+        console.log('[App] Got sessions:', savedSessions?.length ?? 0);
         const savedGroups = await window.maestro.groups.getAll();
 
         // Handle sessions
@@ -810,12 +822,23 @@ function MaestroConsoleInner() {
   // Hide splash screen only when both settings and sessions have fully loaded
   // This prevents theme flash on initial render
   useEffect(() => {
+    console.log('[App] Splash check - settingsLoaded:', settingsLoaded, 'sessionsLoaded:', sessionsLoaded);
     if (settingsLoaded && sessionsLoaded) {
+      console.log('[App] Both loaded, hiding splash');
       if (typeof window.__hideSplash === 'function') {
         window.__hideSplash();
       }
     }
   }, [settingsLoaded, sessionsLoaded]);
+
+  // Check GitHub CLI availability for gist publishing
+  useEffect(() => {
+    window.maestro.git.checkGhCli().then(status => {
+      setGhCliAvailable(status.installed && status.authenticated);
+    }).catch(() => {
+      setGhCliAvailable(false);
+    });
+  }, []);
 
   // Expose debug helpers to window for console access
   // No dependency array - always keep functions fresh
@@ -1084,13 +1107,20 @@ function MaestroConsoleInner() {
    
   }, [sessionsLoaded]); // Only run once when sessions are loaded
 
+  // Sync beta updates setting to electron-updater when it changes
+  useEffect(() => {
+    if (settingsLoaded) {
+      window.maestro.updates.setAllowPrerelease(enableBetaUpdates);
+    }
+  }, [settingsLoaded, enableBetaUpdates]);
+
   // Check for updates on startup if enabled
   useEffect(() => {
     if (settingsLoaded && checkForUpdatesOnStartup) {
       // Delay to let the app fully initialize
       const timer = setTimeout(async () => {
         try {
-          const result = await window.maestro.updates.check();
+          const result = await window.maestro.updates.check(enableBetaUpdates);
           if (result.updateAvailable && !result.error) {
             setUpdateCheckModalOpen(true);
           }
@@ -1100,7 +1130,7 @@ function MaestroConsoleInner() {
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [settingsLoaded, checkForUpdatesOnStartup]);
+  }, [settingsLoaded, checkForUpdatesOnStartup, enableBetaUpdates]);
 
   // Load spec-kit commands on startup
   useEffect(() => {
@@ -3967,8 +3997,12 @@ function MaestroConsoleInner() {
     onHistoryCommand: handleHistoryCommand,
   });
 
-  // Initialize activity tracker for time tracking
+  // Initialize activity tracker for per-session time tracking
   useActivityTracker(activeSessionId, setSessions);
+
+  // Initialize global hands-on time tracker (persists to settings)
+  // Tracks total time user spends actively using Maestro (5-minute idle timeout)
+  useHandsOnTimeTracker(updateGlobalStats);
 
   // Track elapsed time for active auto-runs and update achievement stats every minute
   // This allows badges to be unlocked during an auto-run, not just when it completes
@@ -7892,7 +7926,10 @@ function MaestroConsoleInner() {
     summarizeAndContinue: handleSummarizeAndContinue,
 
     // Keyboard mastery gamification
-    recordShortcutUsage, onKeyboardMasteryLevelUp
+    recordShortcutUsage, onKeyboardMasteryLevelUp,
+
+    // Edit agent modal
+    setEditAgentSession, setEditAgentModalOpen
 
   };
 
@@ -8179,6 +8216,7 @@ function MaestroConsoleInner() {
         onCloseAboutModal={handleCloseAboutModal}
         autoRunStats={autoRunStats}
         usageStats={usageStats}
+        handsOnTimeMs={globalStats.totalActiveTimeMs}
         onOpenLeaderboardRegistration={handleOpenLeaderboardRegistrationFromAbout}
         isLeaderboardRegistered={isLeaderboardRegistered}
         updateCheckModalOpen={updateCheckModalOpen}
@@ -8305,6 +8343,9 @@ function MaestroConsoleInner() {
         autoRunSelectedDocument={activeSession?.autoRunSelectedFile ?? null}
         autoRunCompletedTaskCount={rightPanelRef.current?.getAutoRunCompletedTaskCount() ?? 0}
         onAutoRunResetTasks={handleQuickActionsAutoRunResetTasks}
+        isFilePreviewOpen={previewFile !== null}
+        ghCliAvailable={ghCliAvailable}
+        onPublishGist={() => setGistPublishModalOpen(true)}
         onInjectOpenSpecPrompt={handleInjectOpenSpecPrompt}
         lightboxImage={lightboxImage}
         lightboxImages={lightboxImages}
@@ -8445,6 +8486,29 @@ function MaestroConsoleInner() {
         isOpen={debugWizardModalOpen}
         onClose={() => setDebugWizardModalOpen(false)}
       />
+
+      {/* --- GIST PUBLISH MODAL --- */}
+      {gistPublishModalOpen && previewFile && (
+        <GistPublishModal
+          theme={theme}
+          filename={previewFile.name}
+          content={previewFile.content}
+          onClose={() => setGistPublishModalOpen(false)}
+          onSuccess={(gistUrl, isPublic) => {
+            // Copy the gist URL to clipboard
+            navigator.clipboard.writeText(gistUrl);
+            // Show a toast notification
+            addToast({
+              type: 'success',
+              title: 'Gist Published',
+              message: `${isPublic ? 'Public' : 'Secret'} gist created! URL copied to clipboard.`,
+              duration: 5000,
+              actionUrl: gistUrl,
+              actionLabel: 'Open Gist',
+            });
+          }}
+        />
+      )}
 
       {/* NOTE: All modals are now rendered via the unified <AppModals /> component above */}
 
@@ -9262,6 +9326,8 @@ function MaestroConsoleInner() {
             onKeyboardMasteryLevelUp(result.newLevel);
           }
         }}
+        ghCliAvailable={ghCliAvailable}
+        onPublishGist={() => setGistPublishModalOpen(true)}
       />
       )}
 
@@ -9431,6 +9497,8 @@ function MaestroConsoleInner() {
         setToastDuration={setToastDuration}
         checkForUpdatesOnStartup={checkForUpdatesOnStartup}
         setCheckForUpdatesOnStartup={setCheckForUpdatesOnStartup}
+        enableBetaUpdates={enableBetaUpdates}
+        setEnableBetaUpdates={setEnableBetaUpdates}
         crashReportingEnabled={crashReportingEnabled}
         setCrashReportingEnabled={setCrashReportingEnabled}
         customAICommands={customAICommands}

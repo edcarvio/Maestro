@@ -5,6 +5,7 @@ import { HistoryDetailModal } from './HistoryDetailModal';
 import { HistoryHelpModal } from './HistoryHelpModal';
 import { useThrottledCallback, useListNavigation } from '../hooks';
 import { formatElapsedTime } from '../utils/formatters';
+import { stripMarkdown } from '../utils/textProcessing';
 
 // Double checkmark SVG component for validated entries
 const DoubleCheck = ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
@@ -1014,7 +1015,7 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
                   </span>
                 </div>
 
-                {/* Summary - 3 lines max */}
+                {/* Summary - 3 lines max, strip markdown for list view */}
                 <p
                   className="text-xs leading-relaxed overflow-hidden"
                   style={{
@@ -1024,7 +1025,7 @@ export const HistoryPanel = React.memo(forwardRef<HistoryPanelHandle, HistoryPan
                     WebkitBoxOrient: 'vertical' as const
                   }}
                 >
-                  {entry.summary || 'No summary available'}
+                  {entry.summary ? stripMarkdown(entry.summary) : 'No summary available'}
                 </p>
 
                 {/* Footer Row - Time, Cost, and Achievement Action */}

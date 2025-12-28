@@ -216,6 +216,14 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
       }
       else if (ctx.isShortcut(e, 'help')) { ctx.setShortcutsHelpOpen(true); trackShortcut('help'); }
       else if (ctx.isShortcut(e, 'settings')) { ctx.setSettingsModalOpen(true); ctx.setSettingsTab('general'); trackShortcut('settings'); }
+      else if (ctx.isShortcut(e, 'agentSettings')) {
+        // Open agent settings for the current session
+        if (ctx.activeSession) {
+          ctx.setEditAgentSession(ctx.activeSession);
+          ctx.setEditAgentModalOpen(true);
+          trackShortcut('agentSettings');
+        }
+      }
       else if (ctx.isShortcut(e, 'goToFiles')) {
         e.preventDefault();
         ctx.setRightPanelOpen(true);

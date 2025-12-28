@@ -1512,7 +1512,8 @@ describe('TabBar', () => {
       expect(inactiveTab.style.backgroundColor).not.toBe('rgba(255, 255, 255, 0.08)');
     });
 
-    it('sets tab title attribute', () => {
+    it('does not set title attribute on tabs (removed for cleaner UX)', () => {
+      // Tab title tooltips were intentionally removed to streamline the tab interaction feel
       const tabs = [createTab({
         id: 'tab-1',
         name: 'My Tab',
@@ -1531,51 +1532,7 @@ describe('TabBar', () => {
       );
 
       const tab = screen.getByText('My Tab').closest('[data-tab-id]')!;
-      expect(tab).toHaveAttribute('title', 'My Tab');
-    });
-
-    it('uses agentSessionId for title when no name', () => {
-      const tabs = [createTab({
-        id: 'tab-1',
-        name: '',
-        agentSessionId: 'session-123-abc'
-      })];
-
-      render(
-        <TabBar
-          tabs={tabs}
-          activeTabId="tab-1"
-          theme={mockTheme}
-          onTabSelect={mockOnTabSelect}
-          onTabClose={mockOnTabClose}
-          onNewTab={mockOnNewTab}
-        />
-      );
-
-      const tab = screen.getByText('SESSION').closest('[data-tab-id]')!;
-      expect(tab).toHaveAttribute('title', 'session-123-abc');
-    });
-
-    it('uses "New tab" for title when no name or agentSessionId', () => {
-      const tabs = [createTab({
-        id: 'tab-1',
-        name: '',
-        agentSessionId: undefined
-      })];
-
-      render(
-        <TabBar
-          tabs={tabs}
-          activeTabId="tab-1"
-          theme={mockTheme}
-          onTabSelect={mockOnTabSelect}
-          onTabClose={mockOnTabClose}
-          onNewTab={mockOnNewTab}
-        />
-      );
-
-      const tab = screen.getByText('New Session').closest('[data-tab-id]')!;
-      expect(tab).toHaveAttribute('title', 'New tab');
+      expect(tab).not.toHaveAttribute('title');
     });
   });
 

@@ -118,9 +118,10 @@ export interface AppInfoModalsProps {
   // About Modal
   aboutModalOpen: boolean;
   onCloseAboutModal: () => void;
-  sessions: Session[];
   autoRunStats: AutoRunStats;
   usageStats?: MaestroUsageStats | null;
+  /** Global hands-on time in milliseconds (from settings) */
+  handsOnTimeMs: number;
   onOpenLeaderboardRegistration: () => void;
   isLeaderboardRegistered: boolean;
   leaderboardRegistration?: LeaderboardRegistration | null;
@@ -132,6 +133,7 @@ export interface AppInfoModalsProps {
   // Process Monitor
   processMonitorOpen: boolean;
   onCloseProcessMonitor: () => void;
+  sessions: Session[];  // Used by ProcessMonitor
   groups: Group[];
   groupChats: GroupChat[];
   onNavigateToSession: (sessionId: string, tabId?: string) => void;
@@ -162,9 +164,9 @@ export function AppInfoModals({
   // About Modal
   aboutModalOpen,
   onCloseAboutModal,
-  sessions,
   autoRunStats,
   usageStats,
+  handsOnTimeMs,
   onOpenLeaderboardRegistration,
   isLeaderboardRegistered,
   leaderboardRegistration,
@@ -174,6 +176,7 @@ export function AppInfoModals({
   // Process Monitor
   processMonitorOpen,
   onCloseProcessMonitor,
+  sessions,
   groups,
   groupChats,
   onNavigateToSession,
@@ -197,9 +200,9 @@ export function AppInfoModals({
       {aboutModalOpen && (
         <AboutModal
           theme={theme}
-          sessions={sessions}
           autoRunStats={autoRunStats}
           usageStats={usageStats}
+          handsOnTimeMs={handsOnTimeMs}
           onClose={onCloseAboutModal}
           onOpenLeaderboardRegistration={onOpenLeaderboardRegistration}
           isLeaderboardRegistered={isLeaderboardRegistered}
@@ -749,6 +752,11 @@ export interface AppUtilityModalsProps {
   // OpenSpec commands
   onInjectOpenSpecPrompt?: (prompt: string) => void;
 
+  // Gist publishing (for QuickActionsModal)
+  isFilePreviewOpen: boolean;
+  ghCliAvailable: boolean;
+  onPublishGist?: () => void;
+
   // LightboxModal
   lightboxImage: string | null;
   lightboxImages: string[];
@@ -910,6 +918,11 @@ export function AppUtilityModals({
   autoRunSelectedDocument,
   autoRunCompletedTaskCount,
   onAutoRunResetTasks,
+  // Gist publishing
+  isFilePreviewOpen,
+  ghCliAvailable,
+  onPublishGist,
+  // OpenSpec commands
   onInjectOpenSpecPrompt,
   // LightboxModal
   lightboxImage,
@@ -1049,6 +1062,9 @@ export function AppUtilityModals({
           autoRunSelectedDocument={autoRunSelectedDocument}
           autoRunCompletedTaskCount={autoRunCompletedTaskCount}
           onAutoRunResetTasks={onAutoRunResetTasks}
+          isFilePreviewOpen={isFilePreviewOpen}
+          ghCliAvailable={ghCliAvailable}
+          onPublishGist={onPublishGist}
           onInjectOpenSpecPrompt={onInjectOpenSpecPrompt}
         />
       )}
@@ -1573,6 +1589,8 @@ export interface AppModalsProps {
   onCloseAboutModal: () => void;
   autoRunStats: AutoRunStats;
   usageStats?: MaestroUsageStats | null;
+  /** Global hands-on time in milliseconds (from settings) */
+  handsOnTimeMs: number;
   onOpenLeaderboardRegistration: () => void;
   isLeaderboardRegistered: boolean;
   // leaderboardRegistration is provided via AppAgentModals props below
@@ -1723,6 +1741,11 @@ export interface AppModalsProps {
   autoRunSelectedDocument: string | null;
   autoRunCompletedTaskCount: number;
   onAutoRunResetTasks: () => void;
+  // Gist publishing
+  isFilePreviewOpen: boolean;
+  ghCliAvailable: boolean;
+  onPublishGist?: () => void;
+  // OpenSpec commands
   onInjectOpenSpecPrompt?: (prompt: string) => void;
   lightboxImage: string | null;
   lightboxImages: string[];
@@ -1859,6 +1882,7 @@ export function AppModals(props: AppModalsProps) {
     onCloseAboutModal,
     autoRunStats,
     usageStats,
+    handsOnTimeMs,
     onOpenLeaderboardRegistration,
     isLeaderboardRegistered,
     // leaderboardRegistration is destructured below in Agent modals section
@@ -1986,6 +2010,11 @@ export function AppModals(props: AppModalsProps) {
     autoRunSelectedDocument,
     autoRunCompletedTaskCount,
     onAutoRunResetTasks,
+    // Gist publishing
+    isFilePreviewOpen,
+    ghCliAvailable,
+    onPublishGist,
+    // OpenSpec commands
     onInjectOpenSpecPrompt,
     lightboxImage,
     lightboxImages,
@@ -2098,9 +2127,9 @@ export function AppModals(props: AppModalsProps) {
         keyboardMasteryStats={keyboardMasteryStats}
         aboutModalOpen={aboutModalOpen}
         onCloseAboutModal={onCloseAboutModal}
-        sessions={sessions}
         autoRunStats={autoRunStats}
         usageStats={usageStats}
+        handsOnTimeMs={handsOnTimeMs}
         onOpenLeaderboardRegistration={onOpenLeaderboardRegistration}
         isLeaderboardRegistered={isLeaderboardRegistered}
         leaderboardRegistration={leaderboardRegistration}
@@ -2108,6 +2137,7 @@ export function AppModals(props: AppModalsProps) {
         onCloseUpdateCheckModal={onCloseUpdateCheckModal}
         processMonitorOpen={processMonitorOpen}
         onCloseProcessMonitor={onCloseProcessMonitor}
+        sessions={sessions}
         groups={groups}
         groupChats={groupChats}
         onNavigateToSession={onNavigateToSession}
@@ -2267,6 +2297,9 @@ export function AppModals(props: AppModalsProps) {
         autoRunSelectedDocument={autoRunSelectedDocument}
         autoRunCompletedTaskCount={autoRunCompletedTaskCount}
         onAutoRunResetTasks={onAutoRunResetTasks}
+        isFilePreviewOpen={isFilePreviewOpen}
+        ghCliAvailable={ghCliAvailable}
+        onPublishGist={onPublishGist}
         onInjectOpenSpecPrompt={onInjectOpenSpecPrompt}
         lightboxImage={lightboxImage}
         lightboxImages={lightboxImages}

@@ -233,6 +233,7 @@ describe('ToastContext', () => {
         taskDuration: 5000,
         agentSessionId: 'test-session-id',
         tabName: 'TestTab',
+        audioNotification: { enabled: false },
       });
     });
 

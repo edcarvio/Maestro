@@ -10,6 +10,8 @@ import { logger } from './utils/logger';
 // Don't auto-download - we want user to initiate
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
+// Default to stable releases only (will be updated from settings)
+autoUpdater.allowPrerelease = false;
 
 export interface UpdateStatus {
   status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
@@ -143,4 +145,13 @@ export async function checkForUpdatesManual(): Promise<UpdateInfo | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Configure whether to include prerelease/beta versions in updates
+ * This should be called when the user setting changes
+ */
+export function setAllowPrerelease(allow: boolean): void {
+  autoUpdater.allowPrerelease = allow;
+  logger.info(`Auto-updater prerelease mode: ${allow ? 'enabled' : 'disabled'}`, 'AutoUpdater');
 }

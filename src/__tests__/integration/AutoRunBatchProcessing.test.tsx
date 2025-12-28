@@ -576,6 +576,45 @@ describe('AutoRun + Batch Processing Integration', () => {
       const runButton = screen.getByTitle(/Cannot run while agent is thinking/i);
       expect(runButton).toBeDisabled();
     });
+
+    it('shows Stop button even when viewing an unlocked document while Auto Run is active', () => {
+      // This tests the key behavior: you can only run one Auto Run per session at a time.
+      // Even if viewing a document NOT in the batch, the Stop button should show.
+      const batchRunState = createBatchRunState({
+        isRunning: true,
+        lockedDocuments: ['Phase 1'], // Only Phase 1 is locked
+      });
+      // Viewing Phase 2 (not in lockedDocuments), but batch run is active
+      const props = createDefaultProps({
+        batchRunState,
+        selectedFile: 'Phase 2',
+        documentList: ['Phase 1', 'Phase 2'],
+      });
+      renderWithProvider(<AutoRun {...props} />);
+
+      // Should still show Stop button (not Run) because Auto Run is active for session
+      expect(screen.getByRole('button', { name: /stop/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^run$/i })).not.toBeInTheDocument();
+    });
+
+    it('prevents starting another Auto Run while one is already active', () => {
+      // When Auto Run is active, user should not be able to start another one
+      const batchRunState = createBatchRunState({ isRunning: true });
+      const onOpenBatchRunner = vi.fn();
+      const props = createDefaultProps({ batchRunState, onOpenBatchRunner });
+      renderWithProvider(<AutoRun {...props} />);
+
+      // Run button should not be visible at all (replaced by Stop button)
+      expect(screen.queryByRole('button', { name: /^run$/i })).not.toBeInTheDocument();
+
+      // Stop button should be visible instead
+      const stopButton = screen.getByRole('button', { name: /stop/i });
+      expect(stopButton).toBeInTheDocument();
+
+      // Clicking Stop should NOT open batch runner
+      fireEvent.click(stopButton);
+      expect(onOpenBatchRunner).not.toHaveBeenCalled();
+    });
   });
 
   describe('Image Upload Disabled During Batch Run', () => {

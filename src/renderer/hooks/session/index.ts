@@ -29,6 +29,9 @@ export type {
 export { useBatchedSessionUpdates, DEFAULT_BATCH_FLUSH_INTERVAL } from './useBatchedSessionUpdates';
 export type { UseBatchedSessionUpdatesReturn, BatchedUpdater } from './useBatchedSessionUpdates';
 
-// Activity time tracking
+// Activity time tracking (per-session)
 export { useActivityTracker } from './useActivityTracker';
 export type { UseActivityTrackerReturn } from './useActivityTracker';
+
+// Global hands-on time tracking (persists to settings)
+export { useHandsOnTimeTracker } from './useHandsOnTimeTracker';

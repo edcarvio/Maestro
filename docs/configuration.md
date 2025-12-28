@@ -32,6 +32,34 @@ When an update is available, you'll see:
 - **Download** button to get the latest release from GitHub
 - Option to enable/disable automatic update checks
 
+### Pre-release Channel (Beta Opt-in)
+
+By default, Maestro only notifies you about stable releases. If you want to try new features before they're officially released, you can opt into the pre-release channel.
+
+**To enable beta updates:**
+1. Open **Settings** (`Cmd+,` / `Ctrl+,`) → **General** tab
+2. Toggle **Include beta and release candidate updates** on
+
+**What changes:**
+- Update checks will include pre-release versions (e.g., `v0.11.1-rc`, `v0.12.0-beta`)
+- You'll receive notifications for beta, release candidate (rc), and alpha releases
+- The Update dialog will show all available pre-release versions
+
+**Pre-release version types:**
+| Suffix | Description |
+|--------|-------------|
+| `-alpha` | Early development, may be unstable |
+| `-beta` | Feature-complete but still testing |
+| `-rc` | Release candidate, nearly ready for stable |
+| `-dev` | Development builds |
+| `-canary` | Cutting-edge nightly builds |
+
+**Reverting to stable:** Toggle the setting off and download the latest stable release from GitHub. Pre-releases won't auto-downgrade to stable versions.
+
+<Warning>
+Pre-release versions may contain experimental features and bugs. Use at your own risk. If you encounter issues, you can always download the latest stable release from [GitHub Releases](https://github.com/pedramamini/maestro/releases).
+</Warning>
+
 ## Notifications & Sound
 
 Configure audio and visual notifications in **Settings** (`Cmd+,` / `Ctrl+,`) → **Notifications** tab.

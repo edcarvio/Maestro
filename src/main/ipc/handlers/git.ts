@@ -891,5 +891,46 @@ export function registerGitHandlers(): void {
     }
   ));
 
+  // Create a GitHub Gist from file content
+  // Returns the gist URL on success
+  ipcMain.handle('git:createGist', withIpcErrorLogging(
+    handlerOpts('createGist'),
+    async (filename: string, content: string, description: string, isPublic: boolean, ghPath?: string) => {
+      // Resolve gh CLI path (uses cached detection or custom path)
+      const ghCommand = await resolveGhPath(ghPath);
+      logger.debug(`Using gh CLI for gist creation at: ${ghCommand}`, LOG_CONTEXT);
+
+      // Create gist using gh CLI with stdin for content
+      // gh gist create --filename <name> --desc <desc> [--public] -
+      const args = ['gist', 'create', '--filename', filename];
+      if (description) {
+        args.push('--desc', description);
+      }
+      if (isPublic) {
+        args.push('--public');
+      }
+      args.push('-'); // Read from stdin
+
+      const gistResult = await execFileNoThrow(ghCommand, args, undefined, { input: content });
+
+      if (gistResult.exitCode !== 0) {
+        // Check if gh CLI is not installed
+        if (gistResult.stderr.includes('command not found') || gistResult.stderr.includes('not recognized')) {
+          return { success: false, error: 'GitHub CLI (gh) is not installed. Please install it to create gists.' };
+        }
+        // Check for authentication issues
+        if (gistResult.stderr.includes('not logged') || gistResult.stderr.includes('authentication')) {
+          return { success: false, error: 'GitHub CLI is not authenticated. Please run "gh auth login" first.' };
+        }
+        return { success: false, error: gistResult.stderr || 'Failed to create gist' };
+      }
+
+      // The gist URL is typically in stdout
+      const gistUrl = gistResult.stdout.trim();
+      logger.info(`${LOG_CONTEXT} Created gist: ${gistUrl}`);
+      return { success: true, gistUrl };
+    }
+  ));
+
   logger.debug(`${LOG_CONTEXT} Git IPC handlers registered`);
 }

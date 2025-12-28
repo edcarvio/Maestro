@@ -359,6 +359,7 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
     batchRunState?.lockedDocuments?.includes(selectedFile)
   ) || false;
   const isAgentBusy = sessionState === 'busy' || sessionState === 'connecting';
+  const isAutoRunActive = batchRunState?.isRunning || false;
   const isStopping = batchRunState?.isStopping || false;
   // Error state (Phase 5.10)
   const isErrorPaused = batchRunState?.errorPaused || false;
@@ -1325,7 +1326,7 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
           className="hidden"
         />
         {/* Run / Stop button */}
-        {isLocked ? (
+        {isAutoRunActive ? (
           <button
             onClick={() => !isStopping && onStopBatchRun?.(sessionId)}
             disabled={isStopping}

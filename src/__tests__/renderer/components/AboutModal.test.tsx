@@ -362,7 +362,7 @@ describe('AboutModal', () => {
   });
 
   describe('External links', () => {
-    it('should open GitHub profile on click', async () => {
+    it('should open GitHub repo on project GitHub click', async () => {
       render(
         <AboutModal
           theme={theme}
@@ -372,11 +372,11 @@ describe('AboutModal', () => {
         />
       );
 
-      // The component renders "GitHub" twice - first one is the author profile link
+      // The component renders "GitHub" twice - first one is the project repo link (in Action Links section)
       const githubLinks = screen.getAllByText('GitHub');
       fireEvent.click(githubLinks[0]);
 
-      expect(window.maestro.shell.openExternal).toHaveBeenCalledWith('https://github.com/pedramamini');
+      expect(window.maestro.shell.openExternal).toHaveBeenCalledWith('https://github.com/pedramamini/Maestro');
     });
 
     it('should open LinkedIn profile on click', async () => {
@@ -396,7 +396,7 @@ describe('AboutModal', () => {
       expect(window.maestro.shell.openExternal).toHaveBeenCalledWith('https://www.linkedin.com/in/pedramamini/');
     });
 
-    it('should open GitHub repo on project GitHub click', async () => {
+    it('should open GitHub profile on click', async () => {
       render(
         <AboutModal
           theme={theme}
@@ -406,11 +406,11 @@ describe('AboutModal', () => {
         />
       );
 
-      // The component renders "GitHub" twice - second one is the project repo link
+      // The component renders "GitHub" twice - second one is the author profile link (in Creator Section)
       const githubLinks = screen.getAllByText('GitHub');
       fireEvent.click(githubLinks[1]);
 
-      expect(window.maestro.shell.openExternal).toHaveBeenCalledWith('https://github.com/pedramamini/Maestro');
+      expect(window.maestro.shell.openExternal).toHaveBeenCalledWith('https://github.com/pedramamini');
     });
 
     it('should open San Jac Saloon on Texas flag click', async () => {

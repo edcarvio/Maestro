@@ -283,6 +283,11 @@ interface MaestroAPI {
     tags: (cwd: string) => Promise<{ tags: string[] }>;
     commitCount: (cwd: string) => Promise<{ count: number; error: string | null }>;
     checkGhCli: (ghPath?: string) => Promise<{ installed: boolean; authenticated: boolean }>;
+    createGist: (filename: string, content: string, description: string, isPublic: boolean, ghPath?: string) => Promise<{
+      success: boolean;
+      gistUrl?: string;
+      error?: string;
+    }>;
     // Git worktree operations for Auto Run parallelization
     worktreeInfo: (worktreePath: string) => Promise<{
       success: boolean;
@@ -840,7 +845,7 @@ interface MaestroAPI {
   };
   // Updates API
   updates: {
-    check: () => Promise<{
+    check: (includePrerelease?: boolean) => Promise<{
       currentVersion: string;
       latestVersion: string;
       updateAvailable: boolean;
@@ -870,6 +875,7 @@ interface MaestroAPI {
       progress?: { percent: number; bytesPerSecond: number; total: number; transferred: number };
       error?: string;
     }) => void) => () => void;
+    setAllowPrerelease: (allow: boolean) => Promise<void>;
   };
   // Debug Package API
   debug: {

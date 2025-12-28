@@ -26,6 +26,7 @@ The command palette is your gateway to nearly every action in Maestro. Press `Cm
 | Switch AI/Command Terminal | `Cmd+J` | `Ctrl+J` |
 | Show Shortcuts Help | `Cmd+/` | `Ctrl+/` |
 | Open Settings | `Cmd+,` | `Ctrl+,` |
+| Open Agent Settings | `Opt+Cmd+,` | `Alt+Ctrl+,` |
 | View All Agent Sessions | `Cmd+Shift+L` | `Ctrl+Shift+L` |
 | Jump to Bottom | `Cmd+Shift+J` | `Ctrl+Shift+J` |
 | Cycle Focus Areas | `Tab` | `Tab` |

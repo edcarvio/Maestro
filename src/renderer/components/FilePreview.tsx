@@ -5,7 +5,7 @@ import rehypeRaw from 'rehype-raw';
 import rehypeSlug from 'rehype-slug';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { FileCode, X, Eye, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Clipboard, Loader2, Image, Globe, Save, Edit, FolderOpen, AlertTriangle } from 'lucide-react';
+import { FileCode, X, Eye, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Clipboard, Loader2, Image, Globe, Save, Edit, FolderOpen, AlertTriangle, Share2 } from 'lucide-react';
 import { visit } from 'unist-util-visit';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
@@ -59,6 +59,10 @@ interface FilePreviewProps {
   onOpenFuzzySearch?: () => void;
   /** Callback to track shortcut usage for keyboard mastery */
   onShortcutUsed?: (shortcutId: string) => void;
+  /** Whether GitHub CLI is available for gist publishing */
+  ghCliAvailable?: boolean;
+  /** Callback to open gist publish modal */
+  onPublishGist?: () => void;
 }
 
 // Get language from filename extension
@@ -392,7 +396,7 @@ function remarkHighlight() {
   };
 }
 
-export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdownEditMode, onSave, shortcuts, fileTree, cwd, onFileClick, canGoBack, canGoForward, onNavigateBack, onNavigateForward, backHistory, forwardHistory, onNavigateToIndex, currentHistoryIndex, onOpenFuzzySearch, onShortcutUsed }: FilePreviewProps) {
+export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdownEditMode, onSave, shortcuts, fileTree, cwd, onFileClick, canGoBack, canGoForward, onNavigateBack, onNavigateForward, backHistory, forwardHistory, onNavigateToIndex, currentHistoryIndex, onOpenFuzzySearch, onShortcutUsed, ghCliAvailable, onPublishGist }: FilePreviewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [showCopyNotification, setShowCopyNotification] = useState(false);
@@ -752,9 +756,9 @@ export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdow
         }
       }
 
-      // Update match count
+      // Update match count - only reset index if it's truly out of bounds and not already 0
       setTotalMatches(allRanges.length);
-      if (allRanges.length > 0 && currentMatchIndex >= allRanges.length) {
+      if (allRanges.length > 0 && currentMatchIndex >= allRanges.length && currentMatchIndex !== 0) {
         setCurrentMatchIndex(0);
       }
 
@@ -1157,6 +1161,17 @@ export function FilePreview({ file, onClose, theme, markdownEditMode, setMarkdow
             >
               <Clipboard className="w-4 h-4" />
             </button>
+            {/* Publish as Gist button - only show if gh CLI is available and not in edit mode */}
+            {ghCliAvailable && !markdownEditMode && onPublishGist && !isImage && (
+              <button
+                onClick={onPublishGist}
+                className="p-2 rounded hover:bg-white/10 transition-colors"
+                style={{ color: theme.colors.textDim }}
+                title="Publish as GitHub Gist"
+              >
+                <Share2 className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={copyPathToClipboard}
               className="p-2 rounded hover:bg-white/10 transition-colors"

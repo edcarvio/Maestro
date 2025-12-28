@@ -1,3 +1,5 @@
+// IMPORTANT: wdyr must be imported BEFORE React
+import './wdyr';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import MaestroConsole from './App';

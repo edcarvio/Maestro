@@ -190,6 +190,8 @@ export interface UseSettingsReturn {
   // Update settings
   checkForUpdatesOnStartup: boolean;
   setCheckForUpdatesOnStartup: (value: boolean) => void;
+  enableBetaUpdates: boolean;
+  setEnableBetaUpdates: (value: boolean) => void;
 
   // Crash reporting settings
   crashReportingEnabled: boolean;
@@ -331,6 +333,7 @@ export function useSettings(): UseSettingsReturn {
 
   // Update Config
   const [checkForUpdatesOnStartup, setCheckForUpdatesOnStartupState] = useState(true); // Default: on
+  const [enableBetaUpdates, setEnableBetaUpdatesState] = useState(false); // Default: off (stable only)
 
   // Crash Reporting Config
   const [crashReportingEnabled, setCrashReportingEnabledState] = useState(true); // Default: on (opt-out)
@@ -544,6 +547,11 @@ export function useSettings(): UseSettingsReturn {
   const setCheckForUpdatesOnStartup = useCallback((value: boolean) => {
     setCheckForUpdatesOnStartupState(value);
     window.maestro.settings.set('checkForUpdatesOnStartup', value);
+  }, []);
+
+  const setEnableBetaUpdates = useCallback((value: boolean) => {
+    setEnableBetaUpdatesState(value);
+    window.maestro.settings.set('enableBetaUpdates', value);
   }, []);
 
   const setCrashReportingEnabled = useCallback((value: boolean) => {
@@ -1056,8 +1064,12 @@ export function useSettings(): UseSettingsReturn {
 
   // Load settings from electron-store on mount
   useEffect(() => {
+    console.log('[Settings] useEffect triggered, about to call loadSettings');
     const loadSettings = async () => {
+      console.log('[Settings] loadSettings started');
+      try {
       const savedEnterToSendAI = await window.maestro.settings.get('enterToSendAI');
+      console.log('[Settings] Got first setting');
       const savedEnterToSendTerminal = await window.maestro.settings.get('enterToSendTerminal');
       const savedDefaultSaveToHistory = await window.maestro.settings.get('defaultSaveToHistory');
       const savedDefaultShowThinking = await window.maestro.settings.get('defaultShowThinking');
@@ -1090,6 +1102,7 @@ export function useSettings(): UseSettingsReturn {
       const savedAudioFeedbackCommand = await window.maestro.settings.get('audioFeedbackCommand');
       const savedToastDuration = await window.maestro.settings.get('toastDuration');
       const savedCheckForUpdatesOnStartup = await window.maestro.settings.get('checkForUpdatesOnStartup');
+      const savedEnableBetaUpdates = await window.maestro.settings.get('enableBetaUpdates');
       const savedCrashReportingEnabled = await window.maestro.settings.get('crashReportingEnabled');
       const savedLogViewerSelectedLevels = await window.maestro.settings.get('logViewerSelectedLevels');
       const savedCustomAICommands = await window.maestro.settings.get('customAICommands');
@@ -1138,6 +1151,7 @@ export function useSettings(): UseSettingsReturn {
       if (savedAudioFeedbackCommand !== undefined) setAudioFeedbackCommandState(savedAudioFeedbackCommand as string);
       if (savedToastDuration !== undefined) setToastDurationState(savedToastDuration as number);
       if (savedCheckForUpdatesOnStartup !== undefined) setCheckForUpdatesOnStartupState(savedCheckForUpdatesOnStartup as boolean);
+      if (savedEnableBetaUpdates !== undefined) setEnableBetaUpdatesState(savedEnableBetaUpdates as boolean);
       if (savedCrashReportingEnabled !== undefined) setCrashReportingEnabledState(savedCrashReportingEnabled as boolean);
       if (savedLogViewerSelectedLevels !== undefined) setLogViewerSelectedLevelsState(savedLogViewerSelectedLevels as string[]);
 
@@ -1324,8 +1338,12 @@ export function useSettings(): UseSettingsReturn {
         setKeyboardMasteryStatsState({ ...DEFAULT_KEYBOARD_MASTERY_STATS, ...(savedKeyboardMasteryStats as Partial<KeyboardMasteryStats>) });
       }
 
-      // Mark settings as loaded
-      setSettingsLoaded(true);
+      } catch (error) {
+        console.error('[Settings] Failed to load settings:', error);
+      } finally {
+        // Mark settings as loaded even if there was an error (use defaults)
+        setSettingsLoaded(true);
+      }
     };
     loadSettings();
   }, []);
@@ -1401,6 +1419,8 @@ export function useSettings(): UseSettingsReturn {
     setToastDuration,
     checkForUpdatesOnStartup,
     setCheckForUpdatesOnStartup,
+    enableBetaUpdates,
+    setEnableBetaUpdates,
     crashReportingEnabled,
     setCrashReportingEnabled,
     logViewerSelectedLevels,
@@ -1487,6 +1507,7 @@ export function useSettings(): UseSettingsReturn {
     audioFeedbackCommand,
     toastDuration,
     checkForUpdatesOnStartup,
+    enableBetaUpdates,
     crashReportingEnabled,
     logViewerSelectedLevels,
     shortcuts,
@@ -1530,6 +1551,7 @@ export function useSettings(): UseSettingsReturn {
     setAudioFeedbackCommand,
     setToastDuration,
     setCheckForUpdatesOnStartup,
+    setEnableBetaUpdates,
     setCrashReportingEnabled,
     setLogViewerSelectedLevels,
     setShortcuts,

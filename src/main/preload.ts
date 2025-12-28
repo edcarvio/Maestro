@@ -411,6 +411,13 @@ contextBridge.exposeInMainWorld('maestro', {
         installed: boolean;
         authenticated: boolean;
       }>,
+    // Create a GitHub Gist from file content
+    createGist: (filename: string, content: string, description: string, isPublic: boolean, ghPath?: string) =>
+      ipcRenderer.invoke('git:createGist', filename, content, description, isPublic, ghPath) as Promise<{
+        success: boolean;
+        gistUrl?: string;
+        error?: string;
+      }>,
     // List all worktrees for a git repository
     listWorktrees: (cwd: string) =>
       ipcRenderer.invoke('git:listWorktrees', cwd) as Promise<{
@@ -585,7 +592,7 @@ contextBridge.exposeInMainWorld('maestro', {
 
   // Updates API
   updates: {
-    check: () => ipcRenderer.invoke('updates:check') as Promise<{
+    check: (includePrerelease?: boolean) => ipcRenderer.invoke('updates:check', includePrerelease) as Promise<{
       currentVersion: string;
       latestVersion: string;
       updateAvailable: boolean;
@@ -620,6 +627,8 @@ contextBridge.exposeInMainWorld('maestro', {
       ipcRenderer.on('updates:status', handler);
       return () => ipcRenderer.removeListener('updates:status', handler);
     },
+    // Set whether to allow prerelease updates (for electron-updater)
+    setAllowPrerelease: (allow: boolean) => ipcRenderer.invoke('updates:setAllowPrerelease', allow) as Promise<void>,
   },
 
   // Logger API
@@ -1528,6 +1537,11 @@ export interface MaestroAPI {
     checkGhCli: (ghPath?: string) => Promise<{
       installed: boolean;
       authenticated: boolean;
+    }>;
+    createGist: (filename: string, content: string, description: string, isPublic: boolean, ghPath?: string) => Promise<{
+      success: boolean;
+      gistUrl?: string;
+      error?: string;
     }>;
     listWorktrees: (cwd: string) => Promise<{
       worktrees: Array<{

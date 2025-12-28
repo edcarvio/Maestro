@@ -48,6 +48,35 @@ When you open a file, a **breadcrumb trail** appears showing your navigation his
 
 Files can be edited directly in the preview. Changes are saved automatically when you navigate away or close the preview.
 
+### Publish as GitHub Gist
+
+Share files directly as GitHub Gists from the File Preview:
+
+**Prerequisites:**
+- [GitHub CLI](https://cli.github.com/) (`gh`) must be installed
+- You must be authenticated (`gh auth login`)
+
+**To publish a file:**
+1. Open a file in File Preview
+2. Click the **Share icon** (↗) in the header toolbar, or
+3. Use `Cmd+K` / `Ctrl+K` → "Publish Document as GitHub Gist"
+
+**Visibility options:**
+| Option | Description |
+|--------|-------------|
+| **Publish Secret** (default) | Creates an unlisted gist — not searchable, only accessible via direct link |
+| **Publish Public** | Creates a public gist — visible on your profile and searchable |
+
+The confirmation modal focuses "Publish Secret" by default, so you can press `Enter` to quickly publish. Press `Esc` to cancel.
+
+**After publishing:**
+- The gist URL is automatically copied to your clipboard
+- A toast notification appears with a link to open the gist in your browser
+
+<Note>
+The share button only appears when viewing files (not in edit mode) and when GitHub CLI is available and authenticated.
+</Note>
+
 ### @ File Mentions
 
 Reference files in your AI prompts using `@` mentions:

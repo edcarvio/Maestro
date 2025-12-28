@@ -219,6 +219,10 @@ interface MainPanelProps {
 
   // Keyboard mastery tracking
   onShortcutUsed?: (shortcutId: string) => void;
+
+  // Gist publishing
+  ghCliAvailable?: boolean;
+  onPublishGist?: () => void;
 }
 
 // PERFORMANCE: Wrap with React.memo to prevent re-renders when parent (App.tsx) re-renders
@@ -1009,6 +1013,8 @@ export const MainPanel = React.memo(forwardRef<MainPanelHandle, MainPanelProps>(
                 onNavigateToIndex={props.onNavigateToIndex}
                 onOpenFuzzySearch={props.onOpenFuzzySearch}
                 onShortcutUsed={props.onShortcutUsed}
+                ghCliAvailable={props.ghCliAvailable}
+                onPublishGist={props.onPublishGist}
               />
             </div>
           ) : (

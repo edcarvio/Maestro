@@ -1,8 +1,12 @@
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 
 const execFileAsync = promisify(execFile);
+
+export interface ExecOptions {
+  input?: string;  // Content to write to stdin
+}
 
 // Maximum buffer size for command output (10MB)
 const EXEC_MAX_BUFFER = 10 * 1024 * 1024;
@@ -43,13 +47,37 @@ function needsWindowsShell(command: string): boolean {
  *
  * On Windows, batch files and commands without extensions are handled
  * by enabling shell mode, since execFile cannot directly execute them.
+ *
+ * @param command - The command to execute
+ * @param args - Arguments to pass to the command
+ * @param cwd - Working directory for the command
+ * @param options - Additional options (input for stdin, env for environment)
  */
 export async function execFileNoThrow(
   command: string,
   args: string[] = [],
   cwd?: string,
-  env?: NodeJS.ProcessEnv
+  options?: ExecOptions | NodeJS.ProcessEnv
 ): Promise<ExecResult> {
+  // Handle backward compatibility: options can be env (old signature) or ExecOptions (new)
+  let env: NodeJS.ProcessEnv | undefined;
+  let input: string | undefined;
+
+  if (options) {
+    if ('input' in options) {
+      // New signature with ExecOptions
+      input = options.input;
+    } else {
+      // Old signature with just env
+      env = options as NodeJS.ProcessEnv;
+    }
+  }
+
+  // If input is provided, use spawn instead of execFile to write to stdin
+  if (input !== undefined) {
+    return execFileWithInput(command, args, cwd, input);
+  }
+
   try {
     // On Windows, some commands need shell execution
     // This is safe because we're executing a specific file path, not user input
@@ -77,4 +105,59 @@ export async function execFileNoThrow(
       exitCode: error.code || 1,
     };
   }
+}
+
+/**
+ * Execute a command with input written to stdin
+ * Uses spawn to allow writing to the process stdin
+ */
+async function execFileWithInput(
+  command: string,
+  args: string[],
+  cwd: string | undefined,
+  input: string
+): Promise<ExecResult> {
+  return new Promise((resolve) => {
+    const isWindows = process.platform === 'win32';
+    const useShell = isWindows && needsWindowsShell(command);
+
+    const child = spawn(command, args, {
+      cwd,
+      shell: useShell,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout?.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('close', (code) => {
+      resolve({
+        stdout,
+        stderr,
+        exitCode: code ?? 1,
+      });
+    });
+
+    child.on('error', (err) => {
+      resolve({
+        stdout: '',
+        stderr: err.message,
+        exitCode: 1,
+      });
+    });
+
+    // Write input to stdin and close it
+    if (child.stdin) {
+      child.stdin.write(input);
+      child.stdin.end();
+    }
+  });
 }

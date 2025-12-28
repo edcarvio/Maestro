@@ -1356,7 +1356,7 @@ function SessionListInner(props: SessionListProps) {
                   title={isLiveMode ? "Web interface active - Click to show URL" : "Click to enable web interface"}
                 >
                   <Radio className={`w-3 h-3 ${isLiveMode ? 'animate-pulse' : ''}`} />
-                  {leftSidebarWidthState >= (isLiveMode ? 280 : 310) && (isLiveMode ? 'LIVE' : 'OFFLINE')}
+                  {leftSidebarWidthState >= (autoRunStats && autoRunStats.currentBadgeLevel > 0 ? 295 : 256) && (isLiveMode ? 'LIVE' : 'OFFLINE')}
                 </button>
 
                 {/* LIVE Overlay with URL and QR Code - Single QR with pill selector */}

@@ -31,6 +31,7 @@ See [Performance Guidelines](#performance-guidelines) for specific practices.
 - [Commit Messages](#commit-messages)
 - [Pull Request Process](#pull-request-process)
 - [Building for Release](#building-for-release)
+- [Documentation](#documentation)
 
 ## Development Setup
 
@@ -83,6 +84,11 @@ maestro/
 │   │   └── templateVariables.ts # Template variable system
 │   └── web/               # Web interface (Remote Control)
 │       └── ...            # Mobile-optimized React app
+├── docs/                  # Mintlify documentation (hosted at docs.runmaestro.ai)
+│   ├── docs.json          # Mintlify configuration and navigation
+│   ├── screenshots/       # All documentation screenshots
+│   ├── assets/            # Logos, icons, and static assets
+│   └── *.md               # Documentation pages
 ├── build/                 # Application icons
 ├── .github/workflows/     # CI/CD automation
 └── dist/                  # Build output (generated)
@@ -91,7 +97,8 @@ maestro/
 ## Development Scripts
 
 ```bash
-npm run dev            # Start dev server with hot reload
+npm run dev            # Start dev server with hot reload (isolated data directory)
+npm run dev:prod-data  # Start dev server using production data (requires closing production app)
 npm run dev:demo       # Start in demo mode (fresh settings, isolated data)
 npm run dev:web        # Start web interface dev server
 npm run build          # Full production build (main + renderer + web + CLI)
@@ -107,6 +114,21 @@ npm run package:mac    # Package for macOS
 npm run package:win    # Package for Windows
 npm run package:linux  # Package for Linux
 ```
+
+### Development Data Directories
+
+By default, `npm run dev` uses an isolated data directory (`~/Library/Application Support/maestro-dev/`) separate from production. This allows you to run both dev and production instances simultaneously—useful when using the production Maestro to work on the dev instance.
+
+| Command | Data Directory | Can Run Alongside Production? |
+|---------|---------------|-------------------------------|
+| `npm run dev` | `maestro-dev/` | ✅ Yes |
+| `npm run dev:prod-data` | `maestro/` (production) | ❌ No - close production first |
+| `npm run dev:demo` | `/tmp/maestro-demo/` | ✅ Yes |
+
+**When to use each:**
+- **`npm run dev`** — Default for most development. Start fresh or use dev-specific test data.
+- **`npm run dev:prod-data`** — Test with your real sessions and settings. Must close production app first to avoid database lock conflicts.
+- **`npm run dev:demo`** — Screenshots, demos, or testing with completely fresh state.
 
 ### Demo Mode
 
@@ -644,12 +666,52 @@ Example: `feat: add context usage visualization`
 
 ## Pull Request Process
 
+### Before Opening a PR
+
+All PRs must pass these checks before review:
+
+1. **Linting passes** — Run both TypeScript and ESLint checks:
+   ```bash
+   npm run lint           # TypeScript type checking
+   npm run lint:eslint    # ESLint code quality
+   ```
+
+2. **Tests pass** — Run the full test suite:
+   ```bash
+   npm test
+   ```
+
+3. **Manual testing** — Test affected features in the running app:
+   ```bash
+   npm run dev
+   ```
+
+   Verify that:
+   - Your feature works as expected
+   - Related features still work (keyboard shortcuts, focus flow, themes)
+   - No console errors in DevTools (`Cmd+Option+I`)
+   - UI renders correctly across different themes (try at least one dark and one light)
+
+### PR Checklist
+
+- [ ] Linting passes (`npm run lint && npm run lint:eslint`)
+- [ ] Tests pass (`npm test`)
+- [ ] Manually tested affected features
+- [ ] No new console warnings or errors
+- [ ] Documentation updated if needed (code comments, README, or `docs/`)
+- [ ] Commit messages follow [conventional format](#commit-messages)
+
+### Opening the PR
+
 1. Create a feature branch from `main`
 2. Make your changes following the code style
-3. Test thoroughly (keyboard navigation, themes, focus)
-4. Update documentation if needed
-5. Submit PR with clear description
-6. Wait for review
+3. Complete the checklist above
+4. Push and open a PR with a clear description:
+   - What the change does
+   - Why it's needed
+   - How to test it
+   - Screenshots for UI changes
+5. Wait for review — maintainers may request changes
 
 ## Building for Release
 
@@ -710,6 +772,162 @@ git push origin v0.1.0
 ```
 
 GitHub Actions will build for all platforms and create a release.
+
+## Documentation
+
+User documentation is hosted on [Mintlify](https://mintlify.com) at **[docs.runmaestro.ai](https://docs.runmaestro.ai)**. The source files live in the `docs/` directory.
+
+### Documentation Structure
+
+```
+docs/
+├── docs.json              # Mintlify configuration (navigation, theme, links)
+├── index.md               # Homepage
+├── screenshots/           # All documentation screenshots (PNG format)
+├── assets/                # Logos, icons, favicons
+├── about/                 # Overview and background pages
+│   └── overview.md
+└── *.md                   # Feature and reference pages
+```
+
+### Page Organization
+
+Pages are organized by topic in `docs.json` under `navigation.dropdowns`:
+
+| Group | Pages | Purpose |
+|-------|-------|---------|
+| **Overview** | index, about/overview, features, screenshots | Introduction and feature highlights |
+| **Getting Started** | installation, getting-started | Onboarding new users |
+| **Usage** | general-usage, history, context-management, autorun-playbooks, git-worktrees, group-chat, remote-access, slash-commands, speckit-commands, configuration | Feature documentation |
+| **CLI & Providers** | cli, provider-nuances | Command line and agent-specific docs |
+| **Reference** | achievements, keyboard-shortcuts, troubleshooting | Quick reference guides |
+
+### Adding a New Documentation Page
+
+1. **Create the markdown file** in `docs/`:
+   ```markdown
+   ---
+   title: My Feature
+   description: A brief description for SEO and navigation.
+   icon: star
+   ---
+
+   Content goes here...
+   ```
+
+2. **Add to navigation** in `docs/docs.json`:
+   ```json
+   {
+     "group": "Usage",
+     "pages": [
+       "existing-page",
+       "my-feature"
+     ]
+   }
+   ```
+
+3. **Reference from other pages** using relative links:
+   ```markdown
+   See [My Feature](./my-feature) for details.
+   ```
+
+### Frontmatter Fields
+
+Every documentation page needs YAML frontmatter:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `title` | Yes | Page title (appears in navigation and browser tab) |
+| `description` | Yes | Brief description for SEO and page previews |
+| `icon` | No | [Mintlify icon](https://mintlify.com/docs/content/components/icons) for navigation |
+
+### Screenshots
+
+All screenshots are stored in `docs/screenshots/` and referenced with relative paths.
+
+**Adding a new screenshot:**
+
+1. **Capture the screenshot** using Maestro's demo mode for clean, consistent visuals:
+   ```bash
+   rm -rf /tmp/maestro-demo && npm run dev:demo
+   ```
+
+2. **Save as PNG** in `docs/screenshots/` with a descriptive kebab-case name:
+   ```
+   docs/screenshots/my-feature-overview.png
+   docs/screenshots/my-feature-settings.png
+   ```
+
+3. **Reference in markdown** using relative paths:
+   ```markdown
+   ![My Feature](./screenshots/my-feature-overview.png)
+   ```
+
+**Screenshot guidelines:**
+- Use **PNG format** for UI screenshots (better quality for text)
+- Capture at **standard resolution** (avoid Retina 2x for smaller file sizes, or use 2x for crisp details)
+- Use a **consistent theme** (Pedurple is used in most existing screenshots)
+- **Crop to relevant area** — don't include unnecessary whitespace or system UI
+- Keep file sizes reasonable (compress if over 1MB)
+
+### Assets
+
+Static assets like logos and icons live in `docs/assets/`:
+
+| File | Usage |
+|------|-------|
+| `icon.png` | Main logo (used in light and dark mode) |
+| `icon.ico` | Favicon |
+| `made-with-maestro.svg` | Badge for README |
+| `maestro-app-icon.png` | High-res app icon |
+
+Reference assets with `/assets/` paths in `docs.json` configuration.
+
+### Mintlify Features
+
+Documentation supports Mintlify components:
+
+```markdown
+<Note>
+This is an informational note.
+</Note>
+
+<Warning>
+This is a warning message.
+</Warning>
+
+<Tip>
+This is a helpful tip.
+</Tip>
+```
+
+**Embed videos:**
+```markdown
+<iframe width="560" height="315"
+  src="https://www.youtube.com/embed/VIDEO_ID"
+  title="Video Title"
+  frameborder="0"
+  allowfullscreen>
+</iframe>
+```
+
+**Tables, code blocks, and standard markdown** all work as expected.
+
+### Local Preview
+
+Mintlify provides a CLI for local preview. Install and run:
+
+```bash
+npm i -g mintlify
+cd docs
+mintlify dev
+```
+
+This starts a local server at `http://localhost:3000` with hot reload.
+
+### Deployment
+
+Documentation is automatically deployed when changes to `docs/` are pushed to `main`. Mintlify handles the build and hosting.
 
 ## Questions?
 

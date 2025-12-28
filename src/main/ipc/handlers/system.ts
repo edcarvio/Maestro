@@ -24,6 +24,7 @@ import { detectShells } from '../../utils/shellDetector';
 import { isCloudflaredInstalled } from '../../utils/cliDetection';
 import { tunnelManager as tunnelManagerInstance } from '../../tunnel-manager';
 import { checkForUpdates } from '../../update-checker';
+import { setAllowPrerelease } from '../../auto-updater';
 import { WebServer } from '../../web-server';
 
 // Type for tunnel manager instance
@@ -221,9 +222,14 @@ export function registerSystemHandlers(deps: SystemHandlerDependencies): void {
 
   // ============ Update Check Handler ============
 
-  ipcMain.handle('updates:check', async () => {
+  ipcMain.handle('updates:check', async (_event, includePrerelease: boolean = false) => {
     const currentVersion = app.getVersion();
-    return checkForUpdates(currentVersion);
+    return checkForUpdates(currentVersion, includePrerelease);
+  });
+
+  // Set whether to allow prerelease updates (for electron-updater)
+  ipcMain.handle('updates:setAllowPrerelease', async (_event, allow: boolean) => {
+    setAllowPrerelease(allow);
   });
 
   // ============ Logger Handlers ============
@@ -248,6 +254,10 @@ export function registerSystemHandlers(deps: SystemHandlerDependencies): void {
         break;
       case 'autorun':
         logger.autorun(message, context, data);
+        break;
+      default:
+        // Log unknown levels as info to prevent silent failures
+        logger.info(`[${level}] ${message}`, context, data);
         break;
     }
   });

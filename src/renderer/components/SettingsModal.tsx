@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, memo } from 'react';
-import { X, Key, Moon, Sun, Keyboard, Check, Terminal, Bell, Cpu, Settings, Palette, Sparkles, History, Download, Bug, Cloud, FolderSync, RotateCcw, Folder, ChevronDown, Plus, Trash2, Brain, AlertTriangle } from 'lucide-react';
+import { X, Key, Moon, Sun, Keyboard, Check, Terminal, Bell, Cpu, Settings, Palette, Sparkles, History, Download, Bug, Cloud, FolderSync, RotateCcw, Folder, ChevronDown, Plus, Trash2, Brain, AlertTriangle, FlaskConical } from 'lucide-react';
 import { useSettings } from '../hooks';
 import type { Theme, ThemeColors, ThemeId, Shortcut, ShellInfo, CustomAICommand, LLMProvider } from '../types';
 import { CustomThemeBuilder } from './CustomThemeBuilder';
@@ -213,6 +213,8 @@ interface SettingsModalProps {
   setToastDuration: (value: number) => void;
   checkForUpdatesOnStartup: boolean;
   setCheckForUpdatesOnStartup: (value: boolean) => void;
+  enableBetaUpdates: boolean;
+  setEnableBetaUpdates: (value: boolean) => void;
   crashReportingEnabled: boolean;
   setCrashReportingEnabled: (value: boolean) => void;
   customAICommands: CustomAICommand[];
@@ -1136,6 +1138,17 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
                 description="Automatically check for new Maestro versions when the app starts"
                 checked={props.checkForUpdatesOnStartup}
                 onChange={props.setCheckForUpdatesOnStartup}
+                theme={theme}
+              />
+
+              {/* Beta Updates */}
+              <SettingCheckbox
+                icon={FlaskConical}
+                sectionLabel="Pre-release Channel"
+                title="Include beta and release candidate updates"
+                description="Opt-in to receive pre-release versions (e.g., v0.11.1-rc, v0.12.0-beta). These may contain experimental features and bugs."
+                checked={props.enableBetaUpdates}
+                onChange={props.setEnableBetaUpdates}
                 theme={theme}
               />
 

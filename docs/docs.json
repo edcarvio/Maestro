@@ -80,7 +80,8 @@
             "pages": [
               "achievements",
               "troubleshooting"
-            ]
+            ],
+            "icon": "life-ring"
           }
         ]
       }

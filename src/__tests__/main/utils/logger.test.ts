@@ -336,6 +336,70 @@ describe('Logger', () => {
         expect(consoleInfoSpy.mock.calls[0][0]).toContain('toast console test');
       });
     });
+
+    describe('autorun', () => {
+      it('should log autorun message with correct structure', async () => {
+        logger.autorun('Auto Run started');
+
+        const logs = logger.getLogs();
+        expect(logs).toHaveLength(1);
+        expect(logs[0].level).toBe('autorun');
+        expect(logs[0].message).toBe('Auto Run started');
+      });
+
+      it('should always log autorun regardless of log level', async () => {
+        logger.setLogLevel('error');
+        logger.autorun('Auto Run started');
+
+        // Autorun should be logged even though level is error
+        const logs = logger.getLogs();
+        expect(logs).toHaveLength(1);
+        expect(logs[0].level).toBe('autorun');
+      });
+
+      it('should log autorun with context (session name)', async () => {
+        logger.autorun('Auto Run started', 'MySession');
+
+        const logs = logger.getLogs();
+        expect(logs[0].context).toBe('MySession');
+      });
+
+      it('should log autorun with data (documents and task info)', async () => {
+        const autorunData = {
+          documents: ['phase-1.md', 'phase-2.md'],
+          totalTasks: 10,
+          loopEnabled: true,
+          maxLoops: 3
+        };
+        logger.autorun('Auto Run started', 'MySession', autorunData);
+
+        const logs = logger.getLogs();
+        expect(logs[0].data).toEqual(autorunData);
+      });
+
+      it('should output to console.info for autorun level', async () => {
+        logger.autorun('Auto Run console test');
+
+        expect(consoleInfoSpy).toHaveBeenCalled();
+        expect(consoleInfoSpy.mock.calls[0][0]).toContain('[AUTORUN]');
+        expect(consoleInfoSpy.mock.calls[0][0]).toContain('Auto Run console test');
+      });
+
+      it('should log autorun workflow events in sequence', async () => {
+        // Simulate a typical Auto Run workflow
+        logger.autorun('Auto Run started', 'TestSession', { documents: ['phase-1.md'], totalTasks: 3 });
+        logger.autorun('Processing document: phase-1.md', 'TestSession');
+        logger.autorun('Loop 1 completed', 'TestSession', { tasksCompleted: 3 });
+        logger.autorun('Auto Run exiting: All tasks completed', 'TestSession');
+
+        const logs = logger.getLogs();
+        expect(logs).toHaveLength(4);
+        expect(logs.every(l => l.level === 'autorun')).toBe(true);
+        expect(logs.every(l => l.context === 'TestSession')).toBe(true);
+        expect(logs[0].message).toBe('Auto Run started');
+        expect(logs[3].message).toBe('Auto Run exiting: All tasks completed');
+      });
+    });
   });
 
   describe('Log Retrieval (getLogs)', () => {
@@ -593,6 +657,32 @@ describe('Logger', () => {
       // But filtering by info should include it
       const infoLevel = logger.getLogs({ level: 'info' });
       expect(infoLevel).toHaveLength(1);
+    });
+
+    it('should treat autorun as info priority for filtering in getLogs', async () => {
+      logger.autorun('autorun message');
+
+      // Autorun has priority 1 (same as info), so filtering by warn should exclude it
+      const warnLevel = logger.getLogs({ level: 'warn' });
+      expect(warnLevel).toHaveLength(0);
+
+      // But filtering by info should include it
+      const infoLevel = logger.getLogs({ level: 'info' });
+      expect(infoLevel).toHaveLength(1);
+    });
+
+    it('should log both toast and autorun alongside regular levels', async () => {
+      logger.setLogLevel('debug');
+      logger.debug('debug');
+      logger.info('info');
+      logger.toast('toast');
+      logger.autorun('autorun');
+      logger.warn('warn');
+      logger.error('error');
+
+      const logs = logger.getLogs();
+      expect(logs).toHaveLength(6);
+      expect(logs.map(l => l.level)).toEqual(['debug', 'info', 'toast', 'autorun', 'warn', 'error']);
     });
   });
 });

@@ -80,6 +80,11 @@ vi.mock('../../../../main/update-checker', () => ({
   checkForUpdates: vi.fn(),
 }));
 
+// Mock auto-updater
+vi.mock('../../../../main/auto-updater', () => ({
+  setAllowPrerelease: vi.fn(),
+}));
+
 // Mock tunnel manager
 vi.mock('../../../../main/tunnel-manager', () => ({
   tunnelManager: {
@@ -109,6 +114,7 @@ import { detectShells } from '../../../../main/utils/shellDetector';
 import { isCloudflaredInstalled } from '../../../../main/utils/cliDetection';
 import { execFileNoThrow } from '../../../../main/utils/execFile';
 import { checkForUpdates } from '../../../../main/update-checker';
+import { setAllowPrerelease } from '../../../../main/auto-updater';
 import { tunnelManager } from '../../../../main/tunnel-manager';
 import * as fsSync from 'fs';
 
@@ -209,6 +215,7 @@ describe('system IPC handlers', () => {
         'devtools:toggle',
         // Update handlers
         'updates:check',
+        'updates:setAllowPrerelease',
         // Logger handlers
         'logger:log',
         'logger:getLogs',
@@ -649,7 +656,7 @@ describe('system IPC handlers', () => {
   });
 
   describe('updates:check', () => {
-    it('should check for updates with current version', async () => {
+    it('should check for updates with current version (stable only by default)', async () => {
       const mockUpdateInfo = {
         hasUpdate: true,
         latestVersion: '2.0.0',
@@ -662,7 +669,22 @@ describe('system IPC handlers', () => {
       const result = await handler!({} as any);
 
       expect(mockApp.getVersion).toHaveBeenCalled();
-      expect(checkForUpdates).toHaveBeenCalledWith('1.0.0');
+      expect(checkForUpdates).toHaveBeenCalledWith('1.0.0', false);
+      expect(result).toEqual(mockUpdateInfo);
+    });
+
+    it('should pass includePrerelease flag to checkForUpdates', async () => {
+      const mockUpdateInfo = {
+        hasUpdate: true,
+        latestVersion: '2.0.0-beta',
+        currentVersion: '1.0.0',
+      };
+      vi.mocked(checkForUpdates).mockResolvedValue(mockUpdateInfo);
+
+      const handler = handlers.get('updates:check');
+      const result = await handler!({} as any, true);
+
+      expect(checkForUpdates).toHaveBeenCalledWith('1.0.0', true);
       expect(result).toEqual(mockUpdateInfo);
     });
 
@@ -678,6 +700,22 @@ describe('system IPC handlers', () => {
       const result = await handler!({} as any);
 
       expect(result).toEqual(mockUpdateInfo);
+    });
+  });
+
+  describe('updates:setAllowPrerelease', () => {
+    it('should enable prerelease updates', async () => {
+      const handler = handlers.get('updates:setAllowPrerelease');
+      await handler!({} as any, true);
+
+      expect(setAllowPrerelease).toHaveBeenCalledWith(true);
+    });
+
+    it('should disable prerelease updates', async () => {
+      const handler = handlers.get('updates:setAllowPrerelease');
+      await handler!({} as any, false);
+
+      expect(setAllowPrerelease).toHaveBeenCalledWith(false);
     });
   });
 
@@ -722,6 +760,28 @@ describe('system IPC handlers', () => {
       await handler!({} as any, 'autorun', 'Autorun message', 'TestContext');
 
       expect(logger.autorun).toHaveBeenCalledWith('Autorun message', 'TestContext', undefined);
+    });
+
+    it('should log autorun message with full Auto Run workflow data', async () => {
+      const autorunData = {
+        documents: ['phase-1.md', 'phase-2.md'],
+        totalTasks: 10,
+        loopEnabled: true,
+        maxLoops: 3
+      };
+
+      const handler = handlers.get('logger:log');
+      await handler!({} as any, 'autorun', 'Auto Run started', 'MySession', autorunData);
+
+      expect(logger.autorun).toHaveBeenCalledWith('Auto Run started', 'MySession', autorunData);
+    });
+
+    it('should handle unknown log level gracefully via default case', async () => {
+      const handler = handlers.get('logger:log');
+      await handler!({} as any, 'unknown-level', 'Unknown level message', 'TestContext');
+
+      // Unknown levels fall through to default case which logs as info
+      expect(logger.info).toHaveBeenCalledWith('[unknown-level] Unknown level message', 'TestContext', undefined);
     });
   });
 

@@ -413,18 +413,41 @@ describe('SessionList', () => {
       expect(toggleGlobalLive).toHaveBeenCalled();
     });
 
-    it('hides OFFLINE text when sidebar width is narrow (< 280px)', () => {
+    it('hides OFFLINE text when sidebar width is narrow (< 256px) with autoRunStats badge', () => {
+      // When autoRunStats.currentBadgeLevel > 0, threshold is 295px
+      // When no autoRunStats, threshold is 256px
+      const autoRunStats: AutoRunStats = {
+        totalDocuments: 1,
+        currentDocument: 1,
+        completedTasks: 0,
+        totalTasks: 5,
+        currentBadgeLevel: 1, // This raises threshold to 295px
+      };
       const props = createDefaultProps({
         leftSidebarOpen: true,
-        leftSidebarWidthState: 256, // Minimum sidebar width
+        leftSidebarWidthState: 256, // Below 295px threshold when badge is active
+        isLiveMode: false,
+        autoRunStats,
+      });
+      render(<SessionList {...props} />);
+
+      // Text should be hidden when below threshold with active badge
+      expect(screen.queryByText('OFFLINE')).not.toBeInTheDocument();
+      // But the Radio icon should still be present
+      expect(screen.getByTestId('icon-radio')).toBeInTheDocument();
+    });
+
+    it('shows OFFLINE text when sidebar width equals minimum threshold (256px) without autoRunStats', () => {
+      // Without autoRunStats, threshold is 256px so text shows at exactly 256px
+      const props = createDefaultProps({
+        leftSidebarOpen: true,
+        leftSidebarWidthState: 256,
         isLiveMode: false,
       });
       render(<SessionList {...props} />);
 
-      // Text should be hidden, only icon visible
-      expect(screen.queryByText('OFFLINE')).not.toBeInTheDocument();
-      // But the Radio icon should still be present
-      expect(screen.getByTestId('icon-radio')).toBeInTheDocument();
+      // Text should be visible at minimum threshold when no badge
+      expect(screen.getByText('OFFLINE')).toBeInTheDocument();
     });
 
     it('shows OFFLINE text when sidebar width is wide (>= 310px)', () => {
@@ -439,19 +462,42 @@ describe('SessionList', () => {
       expect(screen.getByText('OFFLINE')).toBeInTheDocument();
     });
 
-    it('hides LIVE text when sidebar width is narrow (< 280px)', () => {
+    it('hides LIVE text when sidebar width is narrow with autoRunStats badge', () => {
+      // When autoRunStats.currentBadgeLevel > 0, threshold is 295px
+      const autoRunStats: AutoRunStats = {
+        totalDocuments: 1,
+        currentDocument: 1,
+        completedTasks: 0,
+        totalTasks: 5,
+        currentBadgeLevel: 1, // This raises threshold to 295px
+      };
       const props = createDefaultProps({
         leftSidebarOpen: true,
-        leftSidebarWidthState: 256, // Minimum sidebar width
+        leftSidebarWidthState: 256, // Below 295px threshold when badge is active
+        isLiveMode: true,
+        webInterfaceUrl: 'http://localhost:3000',
+        autoRunStats,
+      });
+      render(<SessionList {...props} />);
+
+      // Text should be hidden when below threshold with active badge
+      expect(screen.queryByText('LIVE')).not.toBeInTheDocument();
+      // But the Radio icon should still be present
+      expect(screen.getByTestId('icon-radio')).toBeInTheDocument();
+    });
+
+    it('shows LIVE text when sidebar width equals minimum threshold (256px) without autoRunStats', () => {
+      // Without autoRunStats, threshold is 256px so text shows at exactly 256px
+      const props = createDefaultProps({
+        leftSidebarOpen: true,
+        leftSidebarWidthState: 256,
         isLiveMode: true,
         webInterfaceUrl: 'http://localhost:3000',
       });
       render(<SessionList {...props} />);
 
-      // Text should be hidden, only icon visible
-      expect(screen.queryByText('LIVE')).not.toBeInTheDocument();
-      // But the Radio icon should still be present
-      expect(screen.getByTestId('icon-radio')).toBeInTheDocument();
+      // Text should be visible at minimum threshold when no badge
+      expect(screen.getByText('LIVE')).toBeInTheDocument();
     });
 
     it('shows LIVE text when sidebar width is wide (>= 280px)', () => {

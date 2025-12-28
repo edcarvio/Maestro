@@ -12,6 +12,9 @@
  * Performance optimizations:
  * - Viewport culling: only renders nodes and edges visible in the viewport
  *   (enabled via onlyRenderVisibleElements prop) to reduce DOM elements
+ * - Debounced graph rebuilds: when settings change (e.g., external links toggle),
+ *   the graph rebuild is debounced by 300ms to prevent rapid rebuilds from
+ *   multiple quick toggle clicks or rapid settings changes
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -34,6 +37,7 @@ import { X, LayoutGrid, Network, ExternalLink, RefreshCw, Maximize2, ChevronDown
 import type { Theme } from '../../types';
 import { useLayerStack } from '../../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../../constants/modalPriorities';
+import { useDebouncedCallback } from '../../hooks/utils';
 import { DocumentNode } from './DocumentNode';
 import { ExternalLinkNode } from './ExternalLinkNode';
 import { buildGraphData, GraphNodeData } from './graphDataBuilder';
@@ -51,6 +55,8 @@ import {
 const DEFAULT_MAX_NODES = 50;
 /** Number of additional nodes to load when clicking "Load more" */
 const LOAD_MORE_INCREMENT = 25;
+/** Debounce delay for graph rebuilds when settings change (ms) */
+const GRAPH_REBUILD_DEBOUNCE_DELAY = 300;
 
 /**
  * Props for the DocumentGraphView component
@@ -284,12 +290,50 @@ function DocumentGraphViewInner({
     }
   }, [rootPath, includeExternalLinks, maxNodes, applyLayout, injectThemeIntoNodes, setNodes, setEdges, fitView]);
 
-  // Load data when modal opens or settings change
+  /**
+   * Debounced version of loadGraphData for settings changes.
+   * This prevents rapid rebuilds when toggles are clicked quickly or when
+   * multiple settings change in succession. The 300ms delay batches changes.
+   */
+  const { debouncedCallback: debouncedLoadGraphData, cancel: cancelDebouncedLoad } = useDebouncedCallback(
+    () => loadGraphData(),
+    GRAPH_REBUILD_DEBOUNCE_DELAY
+  );
+
+  // Track previous includeExternalLinks to detect changes
+  const prevIncludeExternalLinksRef = useRef(includeExternalLinks);
+  const isInitialMountRef = useRef(true);
+
+  // Load data when modal opens (immediate) or settings change (debounced)
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+
+    const includeExternalLinksChanged = prevIncludeExternalLinksRef.current !== includeExternalLinks;
+    prevIncludeExternalLinksRef.current = includeExternalLinks;
+
+    if (isInitialMountRef.current) {
+      // Initial load: execute immediately
+      isInitialMountRef.current = false;
       loadGraphData();
+    } else if (includeExternalLinksChanged) {
+      // Settings changed: debounce the rebuild
+      debouncedLoadGraphData();
     }
-  }, [isOpen, loadGraphData]);
+  }, [isOpen, includeExternalLinks, loadGraphData, debouncedLoadGraphData]);
+
+  // Cancel debounced load on unmount
+  useEffect(() => {
+    return () => {
+      cancelDebouncedLoad();
+    };
+  }, [cancelDebouncedLoad]);
+
+  // Reset initial mount ref when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      isInitialMountRef.current = true;
+    }
+  }, [isOpen]);
 
   // Re-apply theme when it changes
   useEffect(() => {

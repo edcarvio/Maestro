@@ -1445,8 +1445,16 @@ function setupIpcHandlers() {
         });
       }
 
-      child.on('close', (code) => {
-        console.log('[TTS Main] Process exited with code:', code);
+      child.on('close', (code, signal) => {
+        console.log('[TTS Main] Process exited with code:', code, 'signal:', signal);
+        // Always log close event for debugging production issues
+        logger.info('TTS process closed', 'TTS', {
+          ttsId,
+          exitCode: code,
+          signal,
+          stderr: stderrOutput || '(none)',
+          command: fullCommand,
+        });
         if (code !== 0 && stderrOutput) {
           console.error('[TTS Main] stderr:', stderrOutput);
           logger.error('TTS process error output', 'TTS', {

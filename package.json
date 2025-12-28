@@ -1,6 +1,6 @@
 {
   "name": "maestro",
-  "version": "0.12.3",
+  "version": "0.13.0",
   "description": "Maestro hones fractured attention into focused intent.",
   "main": "dist/main/index.js",
   "author": {

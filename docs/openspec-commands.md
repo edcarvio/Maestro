@@ -135,6 +135,10 @@ Access OpenSpec commands via **Settings → AI Commands** tab. Here you can:
 - **Expand commands** to see their full prompts
 - **Customize prompts** (modifications are preserved across updates)
 
+<Frame>
+  <img src="/screenshots/openspec-commands.png" alt="OpenSpec commands in the AI Commands panel" />
+</Frame>
+
 ## Auto-Updates
 
 OpenSpec prompts are synced from the [Fission-AI/OpenSpec repository](https://github.com/Fission-AI/OpenSpec):

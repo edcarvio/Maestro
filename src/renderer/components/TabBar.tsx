@@ -333,7 +333,6 @@ function Tab({
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onDrop={onDrop}
-      title={tab.name || tab.agentSessionId || 'New tab'}
     >
       {/* Busy indicator - pulsing dot for tabs in write mode */}
       {tab.state === 'busy' && (
@@ -429,23 +428,16 @@ function Tab({
             setIsHovered(false);
           }}
         >
-          {/* Connector tab that visually bridges the gap between tab and overlay */}
+          {/* Main overlay content - connects directly to tab like an open folder */}
           <div
+            className="shadow-xl overflow-hidden"
             style={{
-              width: overlayPosition.tabWidth || 100,
-              height: '6px',
               backgroundColor: theme.colors.bgSidebar,
               borderLeft: `1px solid ${theme.colors.border}`,
               borderRight: `1px solid ${theme.colors.border}`,
-              marginBottom: '-1px' // Overlap with main overlay to hide seam
-            }}
-          />
-          {/* Main overlay content */}
-          <div
-            className="rounded-b-lg rounded-tr-lg shadow-xl border overflow-hidden"
-            style={{
-              backgroundColor: theme.colors.bgSidebar,
-              borderColor: theme.colors.border,
+              borderBottom: `1px solid ${theme.colors.border}`,
+              borderBottomLeftRadius: '8px',
+              borderBottomRightRadius: '8px',
               minWidth: '220px'
             }}
           >
@@ -642,7 +634,7 @@ function Tab({
               </button>
             )}
           </div>
-          </div>
+        </div>
         </div>,
         document.body
       )}

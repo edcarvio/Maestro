@@ -87,7 +87,10 @@ export function ToastProvider({ children, defaultDuration: initialDuration = 20 
       setToasts(prev => [...prev, newToast]);
     }
 
-    // Log toast to system logs
+    // Capture audio feedback state for logging
+    const { enabled: audioEnabled, command: audioCommand } = audioFeedbackRef.current;
+
+    // Log toast to system logs (include audio notification info)
     window.maestro.logger.toast(toast.title, {
       type: toast.type,
       message: toast.message,
@@ -95,13 +98,19 @@ export function ToastProvider({ children, defaultDuration: initialDuration = 20 
       project: toast.project,
       taskDuration: toast.taskDuration,
       agentSessionId: toast.agentSessionId,
-      tabName: toast.tabName
+      tabName: toast.tabName,
+      // Audio/TTS notification info
+      audioNotification: audioEnabled && audioCommand ? {
+        enabled: true,
+        command: audioCommand
+      } : {
+        enabled: false
+      }
     });
 
     // Speak toast via TTS if audio feedback is enabled and command is configured
-    const { enabled, command } = audioFeedbackRef.current;
-    if (enabled && command) {
-      window.maestro.notification.speak(toast.message, command).catch(err => {
+    if (audioEnabled && audioCommand) {
+      window.maestro.notification.speak(toast.message, audioCommand).catch(err => {
         console.error('[ToastContext] Failed to speak toast:', err);
       });
     }

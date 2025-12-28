@@ -97,7 +97,8 @@ maestro/
 ## Development Scripts
 
 ```bash
-npm run dev            # Start dev server with hot reload
+npm run dev            # Start dev server with hot reload (isolated data directory)
+npm run dev:prod-data  # Start dev server using production data (requires closing production app)
 npm run dev:demo       # Start in demo mode (fresh settings, isolated data)
 npm run dev:web        # Start web interface dev server
 npm run build          # Full production build (main + renderer + web + CLI)
@@ -113,6 +114,21 @@ npm run package:mac    # Package for macOS
 npm run package:win    # Package for Windows
 npm run package:linux  # Package for Linux
 ```
+
+### Development Data Directories
+
+By default, `npm run dev` uses an isolated data directory (`~/Library/Application Support/maestro-dev/`) separate from production. This allows you to run both dev and production instances simultaneously—useful when using the production Maestro to work on the dev instance.
+
+| Command | Data Directory | Can Run Alongside Production? |
+|---------|---------------|-------------------------------|
+| `npm run dev` | `maestro-dev/` | ✅ Yes |
+| `npm run dev:prod-data` | `maestro/` (production) | ❌ No - close production first |
+| `npm run dev:demo` | `/tmp/maestro-demo/` | ✅ Yes |
+
+**When to use each:**
+- **`npm run dev`** — Default for most development. Start fresh or use dev-specific test data.
+- **`npm run dev:prod-data`** — Test with your real sessions and settings. Must close production app first to avoid database lock conflicts.
+- **`npm run dev:demo`** — Screenshots, demos, or testing with completely fresh state.
 
 ### Demo Mode
 

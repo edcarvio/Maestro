@@ -19,7 +19,7 @@ The command palette is your gateway to nearly every action in Maestro. Press `Cm
 | Toggle Right Panel | `Cmd+\` | `Ctrl+\` |
 | New Agent | `Cmd+N` | `Ctrl+N` |
 | Kill Agent | `Cmd+Shift+Backspace` | `Ctrl+Shift+Backspace` |
-| Open Playbook Marketplace | `Cmd+Shift+M` | `Ctrl+Shift+M` |
+| Move Agent to Group | `Cmd+Shift+M` | `Ctrl+Shift+M` |
 | Previous Agent | `Cmd+[` | `Ctrl+[` |
 | Next Agent | `Cmd+]` | `Ctrl+]` |
 | Jump to Agent (1-9, 0=10th) | `Opt+Cmd+NUMBER` | `Alt+Ctrl+NUMBER` |

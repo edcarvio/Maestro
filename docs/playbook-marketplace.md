@@ -9,8 +9,8 @@ The Playbook Marketplace is a curated collection of community-contributed playbo
 ## Opening the Marketplace
 
 Open the Playbook Marketplace using:
-- **Keyboard shortcut**: `Cmd+Shift+M` (Mac) or `Ctrl+Shift+M` (Windows/Linux)
 - **Quick Actions**: `Cmd+K` → search "Playbook Marketplace"
+- **Auto Run panel**: Click the **Marketplace** button
 
 ## Browsing Playbooks
 
@@ -58,11 +58,8 @@ Want to share your playbooks with the community? See the [Maestro-Playbooks repo
 
 ## Keyboard Shortcuts
 
-| Action | macOS | Windows/Linux |
-|--------|-------|---------------|
-| Open Marketplace | `Cmd+Shift+M` | `Ctrl+Shift+M` |
-| Navigate tiles | Arrow keys | Arrow keys |
-| Open detail view | `Enter` | `Enter` |
-| Previous category | `Cmd+Shift+[` | `Ctrl+Shift+[` |
-| Next category | `Cmd+Shift+]` | `Ctrl+Shift+]` |
-| Close / Back | `Esc` | `Esc` |
+| Action | Key |
+|--------|-----|
+| Navigate tiles | Arrow keys |
+| Open detail view | `Enter` |
+| Close / Back | `Esc` |

@@ -95,6 +95,10 @@ export interface DocumentGraphViewProps {
   savedLayoutMode?: 'force' | 'hierarchical';
   /** Callback to persist layout mode changes */
   onLayoutModeChange?: (mode: 'force' | 'hierarchical') => void;
+  /** Default setting for showing external links (from settings) */
+  defaultShowExternalLinks?: boolean;
+  /** Default maximum number of nodes to load (from settings) */
+  defaultMaxNodes?: number;
 }
 
 /**
@@ -124,6 +128,8 @@ function DocumentGraphViewInner({
   onFocusFileConsumed,
   savedLayoutMode = 'force',
   onLayoutModeChange,
+  defaultShowExternalLinks = false,
+  defaultMaxNodes = DEFAULT_MAX_NODES,
 }: DocumentGraphViewProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -131,7 +137,7 @@ function DocumentGraphViewInner({
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [layoutType, setLayoutType] = useState<LayoutType>(savedLayoutMode);
-  const [includeExternalLinks, setIncludeExternalLinks] = useState(true);
+  const [includeExternalLinks, setIncludeExternalLinks] = useState(defaultShowExternalLinks);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedNodeData, setSelectedNodeData] = useState<(GraphNodeData & { theme: Theme }) | null>(null);
   const [progress, setProgress] = useState<ProgressData | null>(null);
@@ -141,7 +147,7 @@ function DocumentGraphViewInner({
   const [totalDocuments, setTotalDocuments] = useState(0);
   const [loadedDocuments, setLoadedDocuments] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-  const [maxNodes, setMaxNodes] = useState(DEFAULT_MAX_NODES);
+  const [maxNodes, setMaxNodes] = useState(defaultMaxNodes);
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -451,16 +457,16 @@ function DocumentGraphViewInner({
     setError(null);
     setProgress(null);
 
-    // Reset maxNodes when doing a fresh load
+    // Reset maxNodes when doing a fresh load (use settings value)
     if (resetPagination) {
-      setMaxNodes(DEFAULT_MAX_NODES);
+      setMaxNodes(defaultMaxNodes);
     }
 
     try {
       const graphData = await buildGraphData({
         rootPath,
         includeExternalLinks,
-        maxNodes: resetPagination ? DEFAULT_MAX_NODES : maxNodes,
+        maxNodes: resetPagination ? defaultMaxNodes : maxNodes,
         onProgress: handleProgress,
       });
 
@@ -593,7 +599,7 @@ function DocumentGraphViewInner({
     } finally {
       setLoading(false);
     }
-  }, [rootPath, includeExternalLinks, maxNodes, applyLayout, injectThemeIntoNodes, setNodes, setEdges, fitView, handleProgress, animateNodesEntering, animateNodesExiting]);
+  }, [rootPath, includeExternalLinks, maxNodes, defaultMaxNodes, applyLayout, injectThemeIntoNodes, setNodes, setEdges, fitView, handleProgress, animateNodesEntering, animateNodesExiting]);
 
   /**
    * Debounced version of loadGraphData for settings changes.
@@ -645,6 +651,14 @@ function DocumentGraphViewInner({
       setSelectedNodeData(null);
     }
   }, [isOpen]);
+
+  // Reset to settings defaults when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setIncludeExternalLinks(defaultShowExternalLinks);
+      setMaxNodes(defaultMaxNodes);
+    }
+  }, [isOpen, defaultShowExternalLinks, defaultMaxNodes]);
 
   // Set up file watcher for real-time updates when modal is open
   useEffect(() => {

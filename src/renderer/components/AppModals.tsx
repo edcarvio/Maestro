@@ -143,6 +143,10 @@ export interface AppInfoModalsProps {
   // Usage Dashboard Modal
   usageDashboardOpen: boolean;
   onCloseUsageDashboard: () => void;
+  /** Default time range for the Usage Dashboard from settings */
+  defaultStatsTimeRange?: 'day' | 'week' | 'month' | 'year' | 'all';
+  /** Enable colorblind-friendly colors for dashboard charts */
+  colorBlindMode?: boolean;
 }
 
 /**
@@ -190,6 +194,8 @@ export function AppInfoModals({
   // Usage Dashboard Modal
   usageDashboardOpen,
   onCloseUsageDashboard,
+  defaultStatsTimeRange,
+  colorBlindMode,
 }: AppInfoModalsProps) {
   return (
     <>
@@ -246,6 +252,8 @@ export function AppInfoModals({
           isOpen={usageDashboardOpen}
           onClose={onCloseUsageDashboard}
           theme={theme}
+          defaultTimeRange={defaultStatsTimeRange}
+          colorBlindMode={colorBlindMode}
         />
       )}
     </>
@@ -1627,6 +1635,10 @@ export interface AppModalsProps {
   onNavigateToGroupChat: (groupChatId: string) => void;
   usageDashboardOpen: boolean;
   onCloseUsageDashboard: () => void;
+  /** Default time range for the Usage Dashboard from settings */
+  defaultStatsTimeRange?: 'day' | 'week' | 'month' | 'year' | 'all';
+  /** Enable colorblind-friendly colors for dashboard charts */
+  colorBlindMode?: boolean;
 
   // --- AppConfirmModals props ---
   confirmModalOpen: boolean;
@@ -1923,6 +1935,8 @@ export function AppModals(props: AppModalsProps) {
     onNavigateToGroupChat,
     usageDashboardOpen,
     onCloseUsageDashboard,
+    defaultStatsTimeRange,
+    colorBlindMode,
     // Confirm modals
     confirmModalOpen,
     confirmModalMessage,
@@ -2177,6 +2191,8 @@ export function AppModals(props: AppModalsProps) {
         onNavigateToGroupChat={onNavigateToGroupChat}
         usageDashboardOpen={usageDashboardOpen}
         onCloseUsageDashboard={onCloseUsageDashboard}
+        defaultStatsTimeRange={defaultStatsTimeRange}
+        colorBlindMode={colorBlindMode}
       />
 
       {/* Confirmation Modals */}

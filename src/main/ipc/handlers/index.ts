@@ -179,6 +179,7 @@ export function registerAllHandlers(deps: HandlerDependencies): void {
   // Register stats handlers for usage tracking
   registerStatsHandlers({
     getMainWindow: deps.getMainWindow,
+    settingsStore: deps.settingsStore,
   });
   // Register document graph handlers for file watching
   registerDocumentGraphHandlers({

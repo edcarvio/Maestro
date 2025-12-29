@@ -63,6 +63,8 @@ interface UsageDashboardModalProps {
   theme: Theme;
   /** Enable colorblind-friendly colors for charts */
   colorBlindMode?: boolean;
+  /** Default time range from settings (default: 'week') */
+  defaultTimeRange?: StatsTimeRange;
 }
 
 /**
@@ -104,8 +106,9 @@ export function UsageDashboardModal({
   onClose,
   theme,
   colorBlindMode = false,
+  defaultTimeRange = 'week',
 }: UsageDashboardModalProps) {
-  const [timeRange, setTimeRange] = useState<StatsTimeRange>('week');
+  const [timeRange, setTimeRange] = useState<StatsTimeRange>(defaultTimeRange);
   const [viewMode, setViewMode] = useState<ViewMode>('overview');
   const [data, setData] = useState<StatsAggregation | null>(null);
   const [loading, setLoading] = useState(true);
@@ -124,6 +127,13 @@ export function UsageDashboardModal({
   const { registerLayer, unregisterLayer } = useLayerStack();
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+
+  // Reset time range to default when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setTimeRange(defaultTimeRange);
+    }
+  }, [isOpen, defaultTimeRange]);
 
   // Register with layer stack for proper Escape handling
   useEffect(() => {

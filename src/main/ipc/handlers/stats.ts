@@ -37,6 +37,19 @@ const handlerOpts = (operation: string): Pick<CreateHandlerOptions, 'context' | 
  */
 export interface StatsHandlerDependencies {
   getMainWindow: () => BrowserWindow | null;
+  settingsStore?: {
+    get: (key: string) => unknown;
+  };
+}
+
+/**
+ * Check if stats collection is enabled
+ */
+function isStatsCollectionEnabled(settingsStore?: { get: (key: string) => unknown }): boolean {
+  if (!settingsStore) return true; // Default to enabled if no settings store
+  const enabled = settingsStore.get('statsCollectionEnabled');
+  // Default to true if not explicitly set to false
+  return enabled !== false;
 }
 
 /**
@@ -61,12 +74,18 @@ function broadcastStatsUpdate(getMainWindow: () => BrowserWindow | null): void {
  * - Export stats to CSV
  */
 export function registerStatsHandlers(deps: StatsHandlerDependencies): void {
-  const { getMainWindow } = deps;
+  const { getMainWindow, settingsStore } = deps;
 
   // Record a query event (interactive conversation turn)
   ipcMain.handle(
     'stats:record-query',
     withIpcErrorLogging(handlerOpts('recordQuery'), async (event: Omit<QueryEvent, 'id'>) => {
+      // Check if stats collection is enabled
+      if (!isStatsCollectionEnabled(settingsStore)) {
+        logger.debug('Stats collection disabled, skipping query event', LOG_CONTEXT);
+        return null;
+      }
+
       const db = getStatsDB();
       const id = db.insertQueryEvent(event);
       logger.debug(`Recorded query event: ${id}`, LOG_CONTEXT, {
@@ -86,6 +105,12 @@ export function registerStatsHandlers(deps: StatsHandlerDependencies): void {
     withIpcErrorLogging(
       handlerOpts('startAutoRun'),
       async (session: Omit<AutoRunSession, 'id' | 'duration'>) => {
+        // Check if stats collection is enabled
+        if (!isStatsCollectionEnabled(settingsStore)) {
+          logger.debug('Stats collection disabled, skipping Auto Run session start', LOG_CONTEXT);
+          return null;
+        }
+
         const db = getStatsDB();
         const fullSession: Omit<AutoRunSession, 'id'> = {
           ...session,
@@ -128,6 +153,12 @@ export function registerStatsHandlers(deps: StatsHandlerDependencies): void {
   ipcMain.handle(
     'stats:record-task',
     withIpcErrorLogging(handlerOpts('recordTask'), async (task: Omit<AutoRunTask, 'id'>) => {
+      // Check if stats collection is enabled
+      if (!isStatsCollectionEnabled(settingsStore)) {
+        logger.debug('Stats collection disabled, skipping Auto Run task', LOG_CONTEXT);
+        return null;
+      }
+
       const db = getStatsDB();
       const id = db.insertAutoRunTask(task);
       logger.debug(`Recorded Auto Run task: ${id}`, LOG_CONTEXT, {

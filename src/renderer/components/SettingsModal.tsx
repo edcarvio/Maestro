@@ -229,7 +229,22 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
   const { isOpen, onClose, theme, themes, initialTab } = props;
 
   // Context management settings from useSettings hook
-  const { contextManagementSettings, updateContextManagementSettings } = useSettings();
+  const {
+    contextManagementSettings,
+    updateContextManagementSettings,
+    // Document Graph settings
+    documentGraphShowExternalLinks,
+    setDocumentGraphShowExternalLinks,
+    documentGraphMaxNodes,
+    setDocumentGraphMaxNodes,
+    documentGraphLayoutMode,
+    setDocumentGraphLayoutMode,
+    // Stats settings
+    statsCollectionEnabled,
+    setStatsCollectionEnabled,
+    defaultStatsTimeRange,
+    setDefaultStatsTimeRange,
+  } = useSettings();
 
   const [activeTab, setActiveTab] = useState<'general' | 'llm' | 'shortcuts' | 'theme' | 'notifications' | 'aicommands'>('general');
   const [systemFonts, setSystemFonts] = useState<string[]>([]);
@@ -1309,12 +1324,60 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
               <div>
                 <label className="block text-xs font-bold opacity-70 uppercase mb-2 flex items-center gap-2">
                   <Database className="w-3 h-3" />
-                  Usage Stats Data
+                  Usage & Stats
                 </label>
                 <div
                   className="p-3 rounded border space-y-3"
                   style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgMain }}
                 >
+                  {/* Enable/Disable Stats Collection */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm" style={{ color: theme.colors.textMain }}>Enable stats collection</p>
+                      <p className="text-xs opacity-50 mt-0.5">Track queries and Auto Run sessions for the dashboard.</p>
+                    </div>
+                    <button
+                      onClick={() => setStatsCollectionEnabled(!statsCollectionEnabled)}
+                      className={`relative w-10 h-5 rounded-full transition-colors ${
+                        statsCollectionEnabled ? '' : ''
+                      }`}
+                      style={{
+                        backgroundColor: statsCollectionEnabled ? theme.colors.accent : theme.colors.bgActivity,
+                      }}
+                      role="switch"
+                      aria-checked={statsCollectionEnabled}
+                    >
+                      <span
+                        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                          statsCollectionEnabled ? 'translate-x-5' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Default Time Range */}
+                  <div>
+                    <label className="block text-xs opacity-60 mb-2">Default dashboard time range</label>
+                    <select
+                      value={defaultStatsTimeRange}
+                      onChange={(e) => setDefaultStatsTimeRange(e.target.value as 'day' | 'week' | 'month' | 'year' | 'all')}
+                      className="w-full p-2 rounded border bg-transparent outline-none text-sm"
+                      style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
+                    >
+                      <option value="day">Last 24 hours</option>
+                      <option value="week">Last 7 days</option>
+                      <option value="month">Last 30 days</option>
+                      <option value="year">Last 365 days</option>
+                      <option value="all">All time</option>
+                    </select>
+                    <p className="text-xs opacity-50 mt-1">
+                      Time range shown when opening the Usage Dashboard.
+                    </p>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t" style={{ borderColor: theme.colors.border }} />
+
                   {/* Database Size Display */}
                   <div className="flex items-center justify-between">
                     <span className="text-sm" style={{ color: theme.colors.textDim }}>Database size</span>
@@ -1417,6 +1480,114 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
                       )}
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Document Graph Settings */}
+              <div>
+                <label className="block text-xs font-bold opacity-70 uppercase mb-2 flex items-center gap-2">
+                  <Sparkles className="w-3 h-3" />
+                  Document Graph
+                </label>
+                <div
+                  className="p-3 rounded border space-y-3"
+                  style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgMain }}
+                >
+                  {/* Default Layout Mode */}
+                  <div>
+                    <label className="block text-xs opacity-60 mb-2">Default layout mode</label>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setDocumentGraphLayoutMode('force')}
+                        className={`flex-1 px-3 py-2 rounded text-xs font-medium transition-colors ${
+                          documentGraphLayoutMode === 'force' ? 'ring-2' : ''
+                        }`}
+                        style={{
+                          backgroundColor: documentGraphLayoutMode === 'force'
+                            ? theme.colors.accent + '20'
+                            : theme.colors.bgActivity,
+                          color: documentGraphLayoutMode === 'force'
+                            ? theme.colors.accent
+                            : theme.colors.textDim,
+                          borderColor: documentGraphLayoutMode === 'force'
+                            ? theme.colors.accent
+                            : 'transparent',
+                        }}
+                      >
+                        Force-Directed
+                      </button>
+                      <button
+                        onClick={() => setDocumentGraphLayoutMode('hierarchical')}
+                        className={`flex-1 px-3 py-2 rounded text-xs font-medium transition-colors ${
+                          documentGraphLayoutMode === 'hierarchical' ? 'ring-2' : ''
+                        }`}
+                        style={{
+                          backgroundColor: documentGraphLayoutMode === 'hierarchical'
+                            ? theme.colors.accent + '20'
+                            : theme.colors.bgActivity,
+                          color: documentGraphLayoutMode === 'hierarchical'
+                            ? theme.colors.accent
+                            : theme.colors.textDim,
+                          borderColor: documentGraphLayoutMode === 'hierarchical'
+                            ? theme.colors.accent
+                            : 'transparent',
+                        }}
+                      >
+                        Hierarchical
+                      </button>
+                    </div>
+                    <p className="text-xs opacity-50 mt-1">
+                      Layout algorithm used when opening the Document Graph.
+                    </p>
+                  </div>
+
+                  {/* Show External Links */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm" style={{ color: theme.colors.textMain }}>Show external links by default</p>
+                      <p className="text-xs opacity-50 mt-0.5">Display external website links as nodes. Can be toggled in the graph view.</p>
+                    </div>
+                    <button
+                      onClick={() => setDocumentGraphShowExternalLinks(!documentGraphShowExternalLinks)}
+                      className="relative w-10 h-5 rounded-full transition-colors"
+                      style={{
+                        backgroundColor: documentGraphShowExternalLinks ? theme.colors.accent : theme.colors.bgActivity,
+                      }}
+                      role="switch"
+                      aria-checked={documentGraphShowExternalLinks}
+                    >
+                      <span
+                        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                          documentGraphShowExternalLinks ? 'translate-x-5' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Max Nodes */}
+                  <div>
+                    <label className="block text-xs opacity-60 mb-2">Maximum nodes to display</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={50}
+                        max={1000}
+                        step={50}
+                        value={documentGraphMaxNodes}
+                        onChange={(e) => setDocumentGraphMaxNodes(Number(e.target.value))}
+                        className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
+                        style={{
+                          background: `linear-gradient(to right, ${theme.colors.accent} 0%, ${theme.colors.accent} ${((documentGraphMaxNodes - 50) / 950) * 100}%, ${theme.colors.bgActivity} ${((documentGraphMaxNodes - 50) / 950) * 100}%, ${theme.colors.bgActivity} 100%)`,
+                        }}
+                      />
+                      <span className="text-sm font-mono w-12 text-right" style={{ color: theme.colors.textMain }}>
+                        {documentGraphMaxNodes}
+                      </span>
+                    </div>
+                    <p className="text-xs opacity-50 mt-1">
+                      Limits initial graph size for performance. Use &quot;Load more&quot; to show additional nodes.
+                    </p>
+                  </div>
                 </div>
               </div>
 

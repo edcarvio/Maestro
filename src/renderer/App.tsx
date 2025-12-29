@@ -298,6 +298,13 @@ function MaestroConsoleInner() {
 
     keyboardMasteryStats, recordShortcutUsage, acknowledgeKeyboardMasteryLevel, getUnacknowledgedKeyboardMasteryLevel,
 
+    // Document Graph & Stats settings
+    colorBlindMode,
+    defaultStatsTimeRange,
+    documentGraphShowExternalLinks,
+    documentGraphMaxNodes,
+    documentGraphLayoutMode,
+
   } = settings;
 
   // --- KEYBOARD SHORTCUT HELPERS ---
@@ -8254,6 +8261,8 @@ function MaestroConsoleInner() {
         onNavigateToGroupChat={handleProcessMonitorNavigateToGroupChat}
         usageDashboardOpen={usageDashboardOpen}
         onCloseUsageDashboard={() => setUsageDashboardOpen(false)}
+        defaultStatsTimeRange={defaultStatsTimeRange}
+        colorBlindMode={colorBlindMode}
         // AppConfirmModals props
         confirmModalOpen={confirmModalOpen}
         confirmModalMessage={confirmModalMessage}
@@ -8575,8 +8584,10 @@ function MaestroConsoleInner() {
         }}
         focusFilePath={graphFocusFilePath}
         onFocusFileConsumed={() => setGraphFocusFilePath(undefined)}
-        savedLayoutMode={settings.documentGraphLayoutMode}
+        savedLayoutMode={documentGraphLayoutMode}
         onLayoutModeChange={settings.setDocumentGraphLayoutMode}
+        defaultShowExternalLinks={documentGraphShowExternalLinks}
+        defaultMaxNodes={documentGraphMaxNodes}
       />
 
       {/* NOTE: All modals are now rendered via the unified <AppModals /> component above */}

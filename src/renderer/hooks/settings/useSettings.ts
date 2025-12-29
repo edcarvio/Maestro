@@ -286,6 +286,16 @@ export interface UseSettingsReturn {
   // Document Graph settings
   documentGraphLayoutMode: 'force' | 'hierarchical';
   setDocumentGraphLayoutMode: (value: 'force' | 'hierarchical') => void;
+  documentGraphShowExternalLinks: boolean;
+  setDocumentGraphShowExternalLinks: (value: boolean) => void;
+  documentGraphMaxNodes: number;
+  setDocumentGraphMaxNodes: (value: number) => void;
+
+  // Stats settings
+  statsCollectionEnabled: boolean;
+  setStatsCollectionEnabled: (value: boolean) => void;
+  defaultStatsTimeRange: 'day' | 'week' | 'month' | 'year' | 'all';
+  setDefaultStatsTimeRange: (value: 'day' | 'week' | 'month' | 'year' | 'all') => void;
 }
 
 export function useSettings(): UseSettingsReturn {
@@ -399,6 +409,12 @@ export function useSettings(): UseSettingsReturn {
 
   // Document Graph settings
   const [documentGraphLayoutMode, setDocumentGraphLayoutModeState] = useState<'force' | 'hierarchical'>('force');
+  const [documentGraphShowExternalLinks, setDocumentGraphShowExternalLinksState] = useState(false); // Default: false
+  const [documentGraphMaxNodes, setDocumentGraphMaxNodesState] = useState(200); // Default: 200
+
+  // Stats settings
+  const [statsCollectionEnabled, setStatsCollectionEnabledState] = useState(true); // Default: enabled
+  const [defaultStatsTimeRange, setDefaultStatsTimeRangeState] = useState<'day' | 'week' | 'month' | 'year' | 'all'>('week'); // Default: week
 
   // Wrapper functions that persist to electron-store
   // PERF: All wrapped in useCallback to prevent re-renders
@@ -1088,6 +1104,32 @@ export function useSettings(): UseSettingsReturn {
     window.maestro.settings.set('documentGraphLayoutMode', value);
   }, []);
 
+  // Document Graph show external links
+  const setDocumentGraphShowExternalLinks = useCallback((value: boolean) => {
+    setDocumentGraphShowExternalLinksState(value);
+    window.maestro.settings.set('documentGraphShowExternalLinks', value);
+  }, []);
+
+  // Document Graph max nodes
+  const setDocumentGraphMaxNodes = useCallback((value: number) => {
+    // Clamp value between 50 and 1000
+    const clampedValue = Math.max(50, Math.min(1000, value));
+    setDocumentGraphMaxNodesState(clampedValue);
+    window.maestro.settings.set('documentGraphMaxNodes', clampedValue);
+  }, []);
+
+  // Stats collection enabled
+  const setStatsCollectionEnabled = useCallback((value: boolean) => {
+    setStatsCollectionEnabledState(value);
+    window.maestro.settings.set('statsCollectionEnabled', value);
+  }, []);
+
+  // Default stats time range
+  const setDefaultStatsTimeRange = useCallback((value: 'day' | 'week' | 'month' | 'year' | 'all') => {
+    setDefaultStatsTimeRangeState(value);
+    window.maestro.settings.set('defaultStatsTimeRange', value);
+  }, []);
+
   // Load settings from electron-store on mount
   useEffect(() => {
     console.log('[Settings] useEffect triggered, about to call loadSettings');
@@ -1147,6 +1189,10 @@ export function useSettings(): UseSettingsReturn {
       const savedKeyboardMasteryStats = await window.maestro.settings.get('keyboardMasteryStats');
       const savedColorBlindMode = await window.maestro.settings.get('colorBlindMode');
       const savedDocumentGraphLayoutMode = await window.maestro.settings.get('documentGraphLayoutMode');
+      const savedDocumentGraphShowExternalLinks = await window.maestro.settings.get('documentGraphShowExternalLinks');
+      const savedDocumentGraphMaxNodes = await window.maestro.settings.get('documentGraphMaxNodes');
+      const savedStatsCollectionEnabled = await window.maestro.settings.get('statsCollectionEnabled');
+      const savedDefaultStatsTimeRange = await window.maestro.settings.get('defaultStatsTimeRange');
 
       if (savedEnterToSendAI !== undefined) setEnterToSendAIState(savedEnterToSendAI as boolean);
       if (savedEnterToSendTerminal !== undefined) setEnterToSendTerminalState(savedEnterToSendTerminal as boolean);
@@ -1376,6 +1422,26 @@ export function useSettings(): UseSettingsReturn {
           setDocumentGraphLayoutModeState(savedDocumentGraphLayoutMode as 'force' | 'hierarchical');
         }
       }
+      if (savedDocumentGraphShowExternalLinks !== undefined) {
+        setDocumentGraphShowExternalLinksState(savedDocumentGraphShowExternalLinks as boolean);
+      }
+      if (savedDocumentGraphMaxNodes !== undefined) {
+        const maxNodes = savedDocumentGraphMaxNodes as number;
+        if (typeof maxNodes === 'number' && maxNodes >= 50 && maxNodes <= 1000) {
+          setDocumentGraphMaxNodesState(maxNodes);
+        }
+      }
+
+      // Stats settings
+      if (savedStatsCollectionEnabled !== undefined) {
+        setStatsCollectionEnabledState(savedStatsCollectionEnabled as boolean);
+      }
+      if (savedDefaultStatsTimeRange !== undefined) {
+        const validTimeRanges = ['day', 'week', 'month', 'year', 'all'];
+        if (validTimeRanges.includes(savedDefaultStatsTimeRange as string)) {
+          setDefaultStatsTimeRangeState(savedDefaultStatsTimeRange as 'day' | 'week' | 'month' | 'year' | 'all');
+        }
+      }
 
       } catch (error) {
         console.error('[Settings] Failed to load settings:', error);
@@ -1517,6 +1583,14 @@ export function useSettings(): UseSettingsReturn {
     setColorBlindMode,
     documentGraphLayoutMode,
     setDocumentGraphLayoutMode,
+    documentGraphShowExternalLinks,
+    setDocumentGraphShowExternalLinks,
+    documentGraphMaxNodes,
+    setDocumentGraphMaxNodes,
+    statsCollectionEnabled,
+    setStatsCollectionEnabled,
+    defaultStatsTimeRange,
+    setDefaultStatsTimeRange,
   }), [
     // State values
     settingsLoaded,
@@ -1638,5 +1712,13 @@ export function useSettings(): UseSettingsReturn {
     setColorBlindMode,
     documentGraphLayoutMode,
     setDocumentGraphLayoutMode,
+    documentGraphShowExternalLinks,
+    setDocumentGraphShowExternalLinks,
+    documentGraphMaxNodes,
+    setDocumentGraphMaxNodes,
+    statsCollectionEnabled,
+    setStatsCollectionEnabled,
+    defaultStatsTimeRange,
+    setDefaultStatsTimeRange,
   ]);
 }

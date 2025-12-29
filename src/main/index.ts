@@ -1095,6 +1095,7 @@ function setupIpcHandlers() {
   // Register Stats handlers for usage tracking
   registerStatsHandlers({
     getMainWindow: () => mainWindow,
+    settingsStore: store,
   });
 
   // Set up callback for group chat router to lookup sessions for auto-add @mentions

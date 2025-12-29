@@ -30,6 +30,14 @@ import { MODAL_PRIORITIES } from '../../constants/modalPriorities';
 import { getRendererPerfMetrics } from '../../utils/logger';
 import { PERFORMANCE_THRESHOLDS } from '../../../shared/performance-metrics';
 
+// Section IDs for keyboard navigation
+const OVERVIEW_SECTIONS = ['summary-cards', 'agent-comparison', 'source-distribution', 'activity-heatmap', 'duration-trends'] as const;
+const AGENTS_SECTIONS = ['agent-comparison'] as const;
+const ACTIVITY_SECTIONS = ['activity-heatmap', 'duration-trends'] as const;
+const AUTORUN_SECTIONS = ['autorun-stats'] as const;
+
+type SectionId = typeof OVERVIEW_SECTIONS[number] | typeof AGENTS_SECTIONS[number] | typeof ACTIVITY_SECTIONS[number] | typeof AUTORUN_SECTIONS[number];
+
 // Performance metrics instance for dashboard
 const perfMetrics = getRendererPerfMetrics('UsageDashboard');
 
@@ -104,9 +112,12 @@ export function UsageDashboardModal({
   const [containerWidth, setContainerWidth] = useState(0);
   const [showNewDataIndicator, setShowNewDataIndicator] = useState(false);
   const [databaseSize, setDatabaseSize] = useState<number | null>(null);
+  const [focusedSection, setFocusedSection] = useState<SectionId | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const sectionRefs = useRef<Map<SectionId, HTMLDivElement>>(new Map());
   const { registerLayer, unregisterLayer } = useLayerStack();
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -243,6 +254,114 @@ export function UsageDashboardModal({
       autoRunStatsCols: isNarrow ? 2 : isMedium ? 3 : 6,
     };
   }, [containerWidth]);
+
+  // Get sections for current view mode
+  const currentSections = useMemo((): readonly SectionId[] => {
+    switch (viewMode) {
+      case 'overview':
+        return OVERVIEW_SECTIONS;
+      case 'agents':
+        return AGENTS_SECTIONS;
+      case 'activity':
+        return ACTIVITY_SECTIONS;
+      case 'autorun':
+        return AUTORUN_SECTIONS;
+      default:
+        return OVERVIEW_SECTIONS;
+    }
+  }, [viewMode]);
+
+  // Get section label for accessibility
+  const getSectionLabel = useCallback((sectionId: SectionId): string => {
+    const labels: Record<SectionId, string> = {
+      'summary-cards': 'Summary Cards',
+      'agent-comparison': 'Agent Comparison Chart',
+      'source-distribution': 'Source Distribution Chart',
+      'activity-heatmap': 'Activity Heatmap',
+      'duration-trends': 'Duration Trends Chart',
+      'autorun-stats': 'Auto Run Statistics',
+    };
+    return labels[sectionId] || sectionId;
+  }, []);
+
+  // Navigate to a section
+  const navigateToSection = useCallback((sectionId: SectionId) => {
+    setFocusedSection(sectionId);
+    const sectionEl = sectionRefs.current.get(sectionId);
+    if (sectionEl) {
+      sectionEl.focus();
+      sectionEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, []);
+
+  // Handle keyboard navigation for view mode tabs
+  const handleTabKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    const currentIndex = VIEW_MODE_TABS.findIndex(tab => tab.value === viewMode);
+
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const prevIndex = currentIndex > 0 ? currentIndex - 1 : VIEW_MODE_TABS.length - 1;
+      setViewMode(VIEW_MODE_TABS[prevIndex].value);
+      setFocusedSection(null);
+    } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      const nextIndex = currentIndex < VIEW_MODE_TABS.length - 1 ? currentIndex + 1 : 0;
+      setViewMode(VIEW_MODE_TABS[nextIndex].value);
+      setFocusedSection(null);
+    } else if (event.key === 'Tab' && !event.shiftKey) {
+      // Tab into content area - focus first section
+      if (currentSections.length > 0 && data) {
+        event.preventDefault();
+        navigateToSection(currentSections[0]);
+      }
+    }
+  }, [viewMode, currentSections, data, navigateToSection]);
+
+  // Handle keyboard navigation for chart sections
+  const handleSectionKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>, sectionId: SectionId) => {
+    const sectionIndex = currentSections.indexOf(sectionId);
+
+    if (event.key === 'ArrowUp' || (event.key === 'Tab' && event.shiftKey)) {
+      event.preventDefault();
+      if (sectionIndex > 0) {
+        // Move to previous section
+        navigateToSection(currentSections[sectionIndex - 1]);
+      } else {
+        // Move focus back to tabs
+        setFocusedSection(null);
+        tabsRef.current?.focus();
+      }
+    } else if (event.key === 'ArrowDown' || (event.key === 'Tab' && !event.shiftKey)) {
+      event.preventDefault();
+      if (sectionIndex < currentSections.length - 1) {
+        // Move to next section
+        navigateToSection(currentSections[sectionIndex + 1]);
+      } else {
+        // Stay on last section (or could cycle back to first)
+        // For now, just stay on the last section
+      }
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      navigateToSection(currentSections[0]);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      navigateToSection(currentSections[currentSections.length - 1]);
+    }
+  }, [currentSections, navigateToSection]);
+
+  // Create a ref callback for section elements
+  const setSectionRef = useCallback((sectionId: SectionId) => (el: HTMLDivElement | null) => {
+    if (el) {
+      sectionRefs.current.set(sectionId, el);
+    } else {
+      sectionRefs.current.delete(sectionId);
+    }
+  }, []);
+
+  // Reset focused section when view mode changes
+  useEffect(() => {
+    setFocusedSection(null);
+  }, [viewMode]);
 
   // Handle export to CSV
   const handleExport = async () => {
@@ -395,14 +514,20 @@ export function UsageDashboardModal({
 
         {/* View Mode Tabs */}
         <div
-          className="px-6 py-2 border-b flex items-center gap-1 flex-shrink-0"
+          ref={tabsRef}
+          className="px-6 py-2 border-b flex items-center gap-1 flex-shrink-0 outline-none"
           style={{ borderColor: theme.colors.border }}
+          role="tablist"
+          aria-label="Dashboard view modes"
+          tabIndex={0}
+          onKeyDown={handleTabKeyDown}
+          data-testid="view-mode-tabs"
         >
-          {VIEW_MODE_TABS.map((tab) => (
+          {VIEW_MODE_TABS.map((tab, index) => (
             <button
               key={tab.value}
               onClick={() => setViewMode(tab.value)}
-              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors outline-none"
               style={{
                 backgroundColor: viewMode === tab.value ? `${theme.colors.accent}20` : 'transparent',
                 color: viewMode === tab.value ? theme.colors.accent : theme.colors.textDim,
@@ -417,6 +542,11 @@ export function UsageDashboardModal({
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
+              role="tab"
+              aria-selected={viewMode === tab.value}
+              aria-controls={`tabpanel-${tab.value}`}
+              id={`tab-${tab.value}`}
+              tabIndex={-1}
             >
               {tab.label}
             </button>
@@ -454,18 +584,37 @@ export function UsageDashboardModal({
             /* Empty State Component */
             <EmptyState theme={theme} />
           ) : (
-            <div className="space-y-6" data-testid="usage-dashboard-content">
+            <div
+              className="space-y-6"
+              data-testid="usage-dashboard-content"
+              role="tabpanel"
+              id={`tabpanel-${viewMode}`}
+              aria-labelledby={`tab-${viewMode}`}
+            >
               {/* View-specific content based on viewMode */}
               {viewMode === 'overview' && (
                 <>
                   {/* Summary Stats Cards - Horizontal row at top, responsive */}
-                  <ChartErrorBoundary theme={theme} chartName="Summary Cards">
-                    <SummaryCards
-                      data={data}
-                      theme={theme}
-                      columns={layout.summaryCardsCols}
-                    />
-                  </ChartErrorBoundary>
+                  <div
+                    ref={setSectionRef('summary-cards')}
+                    tabIndex={0}
+                    role="region"
+                    aria-label={getSectionLabel('summary-cards')}
+                    onKeyDown={(e) => handleSectionKeyDown(e, 'summary-cards')}
+                    className="outline-none rounded-lg transition-shadow"
+                    style={{
+                      boxShadow: focusedSection === 'summary-cards' ? `0 0 0 2px ${theme.colors.accent}` : 'none',
+                    }}
+                    data-testid="section-summary-cards"
+                  >
+                    <ChartErrorBoundary theme={theme} chartName="Summary Cards">
+                      <SummaryCards
+                        data={data}
+                        theme={theme}
+                        columns={layout.summaryCardsCols}
+                      />
+                    </ChartErrorBoundary>
+                  </div>
 
                   {/* Charts Grid - 2 columns on wide, 1 on narrow */}
                   <div
@@ -475,14 +624,38 @@ export function UsageDashboardModal({
                     }}
                   >
                     {/* Agent Comparison Chart */}
-                    <div style={{ minHeight: '300px' }}>
+                    <div
+                      ref={setSectionRef('agent-comparison')}
+                      tabIndex={0}
+                      role="region"
+                      aria-label={getSectionLabel('agent-comparison')}
+                      onKeyDown={(e) => handleSectionKeyDown(e, 'agent-comparison')}
+                      className="outline-none rounded-lg transition-shadow"
+                      style={{
+                        minHeight: '300px',
+                        boxShadow: focusedSection === 'agent-comparison' ? `0 0 0 2px ${theme.colors.accent}` : 'none',
+                      }}
+                      data-testid="section-agent-comparison"
+                    >
                       <ChartErrorBoundary theme={theme} chartName="Agent Comparison">
                         <AgentComparisonChart data={data} theme={theme} />
                       </ChartErrorBoundary>
                     </div>
 
                     {/* Source Distribution Chart */}
-                    <div style={{ minHeight: '300px' }}>
+                    <div
+                      ref={setSectionRef('source-distribution')}
+                      tabIndex={0}
+                      role="region"
+                      aria-label={getSectionLabel('source-distribution')}
+                      onKeyDown={(e) => handleSectionKeyDown(e, 'source-distribution')}
+                      className="outline-none rounded-lg transition-shadow"
+                      style={{
+                        minHeight: '300px',
+                        boxShadow: focusedSection === 'source-distribution' ? `0 0 0 2px ${theme.colors.accent}` : 'none',
+                      }}
+                      data-testid="section-source-distribution"
+                    >
                       <ChartErrorBoundary theme={theme} chartName="Source Distribution">
                         <SourceDistributionChart data={data} theme={theme} />
                       </ChartErrorBoundary>
@@ -490,7 +663,19 @@ export function UsageDashboardModal({
                   </div>
 
                   {/* Activity Heatmap - Full width */}
-                  <div style={{ minHeight: '200px' }}>
+                  <div
+                    ref={setSectionRef('activity-heatmap')}
+                    tabIndex={0}
+                    role="region"
+                    aria-label={getSectionLabel('activity-heatmap')}
+                    onKeyDown={(e) => handleSectionKeyDown(e, 'activity-heatmap')}
+                    className="outline-none rounded-lg transition-shadow"
+                    style={{
+                      minHeight: '200px',
+                      boxShadow: focusedSection === 'activity-heatmap' ? `0 0 0 2px ${theme.colors.accent}` : 'none',
+                    }}
+                    data-testid="section-activity-heatmap"
+                  >
                     <ChartErrorBoundary theme={theme} chartName="Activity Heatmap">
                       <ActivityHeatmap
                         data={data}
@@ -501,7 +686,19 @@ export function UsageDashboardModal({
                   </div>
 
                   {/* Duration Trends Chart - Full width */}
-                  <div style={{ minHeight: '280px' }}>
+                  <div
+                    ref={setSectionRef('duration-trends')}
+                    tabIndex={0}
+                    role="region"
+                    aria-label={getSectionLabel('duration-trends')}
+                    onKeyDown={(e) => handleSectionKeyDown(e, 'duration-trends')}
+                    className="outline-none rounded-lg transition-shadow"
+                    style={{
+                      minHeight: '280px',
+                      boxShadow: focusedSection === 'duration-trends' ? `0 0 0 2px ${theme.colors.accent}` : 'none',
+                    }}
+                    data-testid="section-duration-trends"
+                  >
                     <ChartErrorBoundary theme={theme} chartName="Duration Trends">
                       <DurationTrendsChart
                         data={data}
@@ -516,7 +713,19 @@ export function UsageDashboardModal({
               {viewMode === 'agents' && (
                 <>
                   {/* Agent-focused view */}
-                  <div style={{ minHeight: '400px' }}>
+                  <div
+                    ref={setSectionRef('agent-comparison')}
+                    tabIndex={0}
+                    role="region"
+                    aria-label={getSectionLabel('agent-comparison')}
+                    onKeyDown={(e) => handleSectionKeyDown(e, 'agent-comparison')}
+                    className="outline-none rounded-lg transition-shadow"
+                    style={{
+                      minHeight: '400px',
+                      boxShadow: focusedSection === 'agent-comparison' ? `0 0 0 2px ${theme.colors.accent}` : 'none',
+                    }}
+                    data-testid="section-agent-comparison"
+                  >
                     <ChartErrorBoundary theme={theme} chartName="Agent Comparison">
                       <AgentComparisonChart data={data} theme={theme} />
                     </ChartErrorBoundary>
@@ -527,7 +736,19 @@ export function UsageDashboardModal({
               {viewMode === 'activity' && (
                 <>
                   {/* Activity-focused view */}
-                  <div style={{ minHeight: '300px' }}>
+                  <div
+                    ref={setSectionRef('activity-heatmap')}
+                    tabIndex={0}
+                    role="region"
+                    aria-label={getSectionLabel('activity-heatmap')}
+                    onKeyDown={(e) => handleSectionKeyDown(e, 'activity-heatmap')}
+                    className="outline-none rounded-lg transition-shadow"
+                    style={{
+                      minHeight: '300px',
+                      boxShadow: focusedSection === 'activity-heatmap' ? `0 0 0 2px ${theme.colors.accent}` : 'none',
+                    }}
+                    data-testid="section-activity-heatmap"
+                  >
                     <ChartErrorBoundary theme={theme} chartName="Activity Heatmap">
                       <ActivityHeatmap
                         data={data}
@@ -536,7 +757,19 @@ export function UsageDashboardModal({
                       />
                     </ChartErrorBoundary>
                   </div>
-                  <div style={{ minHeight: '280px' }}>
+                  <div
+                    ref={setSectionRef('duration-trends')}
+                    tabIndex={0}
+                    role="region"
+                    aria-label={getSectionLabel('duration-trends')}
+                    onKeyDown={(e) => handleSectionKeyDown(e, 'duration-trends')}
+                    className="outline-none rounded-lg transition-shadow"
+                    style={{
+                      minHeight: '280px',
+                      boxShadow: focusedSection === 'duration-trends' ? `0 0 0 2px ${theme.colors.accent}` : 'none',
+                    }}
+                    data-testid="section-duration-trends"
+                  >
                     <ChartErrorBoundary theme={theme} chartName="Duration Trends">
                       <DurationTrendsChart
                         data={data}
@@ -551,13 +784,26 @@ export function UsageDashboardModal({
               {viewMode === 'autorun' && (
                 <>
                   {/* Auto Run-focused view */}
-                  <ChartErrorBoundary theme={theme} chartName="Auto Run Stats">
-                    <AutoRunStats
-                      timeRange={timeRange}
-                      theme={theme}
-                      columns={layout.autoRunStatsCols}
-                    />
-                  </ChartErrorBoundary>
+                  <div
+                    ref={setSectionRef('autorun-stats')}
+                    tabIndex={0}
+                    role="region"
+                    aria-label={getSectionLabel('autorun-stats')}
+                    onKeyDown={(e) => handleSectionKeyDown(e, 'autorun-stats')}
+                    className="outline-none rounded-lg transition-shadow"
+                    style={{
+                      boxShadow: focusedSection === 'autorun-stats' ? `0 0 0 2px ${theme.colors.accent}` : 'none',
+                    }}
+                    data-testid="section-autorun-stats"
+                  >
+                    <ChartErrorBoundary theme={theme} chartName="Auto Run Stats">
+                      <AutoRunStats
+                        timeRange={timeRange}
+                        theme={theme}
+                        columns={layout.autoRunStatsCols}
+                      />
+                    </ChartErrorBoundary>
+                  </div>
                 </>
               )}
             </div>

@@ -1486,4 +1486,520 @@ describe('UsageDashboardModal', () => {
       });
     });
   });
+
+  describe('Keyboard Navigation Between Chart Sections', () => {
+    /**
+     * These tests verify keyboard navigation functionality for the Usage Dashboard.
+     *
+     * Navigation features:
+     * 1. Tab navigation between view mode tabs (Overview, Agents, Activity, Auto Run)
+     * 2. Arrow key navigation within tabs (Left/Right to switch tabs)
+     * 3. Tab key to move from tabs to chart sections
+     * 4. Arrow key navigation between chart sections (Up/Down)
+     * 5. Home/End keys to jump to first/last section
+     * 6. Visual focus indicator on focused section
+     */
+
+    it('renders view mode tabs with tablist role', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        const tablist = screen.getByRole('tablist');
+        expect(tablist).toBeInTheDocument();
+        expect(tablist).toHaveAttribute('aria-label', 'Dashboard view modes');
+      });
+    });
+
+    it('renders individual tabs with proper ARIA attributes', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        const tabs = screen.getAllByRole('tab');
+        expect(tabs).toHaveLength(4);
+
+        // First tab (Overview) should be selected
+        expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+        expect(tabs[0]).toHaveAttribute('aria-controls', 'tabpanel-overview');
+        expect(tabs[0]).toHaveAttribute('id', 'tab-overview');
+
+        // Other tabs should not be selected
+        expect(tabs[1]).toHaveAttribute('aria-selected', 'false');
+        expect(tabs[2]).toHaveAttribute('aria-selected', 'false');
+        expect(tabs[3]).toHaveAttribute('aria-selected', 'false');
+      });
+    });
+
+    it('switches tabs with ArrowRight key', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      const tablist = screen.getByTestId('view-mode-tabs');
+
+      // Focus tablist and press ArrowRight
+      fireEvent.keyDown(tablist, { key: 'ArrowRight' });
+
+      await waitFor(() => {
+        const tabs = screen.getAllByRole('tab');
+        // Should now be on Agents tab
+        expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
+        expect(tabs[0]).toHaveAttribute('aria-selected', 'false');
+      });
+    });
+
+    it('switches tabs with ArrowLeft key', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      const tablist = screen.getByTestId('view-mode-tabs');
+
+      // First move to Agents tab
+      fireEvent.keyDown(tablist, { key: 'ArrowRight' });
+
+      await waitFor(() => {
+        expect(screen.getAllByRole('tab')[1]).toHaveAttribute('aria-selected', 'true');
+      });
+
+      // Now press ArrowLeft to go back to Overview
+      fireEvent.keyDown(tablist, { key: 'ArrowLeft' });
+
+      await waitFor(() => {
+        const tabs = screen.getAllByRole('tab');
+        expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+        expect(tabs[1]).toHaveAttribute('aria-selected', 'false');
+      });
+    });
+
+    it('wraps around when pressing ArrowLeft on first tab', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      const tablist = screen.getByTestId('view-mode-tabs');
+
+      // Press ArrowLeft while on first tab - should wrap to last tab (Auto Run)
+      fireEvent.keyDown(tablist, { key: 'ArrowLeft' });
+
+      await waitFor(() => {
+        const tabs = screen.getAllByRole('tab');
+        expect(tabs[3]).toHaveAttribute('aria-selected', 'true'); // Auto Run tab
+        expect(tabs[0]).toHaveAttribute('aria-selected', 'false');
+      });
+    });
+
+    it('wraps around when pressing ArrowRight on last tab', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      const tablist = screen.getByTestId('view-mode-tabs');
+
+      // Navigate to last tab (Auto Run)
+      fireEvent.keyDown(tablist, { key: 'ArrowLeft' }); // Wraps to last
+
+      await waitFor(() => {
+        expect(screen.getAllByRole('tab')[3]).toHaveAttribute('aria-selected', 'true');
+      });
+
+      // Press ArrowRight - should wrap to first tab (Overview)
+      fireEvent.keyDown(tablist, { key: 'ArrowRight' });
+
+      await waitFor(() => {
+        const tabs = screen.getAllByRole('tab');
+        expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+        expect(tabs[3]).toHaveAttribute('aria-selected', 'false');
+      });
+    });
+
+    it('renders chart sections as focusable regions in overview mode', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      // Check for focusable chart sections
+      expect(screen.getByTestId('section-summary-cards')).toHaveAttribute('tabIndex', '0');
+      expect(screen.getByTestId('section-summary-cards')).toHaveAttribute('role', 'region');
+      expect(screen.getByTestId('section-summary-cards')).toHaveAttribute('aria-label', 'Summary Cards');
+
+      expect(screen.getByTestId('section-agent-comparison')).toHaveAttribute('tabIndex', '0');
+      expect(screen.getByTestId('section-agent-comparison')).toHaveAttribute('aria-label', 'Agent Comparison Chart');
+
+      expect(screen.getByTestId('section-source-distribution')).toHaveAttribute('tabIndex', '0');
+      expect(screen.getByTestId('section-source-distribution')).toHaveAttribute('aria-label', 'Source Distribution Chart');
+
+      expect(screen.getByTestId('section-activity-heatmap')).toHaveAttribute('tabIndex', '0');
+      expect(screen.getByTestId('section-activity-heatmap')).toHaveAttribute('aria-label', 'Activity Heatmap');
+
+      expect(screen.getByTestId('section-duration-trends')).toHaveAttribute('tabIndex', '0');
+      expect(screen.getByTestId('section-duration-trends')).toHaveAttribute('aria-label', 'Duration Trends Chart');
+    });
+
+    it('renders tabpanel with proper ARIA attributes', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        const tabpanel = screen.getByRole('tabpanel');
+        expect(tabpanel).toBeInTheDocument();
+        expect(tabpanel).toHaveAttribute('id', 'tabpanel-overview');
+        expect(tabpanel).toHaveAttribute('aria-labelledby', 'tab-overview');
+      });
+    });
+
+    it('updates tabpanel id when view mode changes', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      // Click on Agents tab
+      fireEvent.click(screen.getByText('Agents'));
+
+      await waitFor(() => {
+        const tabpanel = screen.getByRole('tabpanel');
+        expect(tabpanel).toHaveAttribute('id', 'tabpanel-agents');
+        expect(tabpanel).toHaveAttribute('aria-labelledby', 'tab-agents');
+      });
+    });
+
+    it('navigates between chart sections with ArrowDown key', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      const summarySection = screen.getByTestId('section-summary-cards');
+
+      // Focus summary cards section and press ArrowDown
+      summarySection.focus();
+      fireEvent.keyDown(summarySection, { key: 'ArrowDown' });
+
+      // Should focus agent comparison (next section)
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByTestId('section-agent-comparison'));
+      });
+    });
+
+    it('navigates between chart sections with ArrowUp key', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      const agentSection = screen.getByTestId('section-agent-comparison');
+
+      // Focus agent comparison and press ArrowUp
+      agentSection.focus();
+      fireEvent.keyDown(agentSection, { key: 'ArrowUp' });
+
+      // Should focus summary cards (previous section)
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByTestId('section-summary-cards'));
+      });
+    });
+
+    it('Home key focuses first section', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      const durationSection = screen.getByTestId('section-duration-trends');
+
+      // Focus last section and press Home
+      durationSection.focus();
+      fireEvent.keyDown(durationSection, { key: 'Home' });
+
+      // Should focus first section (summary cards)
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByTestId('section-summary-cards'));
+      });
+    });
+
+    it('End key focuses last section', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      const summarySection = screen.getByTestId('section-summary-cards');
+
+      // Focus first section and press End
+      summarySection.focus();
+      fireEvent.keyDown(summarySection, { key: 'End' });
+
+      // Should focus last section (duration trends)
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByTestId('section-duration-trends'));
+      });
+    });
+
+    it('shows visual focus indicator on focused section', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      const tablist = screen.getByTestId('view-mode-tabs');
+
+      // Tab from tablist to first section
+      fireEvent.keyDown(tablist, { key: 'Tab' });
+
+      await waitFor(() => {
+        const summarySection = screen.getByTestId('section-summary-cards');
+        // Check for focus ring style
+        expect(summarySection).toHaveStyle({ boxShadow: `0 0 0 2px ${theme.colors.accent}` });
+      });
+    });
+
+    it('renders only one section in agents view mode', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      // Switch to Agents view
+      fireEvent.click(screen.getByText('Agents'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('section-agent-comparison')).toBeInTheDocument();
+        // Only one section in agents view
+        expect(screen.queryByTestId('section-summary-cards')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('section-source-distribution')).not.toBeInTheDocument();
+      });
+    });
+
+    it('renders two sections in activity view mode', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      // Switch to Activity view
+      fireEvent.click(screen.getByText('Activity'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('section-activity-heatmap')).toBeInTheDocument();
+        expect(screen.getByTestId('section-duration-trends')).toBeInTheDocument();
+        // No other sections
+        expect(screen.queryByTestId('section-summary-cards')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('section-agent-comparison')).not.toBeInTheDocument();
+      });
+    });
+
+    it('renders autorun-stats section in autorun view mode', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      // Switch to Auto Run view - use the tab button specifically
+      const tabs = screen.getAllByRole('tab');
+      fireEvent.click(tabs[3]); // Auto Run is the 4th tab
+
+      await waitFor(() => {
+        expect(screen.getByTestId('section-autorun-stats')).toBeInTheDocument();
+        expect(screen.getByTestId('section-autorun-stats')).toHaveAttribute('aria-label', 'Auto Run Statistics');
+      });
+    });
+
+    it('ArrowUp from first section returns focus to tabs', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      const summarySection = screen.getByTestId('section-summary-cards');
+      const tablist = screen.getByTestId('view-mode-tabs');
+
+      // Focus first section and press ArrowUp (or Shift+Tab)
+      summarySection.focus();
+      fireEvent.keyDown(summarySection, { key: 'ArrowUp' });
+
+      // Focus should return to tabs
+      await waitFor(() => {
+        expect(document.activeElement).toBe(tablist);
+      });
+    });
+
+    it('Shift+Tab from first section returns focus to tabs', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      const summarySection = screen.getByTestId('section-summary-cards');
+      const tablist = screen.getByTestId('view-mode-tabs');
+
+      // Focus first section and press Shift+Tab
+      summarySection.focus();
+      fireEvent.keyDown(summarySection, { key: 'Tab', shiftKey: true });
+
+      // Focus should return to tabs
+      await waitFor(() => {
+        expect(document.activeElement).toBe(tablist);
+      });
+    });
+
+    it('Tab from tabs focuses first chart section', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      const tablist = screen.getByTestId('view-mode-tabs');
+
+      // Focus tablist and press Tab (without shift)
+      tablist.focus();
+      fireEvent.keyDown(tablist, { key: 'Tab' });
+
+      // Should focus first section
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByTestId('section-summary-cards'));
+      });
+    });
+
+    it('resets focused section when view mode changes', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      // Focus a section in overview
+      const summarySection = screen.getByTestId('section-summary-cards');
+      summarySection.focus();
+      fireEvent.keyDown(summarySection, { key: 'ArrowDown' });
+
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByTestId('section-agent-comparison'));
+      });
+
+      // Switch to Agents view
+      fireEvent.click(screen.getByText('Agents'));
+
+      await waitFor(() => {
+        // The section in the new view should not have focus ring initially
+        const agentSection = screen.getByTestId('section-agent-comparison');
+        expect(agentSection).not.toHaveStyle({ boxShadow: `0 0 0 2px ${theme.colors.accent}` });
+      });
+    });
+
+    it('Tab navigation cycles through sections in activity view', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      // Switch to Activity view
+      fireEvent.click(screen.getByText('Activity'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('section-activity-heatmap')).toBeInTheDocument();
+      });
+
+      const heatmapSection = screen.getByTestId('section-activity-heatmap');
+
+      // Focus heatmap and Tab to duration trends
+      heatmapSection.focus();
+      fireEvent.keyDown(heatmapSection, { key: 'Tab' });
+
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByTestId('section-duration-trends'));
+      });
+    });
+
+    it('supports ArrowUp and ArrowDown for tab navigation as alternatives', async () => {
+      render(
+        <UsageDashboardModal isOpen={true} onClose={onClose} theme={theme} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('usage-dashboard-content')).toBeInTheDocument();
+      });
+
+      const tablist = screen.getByTestId('view-mode-tabs');
+
+      // ArrowDown should also switch tabs (same as ArrowRight)
+      fireEvent.keyDown(tablist, { key: 'ArrowDown' });
+
+      await waitFor(() => {
+        expect(screen.getAllByRole('tab')[1]).toHaveAttribute('aria-selected', 'true');
+      });
+
+      // ArrowUp should also switch tabs (same as ArrowLeft)
+      fireEvent.keyDown(tablist, { key: 'ArrowUp' });
+
+      await waitFor(() => {
+        expect(screen.getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true');
+      });
+    });
+  });
 });

@@ -430,7 +430,7 @@ export function createMarkdownComponents(options: MarkdownComponentsOptions): Pa
 export function generateAutoRunProseStyles(theme: Theme): string {
   return generateProseStyles({
     theme,
-    coloredHeadings: false,
+    coloredHeadings: true,
     compactSpacing: false,
     includeCheckboxStyles: true,
     scopeSelector: '.autorun-panel',

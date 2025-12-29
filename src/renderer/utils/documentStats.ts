@@ -31,6 +31,8 @@ export interface DocumentStats {
   filePath: string;
   /** Paths to broken internal links (links to non-existent files) */
   brokenLinks?: string[];
+  /** True if the file is very large (>1MB) and was truncated for parsing */
+  isLargeFile?: boolean;
 }
 
 /**

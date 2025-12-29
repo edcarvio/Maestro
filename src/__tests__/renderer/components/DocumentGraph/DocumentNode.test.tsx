@@ -739,4 +739,142 @@ describe('DocumentNode', () => {
       expect(tooltip).toContain('missing.md');
     });
   });
+
+  describe('Large File Indicator', () => {
+    it('shows large file indicator icon when isLargeFile is true', () => {
+      const props = createNodeProps({
+        title: 'Large Document',
+        isLargeFile: true,
+      });
+
+      renderWithProvider(<DocumentNode {...props} />);
+
+      const indicator = screen.getByTestId('large-file-indicator');
+      expect(indicator).toBeInTheDocument();
+    });
+
+    it('does not show large file indicator when isLargeFile is undefined', () => {
+      const props = createNodeProps({
+        title: 'Normal Document',
+        // isLargeFile not set
+      });
+
+      renderWithProvider(<DocumentNode {...props} />);
+
+      expect(screen.queryByTestId('large-file-indicator')).not.toBeInTheDocument();
+    });
+
+    it('does not show large file indicator when isLargeFile is false', () => {
+      const props = createNodeProps({
+        title: 'Normal Document',
+        isLargeFile: false,
+      });
+
+      renderWithProvider(<DocumentNode {...props} />);
+
+      expect(screen.queryByTestId('large-file-indicator')).not.toBeInTheDocument();
+    });
+
+    it('large file indicator has correct tooltip', () => {
+      const props = createNodeProps({
+        title: 'Large Document',
+        isLargeFile: true,
+      });
+
+      renderWithProvider(<DocumentNode {...props} />);
+
+      const indicator = screen.getByTestId('large-file-indicator');
+      expect(indicator).toHaveAttribute('title', 'Large file (>1MB) - content truncated for parsing');
+    });
+
+    it('large file indicator has blue info color', () => {
+      const props = createNodeProps({
+        title: 'Large Document',
+        isLargeFile: true,
+      });
+
+      renderWithProvider(<DocumentNode {...props} />);
+
+      const indicator = screen.getByTestId('large-file-indicator');
+      expect(indicator).toHaveStyle({
+        color: '#3b82f6',
+      });
+    });
+
+    it('includes large file info in main tooltip', () => {
+      const props = createNodeProps({
+        title: 'Large Document',
+        filePath: 'docs/large.md',
+        isLargeFile: true,
+      });
+
+      const { container } = renderWithProvider(<DocumentNode {...props} />);
+
+      const nodeElement = container.querySelector('.document-node');
+      const tooltip = nodeElement?.getAttribute('title') || '';
+
+      expect(tooltip).toContain('docs/large.md');
+      expect(tooltip).toContain('ℹ️ Large file (>1MB) - some links may not be detected');
+    });
+
+    it('does not include large file info in tooltip when not a large file', () => {
+      const props = createNodeProps({
+        title: 'Normal Document',
+        filePath: 'docs/normal.md',
+        isLargeFile: false,
+      });
+
+      const { container } = renderWithProvider(<DocumentNode {...props} />);
+
+      const nodeElement = container.querySelector('.document-node');
+      const tooltip = nodeElement?.getAttribute('title') || '';
+
+      expect(tooltip).not.toContain('Large file');
+    });
+
+    it('shows both large file indicator and broken links warning when both present', () => {
+      const props = createNodeProps({
+        title: 'Large Document With Issues',
+        isLargeFile: true,
+        brokenLinks: ['missing.md'],
+      });
+
+      renderWithProvider(<DocumentNode {...props} />);
+
+      expect(screen.getByTestId('large-file-indicator')).toBeInTheDocument();
+      expect(screen.getByTestId('broken-links-warning')).toBeInTheDocument();
+    });
+
+    it('includes both large file info and broken links in tooltip', () => {
+      const props = createNodeProps({
+        title: 'Large Document With Issues',
+        filePath: 'docs/large.md',
+        isLargeFile: true,
+        brokenLinks: ['missing.md'],
+      });
+
+      const { container } = renderWithProvider(<DocumentNode {...props} />);
+
+      const nodeElement = container.querySelector('.document-node');
+      const tooltip = nodeElement?.getAttribute('title') || '';
+
+      expect(tooltip).toContain('ℹ️ Large file (>1MB)');
+      expect(tooltip).toContain('⚠️ Broken links (1)');
+      expect(tooltip).toContain('missing.md');
+    });
+
+    it('large file indicator appears in stats row next to size', () => {
+      const props = createNodeProps({
+        title: 'Large Document',
+        size: '5.2 MB',
+        isLargeFile: true,
+      });
+
+      const { container } = renderWithProvider(<DocumentNode {...props} />);
+
+      // Both the size and the indicator should be visible
+      expect(screen.getByText('5.2 MB')).toBeInTheDocument();
+      expect(screen.getByTestId('large-file-indicator')).toBeInTheDocument();
+    });
+  });
 });

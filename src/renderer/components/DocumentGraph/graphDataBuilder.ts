@@ -17,6 +17,42 @@ import { PERFORMANCE_THRESHOLDS } from '../../../shared/performance-metrics';
 const perfMetrics = getRendererPerfMetrics('DocumentGraph');
 
 /**
+ * Size threshold for "large" files that need special handling.
+ * Files larger than this will have their content truncated for parsing
+ * to prevent blocking the UI.
+ */
+export const LARGE_FILE_THRESHOLD = 1024 * 1024; // 1MB
+
+/**
+ * Maximum content size to read for link extraction from large files.
+ * Links are typically in the document header/early content, so reading
+ * the first portion is usually sufficient for graph building.
+ */
+export const LARGE_FILE_PARSE_LIMIT = 100 * 1024; // 100KB
+
+/**
+ * Number of files to process before yielding to the event loop.
+ * This prevents the UI from freezing during large batch operations.
+ */
+export const BATCH_SIZE_BEFORE_YIELD = 5;
+
+/**
+ * Yields control to the event loop to prevent UI blocking.
+ * Uses requestAnimationFrame for smooth visual updates.
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => {
+    // Use requestAnimationFrame for better visual responsiveness
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(() => resolve());
+    } else {
+      // Fallback for environments without requestAnimationFrame
+      setTimeout(resolve, 0);
+    }
+  });
+}
+
+/**
  * Progress callback data for reporting scan/parse progress
  */
 export interface ProgressData {
@@ -184,7 +220,9 @@ async function scanMarkdownFiles(
 }
 
 /**
- * Parse a single markdown file and extract its data
+ * Parse a single markdown file and extract its data.
+ * For large files (>1MB), content is truncated to prevent UI blocking.
+ *
  * @param rootPath - Root directory path
  * @param relativePath - Path relative to root
  * @returns Parsed file data or null if reading fails
@@ -193,21 +231,41 @@ async function parseFile(rootPath: string, relativePath: string): Promise<Parsed
   const fullPath = `${rootPath}/${relativePath}`;
 
   try {
+    // Get file stats first to check size
+    const stat = await window.maestro.fs.stat(fullPath);
+    const fileSize = stat?.size ?? 0;
+    const isLargeFile = fileSize > LARGE_FILE_THRESHOLD;
+
     // Read file content
-    const content = await window.maestro.fs.readFile(fullPath);
+    let content = await window.maestro.fs.readFile(fullPath);
     if (content === null || content === undefined) {
       return null;
     }
 
-    // Get file stats
-    const stat = await window.maestro.fs.stat(fullPath);
-    const fileSize = stat?.size ?? 0;
+    // For large files, truncate content for parsing to prevent UI blocking.
+    // We still use the full file size for stats display.
+    // Links are typically in the document header/early content, so truncation
+    // rarely misses important link information.
+    let contentForParsing = content;
+    if (isLargeFile && content.length > LARGE_FILE_PARSE_LIMIT) {
+      contentForParsing = content.substring(0, LARGE_FILE_PARSE_LIMIT);
+      // Log for debugging - large file handling
+      console.debug(
+        `[DocumentGraph] Large file truncated for parsing: ${relativePath} (${(fileSize / 1024 / 1024).toFixed(1)}MB → ${(LARGE_FILE_PARSE_LIMIT / 1024).toFixed(0)}KB)`
+      );
+    }
 
-    // Parse links from content
-    const { internalLinks, externalLinks } = parseMarkdownLinks(content, relativePath);
+    // Parse links from content (possibly truncated for large files)
+    const { internalLinks, externalLinks } = parseMarkdownLinks(contentForParsing, relativePath);
 
     // Compute document statistics
-    const stats = computeDocumentStats(content, relativePath, fileSize);
+    // For large files, we compute stats from the truncated content but with accurate file size
+    const stats = computeDocumentStats(contentForParsing, relativePath, fileSize);
+
+    // Mark large files in stats for UI indication
+    if (isLargeFile) {
+      stats.isLargeFile = true;
+    }
 
     // Note: We intentionally do NOT store 'content' in the returned object.
     // The content has been parsed for links and stats, and is no longer needed.
@@ -254,6 +312,7 @@ export async function buildGraphData(options: BuildOptions): Promise<GraphData> 
   }
 
   // Step 3: Parse the files we're processing
+  // We yield to the event loop every BATCH_SIZE_BEFORE_YIELD files to prevent UI blocking
   const parseStart = perfMetrics.start();
   const parsedFiles: ParsedFile[] = [];
   for (let i = 0; i < pathsToProcess.length; i++) {
@@ -272,6 +331,12 @@ export async function buildGraphData(options: BuildOptions): Promise<GraphData> 
     const parsed = await parseFile(rootPath, relativePath);
     if (parsed) {
       parsedFiles.push(parsed);
+    }
+
+    // Yield to event loop periodically to prevent UI blocking
+    // This is especially important when processing many files or large files
+    if ((i + 1) % BATCH_SIZE_BEFORE_YIELD === 0) {
+      await yieldToEventLoop();
     }
   }
   perfMetrics.end(parseStart, 'buildGraphData:parse', {

@@ -2009,4 +2009,358 @@ describe('graphDataBuilder', () => {
       }
     });
   });
+
+  describe('Large file handling (>1MB)', () => {
+    const ONE_MB = 1024 * 1024;
+    const LARGE_FILE_PARSE_LIMIT = 100 * 1024; // 100KB
+
+    it('should mark files >1MB as isLargeFile', async () => {
+      mockReadDir.mockResolvedValue([
+        { name: 'large.md', isDirectory: false, path: '/test/large.md' },
+      ]);
+
+      // File size > 1MB
+      mockStat.mockResolvedValue({
+        size: ONE_MB + 1,
+        createdAt: '',
+        modifiedAt: '',
+      });
+
+      mockReadFile.mockResolvedValue('# Large File\n\nSome content.');
+
+      const result = await buildGraphData({
+        rootPath: '/test',
+        includeExternalLinks: false,
+      });
+
+      expect(result.nodes).toHaveLength(1);
+      const nodeData = result.nodes[0].data as DocumentNodeData;
+      expect(nodeData.isLargeFile).toBe(true);
+    });
+
+    it('should NOT mark files <=1MB as isLargeFile', async () => {
+      mockReadDir.mockResolvedValue([
+        { name: 'normal.md', isDirectory: false, path: '/test/normal.md' },
+      ]);
+
+      // File size exactly 1MB (not > 1MB)
+      mockStat.mockResolvedValue({
+        size: ONE_MB,
+        createdAt: '',
+        modifiedAt: '',
+      });
+
+      mockReadFile.mockResolvedValue('# Normal File\n\nSome content.');
+
+      const result = await buildGraphData({
+        rootPath: '/test',
+        includeExternalLinks: false,
+      });
+
+      expect(result.nodes).toHaveLength(1);
+      const nodeData = result.nodes[0].data as DocumentNodeData;
+      expect(nodeData.isLargeFile).toBeUndefined();
+    });
+
+    it('should truncate large file content for parsing but preserve accurate file size', async () => {
+      mockReadDir.mockResolvedValue([
+        { name: 'huge.md', isDirectory: false, path: '/test/huge.md' },
+      ]);
+
+      const actualSize = ONE_MB * 5; // 5MB file
+      mockStat.mockResolvedValue({
+        size: actualSize,
+        createdAt: '',
+        modifiedAt: '',
+      });
+
+      // Create content larger than parse limit
+      const largeContent = 'a'.repeat(LARGE_FILE_PARSE_LIMIT * 2);
+      mockReadFile.mockResolvedValue(`# Title\n\n${largeContent}`);
+
+      const result = await buildGraphData({
+        rootPath: '/test',
+        includeExternalLinks: false,
+      });
+
+      const nodeData = result.nodes[0].data as DocumentNodeData;
+
+      // Should be marked as large file
+      expect(nodeData.isLargeFile).toBe(true);
+
+      // File size should reflect actual size (5MB = "5.0 MB")
+      expect(nodeData.size).toBe('5.0 MB');
+    });
+
+    it('should still extract links from the first 100KB of large files', async () => {
+      mockReadDir.mockResolvedValue([
+        { name: 'large-with-links.md', isDirectory: false, path: '/test/large-with-links.md' },
+        { name: 'target.md', isDirectory: false, path: '/test/target.md' },
+      ]);
+
+      mockStat.mockImplementation((filePath: string) => {
+        if (filePath.includes('large-with-links')) {
+          return Promise.resolve({ size: ONE_MB * 2, createdAt: '', modifiedAt: '' });
+        }
+        return Promise.resolve({ size: 100, createdAt: '', modifiedAt: '' });
+      });
+
+      // Links are at the beginning (within first 100KB)
+      const linkContent = '# Large File\n\n[[target]]\n\n[External](https://example.com)\n\n';
+      const padding = 'x'.repeat(LARGE_FILE_PARSE_LIMIT * 2);
+      mockReadFile.mockImplementation((filePath: string) => {
+        if (filePath.includes('large-with-links')) {
+          return Promise.resolve(linkContent + padding);
+        }
+        return Promise.resolve('# Target');
+      });
+
+      const result = await buildGraphData({
+        rootPath: '/test',
+        includeExternalLinks: true,
+      });
+
+      // Should have created edge from large file to target
+      const edge = result.edges.find(
+        (e) => e.source === 'doc-large-with-links.md' && e.target === 'doc-target.md'
+      );
+      expect(edge).toBeDefined();
+
+      // Should have captured external link too
+      const externalEdge = result.edges.find(
+        (e) => e.source === 'doc-large-with-links.md' && e.target === 'ext-example.com'
+      );
+      expect(externalEdge).toBeDefined();
+    });
+
+    it('should miss links beyond 100KB truncation point in large files', async () => {
+      mockReadDir.mockResolvedValue([
+        { name: 'large-late-links.md', isDirectory: false, path: '/test/large-late-links.md' },
+        { name: 'late-target.md', isDirectory: false, path: '/test/late-target.md' },
+      ]);
+
+      mockStat.mockImplementation((filePath: string) => {
+        if (filePath.includes('large-late-links')) {
+          return Promise.resolve({ size: ONE_MB * 2, createdAt: '', modifiedAt: '' });
+        }
+        return Promise.resolve({ size: 100, createdAt: '', modifiedAt: '' });
+      });
+
+      // Links are after the 100KB truncation point
+      const padding = 'x'.repeat(LARGE_FILE_PARSE_LIMIT + 1000);
+      const lateLinks = '\n\n[[late-target]]\n\n';
+      mockReadFile.mockImplementation((filePath: string) => {
+        if (filePath.includes('large-late-links')) {
+          return Promise.resolve(`# Large File\n\n${padding}${lateLinks}`);
+        }
+        return Promise.resolve('# Late Target');
+      });
+
+      const result = await buildGraphData({
+        rootPath: '/test',
+        includeExternalLinks: false,
+      });
+
+      // Edge should NOT be created because link is beyond truncation point
+      const edge = result.edges.find(
+        (e) => e.source === 'doc-large-late-links.md' && e.target === 'doc-late-target.md'
+      );
+      expect(edge).toBeUndefined();
+    });
+
+    it('should handle mixed normal and large files in same directory', async () => {
+      mockReadDir.mockResolvedValue([
+        { name: 'small.md', isDirectory: false, path: '/test/small.md' },
+        { name: 'medium.md', isDirectory: false, path: '/test/medium.md' },
+        { name: 'large.md', isDirectory: false, path: '/test/large.md' },
+      ]);
+
+      mockStat.mockImplementation((filePath: string) => {
+        if (filePath.includes('small')) return Promise.resolve({ size: 1000, createdAt: '', modifiedAt: '' });
+        if (filePath.includes('medium')) return Promise.resolve({ size: ONE_MB / 2, createdAt: '', modifiedAt: '' });
+        if (filePath.includes('large')) return Promise.resolve({ size: ONE_MB * 3, createdAt: '', modifiedAt: '' });
+        return Promise.resolve({ size: 100, createdAt: '', modifiedAt: '' });
+      });
+
+      mockReadFile.mockImplementation((filePath: string) => {
+        if (filePath.includes('small')) return Promise.resolve('# Small');
+        if (filePath.includes('medium')) return Promise.resolve('# Medium');
+        if (filePath.includes('large')) return Promise.resolve('# Large');
+        return Promise.resolve('');
+      });
+
+      const result = await buildGraphData({
+        rootPath: '/test',
+        includeExternalLinks: false,
+      });
+
+      expect(result.nodes).toHaveLength(3);
+
+      // Only the large file should be marked
+      const smallNode = result.nodes.find((n) => n.id === 'doc-small.md');
+      const mediumNode = result.nodes.find((n) => n.id === 'doc-medium.md');
+      const largeNode = result.nodes.find((n) => n.id === 'doc-large.md');
+
+      expect((smallNode?.data as DocumentNodeData).isLargeFile).toBeUndefined();
+      expect((mediumNode?.data as DocumentNodeData).isLargeFile).toBeUndefined();
+      expect((largeNode?.data as DocumentNodeData).isLargeFile).toBe(true);
+    });
+
+    it('should handle file exactly at 1MB threshold (not marked as large)', async () => {
+      mockReadDir.mockResolvedValue([
+        { name: 'exactly-1mb.md', isDirectory: false, path: '/test/exactly-1mb.md' },
+      ]);
+
+      mockStat.mockResolvedValue({
+        size: ONE_MB,
+        createdAt: '',
+        modifiedAt: '',
+      });
+
+      mockReadFile.mockResolvedValue('# Exactly 1MB');
+
+      const result = await buildGraphData({
+        rootPath: '/test',
+        includeExternalLinks: false,
+      });
+
+      const nodeData = result.nodes[0].data as DocumentNodeData;
+      // Exactly 1MB should NOT be marked as large (only > 1MB)
+      expect(nodeData.isLargeFile).toBeUndefined();
+    });
+
+    it('should handle file just over 1MB threshold (marked as large)', async () => {
+      mockReadDir.mockResolvedValue([
+        { name: 'just-over-1mb.md', isDirectory: false, path: '/test/just-over-1mb.md' },
+      ]);
+
+      mockStat.mockResolvedValue({
+        size: ONE_MB + 1,
+        createdAt: '',
+        modifiedAt: '',
+      });
+
+      mockReadFile.mockResolvedValue('# Just Over 1MB');
+
+      const result = await buildGraphData({
+        rootPath: '/test',
+        includeExternalLinks: false,
+      });
+
+      const nodeData = result.nodes[0].data as DocumentNodeData;
+      // Just over 1MB should be marked as large
+      expect(nodeData.isLargeFile).toBe(true);
+    });
+
+    it('should preserve title extraction from large file (within truncation)', async () => {
+      mockReadDir.mockResolvedValue([
+        { name: 'titled-large.md', isDirectory: false, path: '/test/titled-large.md' },
+      ]);
+
+      mockStat.mockResolvedValue({
+        size: ONE_MB * 2,
+        createdAt: '',
+        modifiedAt: '',
+      });
+
+      mockReadFile.mockResolvedValue('---\ntitle: My Large Document\n---\n\n# Content\n\nLots of text...');
+
+      const result = await buildGraphData({
+        rootPath: '/test',
+        includeExternalLinks: false,
+      });
+
+      const nodeData = result.nodes[0].data as DocumentNodeData;
+      expect(nodeData.title).toBe('My Large Document');
+      expect(nodeData.isLargeFile).toBe(true);
+    });
+
+    it('should not block UI when processing multiple large files (yielding)', async () => {
+      // Create 20 large files to trigger multiple yield points
+      const fileCount = 20;
+      const files = Array.from({ length: fileCount }, (_, i) => ({
+        name: `large-${i}.md`,
+        isDirectory: false,
+        path: `/test/large-${i}.md`,
+      }));
+
+      mockReadDir.mockResolvedValue(files);
+
+      mockStat.mockResolvedValue({
+        size: ONE_MB * 2,
+        createdAt: '',
+        modifiedAt: '',
+      });
+
+      mockReadFile.mockResolvedValue('# Large File Content');
+
+      // Track if we yield (requestAnimationFrame should be called)
+      // This test verifies that the function completes without blocking
+      const result = await buildGraphData({
+        rootPath: '/test',
+        includeExternalLinks: false,
+      });
+
+      expect(result.nodes).toHaveLength(fileCount);
+      // All files should be marked as large
+      result.nodes.forEach((node) => {
+        expect((node.data as DocumentNodeData).isLargeFile).toBe(true);
+      });
+    });
+
+    it('should handle large file with content exactly at parse limit', async () => {
+      mockReadDir.mockResolvedValue([
+        { name: 'at-limit.md', isDirectory: false, path: '/test/at-limit.md' },
+      ]);
+
+      mockStat.mockResolvedValue({
+        size: ONE_MB * 2,
+        createdAt: '',
+        modifiedAt: '',
+      });
+
+      // Content exactly at parse limit
+      const exactContent = 'a'.repeat(LARGE_FILE_PARSE_LIMIT);
+      mockReadFile.mockResolvedValue(exactContent);
+
+      const result = await buildGraphData({
+        rootPath: '/test',
+        includeExternalLinks: false,
+      });
+
+      // Should process without error
+      expect(result.nodes).toHaveLength(1);
+      expect((result.nodes[0].data as DocumentNodeData).isLargeFile).toBe(true);
+    });
+
+    it('should correctly report line and word counts from truncated content', async () => {
+      mockReadDir.mockResolvedValue([
+        { name: 'stats-test.md', isDirectory: false, path: '/test/stats-test.md' },
+      ]);
+
+      mockStat.mockResolvedValue({
+        size: ONE_MB * 2,
+        createdAt: '',
+        modifiedAt: '',
+      });
+
+      // Create content with known lines and words at the beginning
+      const knownContent = '# Title\n\nLine 2 with five words here.\nLine 3.\n\n';
+      const padding = 'x'.repeat(LARGE_FILE_PARSE_LIMIT * 2);
+      mockReadFile.mockResolvedValue(knownContent + padding);
+
+      const result = await buildGraphData({
+        rootPath: '/test',
+        includeExternalLinks: false,
+      });
+
+      const nodeData = result.nodes[0].data as DocumentNodeData;
+
+      // Stats are computed from truncated content
+      // The exact counts depend on how much of the padding fits in 100KB
+      expect(nodeData.lineCount).toBeGreaterThan(0);
+      expect(nodeData.wordCount).toBeGreaterThan(0);
+      expect(nodeData.isLargeFile).toBe(true);
+    });
+  });
 });

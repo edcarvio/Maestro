@@ -11,7 +11,7 @@
 
 import React, { memo, useMemo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
-import { FileText, Hash, AlignLeft, HardDrive, AlertTriangle } from 'lucide-react';
+import { FileText, Hash, AlignLeft, HardDrive, AlertTriangle, FileWarning } from 'lucide-react';
 import type { Theme } from '../../types';
 import type { DocumentNodeData } from './graphDataBuilder';
 
@@ -23,6 +23,7 @@ export interface DocumentNodeProps extends NodeProps<DocumentNodeData & {
   searchActive?: boolean;
   searchMatch?: boolean;
   brokenLinks?: string[];
+  isLargeFile?: boolean;
 }> {
   // Props come from React Flow - data, selected, etc.
 }
@@ -52,7 +53,7 @@ export const DocumentNode = memo(function DocumentNode({
   data,
   selected,
 }: DocumentNodeProps) {
-  const { title, lineCount, wordCount, size, description, filePath, theme, searchActive, searchMatch, brokenLinks } = data;
+  const { title, lineCount, wordCount, size, description, filePath, theme, searchActive, searchMatch, brokenLinks, isLargeFile } = data;
 
   // Check if this document has broken links
   const hasBrokenLinks = brokenLinks && brokenLinks.length > 0;
@@ -132,6 +133,12 @@ export const DocumentNode = memo(function DocumentNode({
     flexShrink: 0,
   }), []);
 
+  // Large file indicator style (blue info color)
+  const largeFileIconStyle = useMemo(() => ({
+    color: '#3b82f6', // Blue info color
+    flexShrink: 0,
+  }), []);
+
   // Truncate title if too long
   const displayTitle = truncateText(title, MAX_TITLE_LENGTH);
   const isTitleTruncated = title.length > MAX_TITLE_LENGTH;
@@ -142,15 +149,20 @@ export const DocumentNode = memo(function DocumentNode({
     : null;
   const isDescriptionTruncated = description ? description.length > MAX_DESCRIPTION_LENGTH : false;
 
+  // Build large file tooltip text
+  const largeFileTooltip = isLargeFile
+    ? `\n\nℹ️ Large file (>1MB) - some links may not be detected`
+    : '';
+
   // Build broken links tooltip text
   const brokenLinksTooltip = hasBrokenLinks
     ? `\n\n⚠️ Broken links (${brokenLinks.length}):\n${brokenLinks.map(link => `  • ${link}`).join('\n')}`
     : '';
 
-  // Build tooltip: show full title if truncated, always show file path, plus broken links if any
+  // Build tooltip: show full title if truncated, always show file path, plus status info
   const tooltipText = isTitleTruncated
-    ? `${title}\n\n${filePath}${brokenLinksTooltip}`
-    : `${filePath}${brokenLinksTooltip}`;
+    ? `${title}\n\n${filePath}${largeFileTooltip}${brokenLinksTooltip}`
+    : `${filePath}${largeFileTooltip}${brokenLinksTooltip}`;
 
   return (
     <div
@@ -183,7 +195,7 @@ export const DocumentNode = memo(function DocumentNode({
         )}
       </div>
 
-      {/* Stats row: lines, words, size */}
+      {/* Stats row: lines, words, size, and large file indicator */}
       <div style={statsRowStyle}>
         <div style={statItemStyle} title={`${lineCount} lines`}>
           <Hash size={10} />
@@ -197,6 +209,15 @@ export const DocumentNode = memo(function DocumentNode({
           <HardDrive size={10} />
           <span>{size}</span>
         </div>
+        {isLargeFile && (
+          <span
+            data-testid="large-file-indicator"
+            style={largeFileIconStyle}
+            title="Large file (>1MB) - content truncated for parsing"
+          >
+            <FileWarning size={12} />
+          </span>
+        )}
       </div>
 
       {/* Optional description - shows tooltip with full text when truncated */}

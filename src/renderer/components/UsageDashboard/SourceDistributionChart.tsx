@@ -258,6 +258,8 @@ export function SourceDistributionChart({
     <div
       className="p-4 rounded-lg"
       style={{ backgroundColor: theme.colors.bgMain }}
+      role="figure"
+      aria-label={`Source distribution chart showing ${metricMode === 'count' ? 'query counts' : 'duration'} breakdown between Interactive and Auto Run sources.`}
     >
       {/* Header with title and metric toggle */}
       <div className="flex items-center justify-between mb-4">
@@ -291,6 +293,8 @@ export function SourceDistributionChart({
                     ? theme.colors.accent
                     : theme.colors.textDim,
               }}
+              aria-pressed={metricMode === 'count'}
+              aria-label="Show query count"
             >
               Count
             </button>
@@ -308,6 +312,8 @@ export function SourceDistributionChart({
                     : theme.colors.textDim,
                 borderLeft: `1px solid ${theme.colors.border}`,
               }}
+              aria-pressed={metricMode === 'duration'}
+              aria-label="Show total duration"
             >
               Duration
             </button>
@@ -328,7 +334,13 @@ export function SourceDistributionChart({
           <>
             {/* Donut chart */}
             <div className="relative">
-              <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+              <svg
+                width={size}
+                height={size}
+                viewBox={`0 0 ${size} ${size}`}
+                role="img"
+                aria-label={`Donut chart: ${sourceData.map(s => `${s.label} ${s.percentage.toFixed(1)}%`).join(', ')}`}
+              >
                 {arcs.map((arc) => (
                   <path
                     key={arc.source}
@@ -375,13 +387,15 @@ export function SourceDistributionChart({
             </div>
 
             {/* Legend */}
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3" role="list" aria-label="Chart legend">
               {sourceData.map((source) => (
                 <div
                   key={source.source}
                   className="flex items-center gap-3 cursor-default"
                   onMouseEnter={() => setHoveredSource(source.source)}
                   onMouseLeave={handleMouseLeave}
+                  role="listitem"
+                  aria-label={`${source.label}: ${source.percentage.toFixed(1)}%`}
                 >
                   <div
                     className="w-3 h-3 rounded-sm flex-shrink-0"

@@ -161,6 +161,8 @@ export function AgentComparisonChart({ data, theme }: AgentComparisonChartProps)
     <div
       className="p-4 rounded-lg"
       style={{ backgroundColor: theme.colors.bgMain }}
+      role="figure"
+      aria-label={`Agent comparison chart showing ${metricMode === 'count' ? 'query counts' : 'total duration'} by agent type. ${agentData.length} agents displayed.`}
     >
       {/* Header with title and metric toggle */}
       <div className="flex items-center justify-between mb-4">
@@ -194,6 +196,8 @@ export function AgentComparisonChart({ data, theme }: AgentComparisonChartProps)
                     ? theme.colors.accent
                     : theme.colors.textDim,
               }}
+              aria-pressed={metricMode === 'count'}
+              aria-label="Show query count"
             >
               Count
             </button>
@@ -211,6 +215,8 @@ export function AgentComparisonChart({ data, theme }: AgentComparisonChartProps)
                     : theme.colors.textDim,
                 borderLeft: `1px solid ${theme.colors.border}`,
               }}
+              aria-pressed={metricMode === 'duration'}
+              aria-label="Show total duration"
             >
               Duration
             </button>
@@ -228,7 +234,7 @@ export function AgentComparisonChart({ data, theme }: AgentComparisonChartProps)
             <span className="text-sm">No agent data available</span>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2" role="list" aria-label="Agent usage data">
             {agentData.map((agent) => {
               const barWidth = maxValue > 0 ? (agent.value / maxValue) * 100 : 0;
               const isHovered = hoveredAgent === agent.agent;
@@ -240,6 +246,8 @@ export function AgentComparisonChart({ data, theme }: AgentComparisonChartProps)
                   style={{ height: barHeight }}
                   onMouseEnter={(e) => handleMouseEnter(agent.agent, e)}
                   onMouseLeave={handleMouseLeave}
+                  role="listitem"
+                  aria-label={`${agent.agent}: ${agent.percentage.toFixed(1)}%, ${metricMode === 'count' ? `${agent.count} queries` : formatDuration(agent.duration)}`}
                 >
                   {/* Agent name label */}
                   <div
@@ -258,6 +266,11 @@ export function AgentComparisonChart({ data, theme }: AgentComparisonChartProps)
                     style={{
                       backgroundColor: `${theme.colors.border}30`,
                     }}
+                    role="meter"
+                    aria-valuenow={agent.percentage}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`${agent.agent} usage percentage`}
                   >
                     {/* Bar fill */}
                     <div
@@ -268,6 +281,7 @@ export function AgentComparisonChart({ data, theme }: AgentComparisonChartProps)
                         opacity: isHovered ? 1 : 0.85,
                         transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease',
                       }}
+                      aria-hidden="true"
                     >
                       {/* Percentage label inside bar (if bar is wide enough) */}
                       {barWidth > 15 && (
@@ -343,9 +357,14 @@ export function AgentComparisonChart({ data, theme }: AgentComparisonChartProps)
 
       {/* Legend */}
       {agentData.length > 0 && (
-        <div className="flex flex-wrap gap-3 mt-4 pt-3 border-t" style={{ borderColor: theme.colors.border }}>
+        <div
+          className="flex flex-wrap gap-3 mt-4 pt-3 border-t"
+          style={{ borderColor: theme.colors.border }}
+          role="list"
+          aria-label="Chart legend"
+        >
           {agentData.slice(0, 6).map((agent) => (
-            <div key={agent.agent} className="flex items-center gap-1.5">
+            <div key={agent.agent} className="flex items-center gap-1.5" role="listitem">
               <div
                 className="w-2.5 h-2.5 rounded-sm"
                 style={{ backgroundColor: agent.color }}

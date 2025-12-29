@@ -288,6 +288,8 @@ export function DurationTrendsChart({ data, timeRange, theme }: DurationTrendsCh
     <div
       className="p-4 rounded-lg"
       style={{ backgroundColor: theme.colors.bgMain }}
+      role="figure"
+      aria-label={`Duration trends chart showing ${showSmoothed ? 'smoothed ' : ''}average response duration over time. ${chartData.length} data points displayed.`}
     >
       {/* Header with title and smoothing toggle */}
       <div className="flex items-center justify-between mb-4">
@@ -338,6 +340,8 @@ export function DurationTrendsChart({ data, timeRange, theme }: DurationTrendsCh
             width="100%"
             viewBox={`0 0 ${chartWidth} ${chartHeight}`}
             preserveAspectRatio="xMidYMid meet"
+            role="img"
+            aria-label={`Line chart of duration trends. ${chartData.length > 0 ? `Range from ${formatDuration(Math.min(...chartData.map(d => d.displayDuration)))} to ${formatDuration(Math.max(...chartData.map(d => d.displayDuration)))}` : 'No data available'}`}
           >
             {/* Gradient definition */}
             <defs>
@@ -448,6 +452,9 @@ export function DurationTrendsChart({ data, timeRange, theme }: DurationTrendsCh
                   }}
                   onMouseEnter={(e) => handleMouseEnter(point, e)}
                   onMouseLeave={handleMouseLeave}
+                  role="graphics-symbol"
+                  aria-label={`${point.formattedDate}: Average duration ${formatDuration(point.displayDuration)}, ${point.count} ${point.count === 1 ? 'query' : 'queries'}`}
+                  tabIndex={0}
                 />
               );
             })}

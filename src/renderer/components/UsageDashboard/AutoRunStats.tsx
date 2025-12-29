@@ -115,6 +115,8 @@ function MetricCard({ icon, label, value, subValue, theme }: MetricCardProps) {
       className="p-4 rounded-lg flex items-start gap-3"
       style={{ backgroundColor: theme.colors.bgMain }}
       data-testid="autorun-metric-card"
+      role="group"
+      aria-label={`${label}: ${value}${subValue ? `, ${subValue}` : ''}`}
     >
       <div
         className="flex-shrink-0 p-2 rounded-md"
@@ -362,7 +364,7 @@ export function AutoRunStats({ timeRange, theme, columns = 6 }: AutoRunStatsProp
   }
 
   return (
-    <div className="space-y-4" data-testid="autorun-stats">
+    <div className="space-y-4" data-testid="autorun-stats" role="region" aria-label="Auto Run statistics">
       {/* Metrics Cards */}
       <div
         className="grid gap-4"
@@ -370,6 +372,8 @@ export function AutoRunStats({ timeRange, theme, columns = 6 }: AutoRunStatsProp
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
         }}
         data-testid="autorun-metrics"
+        role="region"
+        aria-label="Auto Run summary metrics"
       >
         <MetricCard
           icon={<Play className="w-4 h-4" />}
@@ -415,6 +419,8 @@ export function AutoRunStats({ timeRange, theme, columns = 6 }: AutoRunStatsProp
         className="p-4 rounded-lg"
         style={{ backgroundColor: theme.colors.bgMain }}
         data-testid="autorun-tasks-chart"
+        role="figure"
+        aria-label={`Tasks completed over time chart. ${tasksByDate.length} days of data.`}
       >
         <h3
           className="text-sm font-medium mb-4"
@@ -425,7 +431,7 @@ export function AutoRunStats({ timeRange, theme, columns = 6 }: AutoRunStatsProp
 
         {tasksByDate.length > 0 ? (
           <div className="relative">
-            <div className="flex items-end gap-1 h-32">
+            <div className="flex items-end gap-1 h-32" role="list" aria-label="Tasks completed by date">
               {tasksByDate.map((day) => {
                 const height = maxCount > 0 ? (day.count / maxCount) * 100 : 0;
                 const successRatio = day.count > 0 ? day.successCount / day.count : 0;
@@ -443,6 +449,9 @@ export function AutoRunStats({ timeRange, theme, columns = 6 }: AutoRunStatsProp
                     onMouseEnter={(e) => handleMouseEnter(day, e)}
                     onMouseLeave={handleMouseLeave}
                     data-testid={`task-bar-${day.date}`}
+                    role="listitem"
+                    aria-label={`${formatFullDate(day.date)}: ${day.count} tasks completed, ${day.successCount} successful (${Math.round((day.successCount / day.count) * 100)}%)`}
+                    tabIndex={0}
                   />
                 );
               })}

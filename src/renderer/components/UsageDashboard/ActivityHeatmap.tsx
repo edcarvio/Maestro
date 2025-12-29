@@ -300,6 +300,8 @@ export function ActivityHeatmap({ data, timeRange, theme }: ActivityHeatmapProps
     <div
       className="p-4 rounded-lg"
       style={{ backgroundColor: theme.colors.bgMain }}
+      role="figure"
+      aria-label={`Activity heatmap showing ${metricMode === 'count' ? 'query activity' : 'duration'} over time. Calendar grid with days of week on Y-axis and weeks on X-axis.`}
     >
       {/* Header with title and metric toggle */}
       <div className="flex items-center justify-between mb-4">
@@ -333,6 +335,8 @@ export function ActivityHeatmap({ data, timeRange, theme }: ActivityHeatmapProps
                     ? theme.colors.accent
                     : theme.colors.textDim,
               }}
+              aria-pressed={metricMode === 'count'}
+              aria-label="Show query count"
             >
               Count
             </button>
@@ -350,6 +354,8 @@ export function ActivityHeatmap({ data, timeRange, theme }: ActivityHeatmapProps
                     : theme.colors.textDim,
                 borderLeft: `1px solid ${theme.colors.border}`,
               }}
+              aria-pressed={metricMode === 'duration'}
+              aria-label="Show total duration"
             >
               Duration
             </button>
@@ -452,6 +458,9 @@ export function ActivityHeatmap({ data, timeRange, theme }: ActivityHeatmapProps
                         }}
                         onMouseEnter={(e) => handleMouseEnter(day, e)}
                         onMouseLeave={handleMouseLeave}
+                        role="gridcell"
+                        aria-label={`${format(day.date, 'EEEE, MMM d')}: ${day.count} ${day.count === 1 ? 'query' : 'queries'}${day.duration > 0 ? `, ${formatDuration(day.duration)}` : ''}`}
+                        tabIndex={0}
                       />
                     ))}
                   </div>
@@ -460,10 +469,11 @@ export function ActivityHeatmap({ data, timeRange, theme }: ActivityHeatmapProps
             </div>
 
             {/* Legend */}
-            <div className="flex items-center justify-end gap-2 mt-3">
+            <div className="flex items-center justify-end gap-2 mt-3" role="list" aria-label="Activity intensity scale from less to more">
               <span
                 className="text-xs"
                 style={{ color: theme.colors.textDim }}
+                aria-hidden="true"
               >
                 Less
               </span>
@@ -476,11 +486,14 @@ export function ActivityHeatmap({ data, timeRange, theme }: ActivityHeatmapProps
                     height: cellSize,
                     backgroundColor: getIntensityColor(level, theme),
                   }}
+                  role="listitem"
+                  aria-label={`Intensity level ${level}: ${level === 0 ? 'No activity' : level === 1 ? 'Low' : level === 2 ? 'Medium-low' : level === 3 ? 'Medium-high' : 'High'} activity`}
                 />
               ))}
               <span
                 className="text-xs"
                 style={{ color: theme.colors.textDim }}
+                aria-hidden="true"
               >
                 More
               </span>

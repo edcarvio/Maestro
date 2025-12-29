@@ -88,6 +88,8 @@ function MetricCard({ icon, label, value, theme }: MetricCardProps) {
       className="p-4 rounded-lg flex items-start gap-3"
       style={{ backgroundColor: theme.colors.bgMain }}
       data-testid="metric-card"
+      role="group"
+      aria-label={`${label}: ${value}`}
     >
       <div
         className="flex-shrink-0 p-2 rounded-md"
@@ -173,6 +175,8 @@ export function SummaryCards({ data, theme, columns = 5 }: SummaryCardsProps) {
         gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
       }}
       data-testid="summary-cards"
+      role="region"
+      aria-label="Usage summary metrics"
     >
       {metrics.map((metric) => (
         <MetricCard

@@ -16,7 +16,8 @@ import os from 'os';
 import fs from 'fs/promises';
 import Store from 'electron-store';
 import { logger } from '../utils/logger';
-import { CLAUDE_SESSION_PARSE_LIMITS, CLAUDE_PRICING } from '../constants';
+import { CLAUDE_SESSION_PARSE_LIMITS } from '../constants';
+import { calculateClaudeCost } from '../utils/pricing';
 import { encodeClaudeProjectPath } from '../utils/statsCache';
 import type {
   AgentSessionStorage,
@@ -68,22 +69,6 @@ function extractTextFromContent(content: unknown): string {
   return '';
 }
 
-/**
- * Calculate cost from token counts using Claude pricing
- */
-function calculateCost(
-  inputTokens: number,
-  outputTokens: number,
-  cacheReadTokens: number,
-  cacheCreationTokens: number
-): number {
-  const inputCost = (inputTokens / 1_000_000) * CLAUDE_PRICING.INPUT_PER_MILLION;
-  const outputCost = (outputTokens / 1_000_000) * CLAUDE_PRICING.OUTPUT_PER_MILLION;
-  const cacheReadCost = (cacheReadTokens / 1_000_000) * CLAUDE_PRICING.CACHE_READ_PER_MILLION;
-  const cacheCreationCost =
-    (cacheCreationTokens / 1_000_000) * CLAUDE_PRICING.CACHE_CREATION_PER_MILLION;
-  return inputCost + outputCost + cacheReadCost + cacheCreationCost;
-}
 
 /**
  * Parse a session file and extract metadata
@@ -160,7 +145,7 @@ async function parseSessionFile(
     const cacheCreationMatches = content.matchAll(/"cache_creation_input_tokens"\s*:\s*(\d+)/g);
     for (const m of cacheCreationMatches) totalCacheCreationTokens += parseInt(m[1], 10);
 
-    const costUsd = calculateCost(
+    const costUsd = calculateClaudeCost(
       totalInputTokens,
       totalOutputTokens,
       totalCacheReadTokens,

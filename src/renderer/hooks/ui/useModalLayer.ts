@@ -32,6 +32,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useLayerStack } from '../../contexts/LayerStackContext';
+import type { FocusTrapMode } from '../../types/layer';
 
 export interface UseModalLayerOptions {
   /** Whether the modal has unsaved changes */
@@ -39,7 +40,7 @@ export interface UseModalLayerOptions {
   /** Callback to confirm closing when dirty - return false to prevent close */
   onBeforeClose?: () => boolean | Promise<boolean>;
   /** Focus trap behavior. Defaults to 'strict' */
-  focusTrap?: 'strict' | 'lenient' | 'none';
+  focusTrap?: FocusTrapMode;
   /** Whether this layer blocks interaction with layers below. Defaults to true */
   blocksLowerLayers?: boolean;
   /** Whether this layer captures keyboard focus. Defaults to true */

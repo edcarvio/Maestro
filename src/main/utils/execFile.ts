@@ -14,7 +14,12 @@ const EXEC_MAX_BUFFER = 10 * 1024 * 1024;
 export interface ExecResult {
   stdout: string;
   stderr: string;
-  exitCode: number;
+  /**
+   * The exit code of the process.
+   * - A number (0 for success, non-zero for failure) when the process ran and exited
+   * - A string error code ('ENOENT', 'EPERM', 'EACCES', etc.) when the process couldn't be spawned
+   */
+  exitCode: number | string;
 }
 
 /**
@@ -99,10 +104,11 @@ export async function execFileNoThrow(
     };
   } catch (error: any) {
     // execFile throws on non-zero exit codes
+    // Use ?? instead of || to correctly handle exit code 0 (which is falsy but valid)
     return {
       stdout: error.stdout || '',
       stderr: error.stderr || error.message || '',
-      exitCode: error.code || 1,
+      exitCode: error.code ?? 1,
     };
   }
 }

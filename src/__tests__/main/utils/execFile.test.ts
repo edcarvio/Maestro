@@ -519,8 +519,8 @@ describe('execFile.ts', () => {
         const { execFileNoThrow } = await import('../../../main/utils/execFile');
         const result = await execFileNoThrow('cmd');
 
-        // Due to || operator, 0 is falsy so it defaults to 1
-        expect(result.exitCode).toBe(1);
+        // Using ?? operator correctly preserves exit code 0 (which is falsy but valid)
+        expect(result.exitCode).toBe(0);
       });
     });
 

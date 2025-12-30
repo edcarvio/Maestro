@@ -32,6 +32,28 @@ import type { ToolType, AgentError } from '../../shared/types';
 export type { AgentError, AgentErrorType } from '../../shared/types';
 
 /**
+ * Valid ToolType values for output parser registration
+ * This array is the single source of truth for agent types that can have parsers
+ */
+const VALID_TOOL_TYPES: ToolType[] = [
+  'claude-code',
+  'opencode',
+  'codex',
+  'terminal',
+  'claude',
+  'aider',
+];
+
+/**
+ * Type guard to validate if a string is a valid ToolType
+ * @param id - The string to check
+ * @returns True if the string is a valid ToolType
+ */
+export function isValidToolType(id: string): id is ToolType {
+  return VALID_TOOL_TYPES.includes(id as ToolType);
+}
+
+/**
  * Normalized parsed event from agent output.
  * All agent-specific formats are transformed into this common structure.
  */
@@ -113,8 +135,9 @@ export interface ParsedEvent {
   /**
    * Original event data for debugging
    * Preserved unchanged from agent output
+   * Optional - primarily used for debugging and not read in production
    */
-  raw: unknown;
+  raw?: unknown;
 }
 
 /**
@@ -215,26 +238,34 @@ export function registerOutputParser(parser: AgentOutputParser): void {
 
 /**
  * Get the output parser implementation for an agent
- * @param agentId - The agent ID
- * @returns The parser implementation or null if not available
+ * @param agentId - The agent ID (must be a valid ToolType)
+ * @returns The parser implementation or null if not available or invalid agent ID
  */
 export function getOutputParser(
   agentId: ToolType | string
 ): AgentOutputParser | null {
-  return parserRegistry.get(agentId as ToolType) || null;
+  if (!isValidToolType(agentId)) {
+    return null;
+  }
+  return parserRegistry.get(agentId) || null;
 }
 
 /**
  * Check if an agent has output parser support
- * @param agentId - The agent ID
- * @returns True if the agent has a registered parser
+ * @internal Primarily used for testing - consider using getOutputParser() !== null instead
+ * @param agentId - The agent ID (must be a valid ToolType)
+ * @returns True if the agent has a registered parser, false for invalid agent IDs
  */
 export function hasOutputParser(agentId: ToolType | string): boolean {
-  return parserRegistry.has(agentId as ToolType);
+  if (!isValidToolType(agentId)) {
+    return false;
+  }
+  return parserRegistry.has(agentId);
 }
 
 /**
  * Get all registered parser implementations
+ * @internal Primarily used for logging and testing - not intended for production use
  * @returns Array of all registered parser implementations
  */
 export function getAllOutputParsers(): AgentOutputParser[] {
@@ -242,7 +273,8 @@ export function getAllOutputParsers(): AgentOutputParser[] {
 }
 
 /**
- * Clear the parser registry (primarily for testing)
+ * Clear the parser registry
+ * @internal Exposed for testing only - do not use in production code
  */
 export function clearParserRegistry(): void {
   parserRegistry.clear();

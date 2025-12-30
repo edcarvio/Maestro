@@ -1,34 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Wand2, ExternalLink, FileCode, BarChart3, Loader2, Trophy, Globe, Check, BookOpen } from 'lucide-react';
 import type { Theme, AutoRunStats, MaestroUsageStats, LeaderboardRegistration } from '../types';
+import type { GlobalAgentStats } from '../../shared/types';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import pedramAvatar from '../assets/pedram-avatar.png';
 import { AchievementCard } from './AchievementCard';
 import { formatTokensCompact } from '../utils/formatters';
 import { Modal } from './ui/Modal';
-
-interface GlobalAgentStats {
-  totalSessions: number;
-  totalMessages: number;
-  totalInputTokens: number;
-  totalOutputTokens: number;
-  totalCacheReadTokens: number;
-  totalCacheCreationTokens: number;
-  totalCostUsd: number;
-  /** Whether any provider contributed cost data */
-  hasCostData: boolean;
-  totalSizeBytes: number;
-  isComplete?: boolean;
-  /** Per-provider breakdown */
-  byProvider?: Record<string, {
-    sessions: number;
-    messages: number;
-    inputTokens: number;
-    outputTokens: number;
-    costUsd: number;
-    hasCostData: boolean;
-  }>;
-}
 
 interface AboutModalProps {
   theme: Theme;

@@ -20,6 +20,11 @@ export const DEMO_MODE = process.argv.includes('--demo') || !!process.env.MAESTR
 export const DEMO_DATA_PATH = process.env.MAESTRO_DEMO_DIR || path.join(os.tmpdir(), 'maestro-demo');
 
 /**
+ * Token divisor for converting to millions (used in cost calculations)
+ */
+export const TOKENS_PER_MILLION = 1_000_000;
+
+/**
  * Limits for parsing Claude Code session JSONL files
  * These limits optimize scanning by avoiding full file reads for metadata extraction
  */
@@ -30,8 +35,6 @@ export const CLAUDE_SESSION_PARSE_LIMITS = {
   LAST_TIMESTAMP_SCAN_LINES: 10,
   /** Max lines to scan for oldest timestamp in stats calculation */
   OLDEST_TIMESTAMP_SCAN_LINES: 5,
-  /** Batch size for processing session files (allows UI updates between batches) */
-  STATS_BATCH_SIZE: 20,
   /** Max characters for first message preview */
   FIRST_MESSAGE_PREVIEW_LENGTH: 200,
 } as const;
@@ -46,13 +49,3 @@ export const CLAUDE_PRICING = {
   CACHE_READ_PER_MILLION: 0.30,
   CACHE_CREATION_PER_MILLION: 3.75,
 } as const;
-
-/**
- * Type for CLAUDE_SESSION_PARSE_LIMITS object
- */
-export type ClaudeSessionParseLimits = typeof CLAUDE_SESSION_PARSE_LIMITS;
-
-/**
- * Type for CLAUDE_PRICING object
- */
-export type ClaudePricing = typeof CLAUDE_PRICING;

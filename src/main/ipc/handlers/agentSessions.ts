@@ -26,7 +26,7 @@ import {
   hasSessionStorage,
   getAllSessionStorages,
 } from '../../agent-session-storage';
-import { CLAUDE_PRICING } from '../../constants';
+import { calculateClaudeCost } from '../../utils/pricing';
 import {
   loadGlobalStatsCache,
   saveGlobalStatsCache,
@@ -43,35 +43,12 @@ import type {
   SessionListOptions,
   SessionReadOptions,
 } from '../../agent-session-storage';
+import type { GlobalAgentStats, ProviderStats } from '../../../shared/types';
+
+// Re-export for backwards compatibility
+export type { GlobalAgentStats, ProviderStats };
 
 const LOG_CONTEXT = '[AgentSessions]';
-
-/**
- * Global stats aggregated from all providers
- */
-export interface GlobalAgentStats {
-  totalSessions: number;
-  totalMessages: number;
-  totalInputTokens: number;
-  totalOutputTokens: number;
-  totalCacheReadTokens: number;
-  totalCacheCreationTokens: number;
-  /** Total cost in USD - only includes providers that support cost tracking */
-  totalCostUsd: number;
-  /** Whether any provider contributed cost data */
-  hasCostData: boolean;
-  totalSizeBytes: number;
-  isComplete: boolean;
-  /** Per-provider breakdown */
-  byProvider: Record<string, {
-    sessions: number;
-    messages: number;
-    inputTokens: number;
-    outputTokens: number;
-    costUsd: number;
-    hasCostData: boolean;
-  }>;
-}
 
 /**
  * Generic agent session origins data structure
@@ -94,22 +71,6 @@ export interface AgentSessionsHandlerDependencies {
  */
 function handlerOpts(operation: string) {
   return { context: LOG_CONTEXT, operation, logSuccess: false };
-}
-
-/**
- * Calculate cost for Claude sessions based on token counts
- */
-function calculateClaudeCost(
-  inputTokens: number,
-  outputTokens: number,
-  cacheReadTokens: number,
-  cacheCreationTokens: number
-): number {
-  const inputCost = (inputTokens / 1_000_000) * CLAUDE_PRICING.INPUT_PER_MILLION;
-  const outputCost = (outputTokens / 1_000_000) * CLAUDE_PRICING.OUTPUT_PER_MILLION;
-  const cacheReadCost = (cacheReadTokens / 1_000_000) * CLAUDE_PRICING.CACHE_READ_PER_MILLION;
-  const cacheCreationCost = (cacheCreationTokens / 1_000_000) * CLAUDE_PRICING.CACHE_CREATION_PER_MILLION;
-  return inputCost + outputCost + cacheReadCost + cacheCreationCost;
 }
 
 /**

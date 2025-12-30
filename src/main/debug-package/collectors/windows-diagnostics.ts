@@ -69,7 +69,7 @@ export interface AgentProbeResult {
 
 export interface WhereResult {
   success: boolean;
-  exitCode: number;
+  exitCode: number | string;        // Number for exit codes, string for system errors (ENOENT, etc.)
   paths: string[];                  // Sanitized paths returned by where
   error?: string;
 }

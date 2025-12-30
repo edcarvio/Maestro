@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   stripControlSequences,
+  stripAllAnsiCodes,
   isCommandEcho,
   extractCommand,
 } from '../../../main/utils/terminalFilter';
@@ -357,6 +358,216 @@ describe('terminalFilter', () => {
         const input = '\x1b[2J\x1b[H\x1b]0;Title\x07';
         const result = stripControlSequences(input);
         expect(result).toBe('');
+      });
+    });
+  });
+
+  describe('stripAllAnsiCodes', () => {
+    describe('SGR (Select Graphic Rendition) color/style codes', () => {
+      it('should remove basic foreground color codes', () => {
+        const input = '\x1b[32mGreen text\x1b[0m';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('Green text');
+      });
+
+      it('should remove background color codes', () => {
+        const input = '\x1b[41mRed background\x1b[0m';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('Red background');
+      });
+
+      it('should remove bold/underline/etc style codes', () => {
+        const input = '\x1b[1mBold\x1b[4mUnderline\x1b[0m';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('BoldUnderline');
+      });
+
+      it('should remove complex SGR sequences with multiple parameters', () => {
+        const input = '\x1b[1;4;31;42mStyled\x1b[0m';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('Styled');
+      });
+
+      it('should remove 256-color codes', () => {
+        const input = '\x1b[38;5;196mRed 256\x1b[0m';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('Red 256');
+      });
+
+      it('should remove true color (24-bit) codes', () => {
+        const input = '\x1b[38;2;255;128;0mOrange\x1b[0m';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('Orange');
+      });
+    });
+
+    describe('CSI (Control Sequence Introducer) sequences', () => {
+      it('should remove cursor movement codes', () => {
+        const input = 'text\x1b[1Aup\x1b[2Bdown\x1b[3Cforward\x1b[4Dback';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('textupdownforwardback');
+      });
+
+      it('should remove cursor positioning (H and f)', () => {
+        const input = '\x1b[10;20Hpositioned\x1b[5;10ftext';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('positionedtext');
+      });
+
+      it('should remove erase sequences (J and K)', () => {
+        const input = '\x1b[2Jcleared\x1b[0Kline';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('clearedline');
+      });
+
+      it('should remove scroll sequences (S and T)', () => {
+        const input = '\x1b[3Sscroll\x1b[2Tup';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('scrollup');
+      });
+
+      it('should remove save/restore cursor sequences', () => {
+        const input = '\x1b[ssaved\x1b[urestored';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('savedrestored');
+      });
+    });
+
+    describe('OSC (Operating System Command) sequences', () => {
+      it('should remove window title sequences with BEL terminator', () => {
+        const input = '\x1b]0;Window Title\x07content';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('content');
+      });
+
+      it('should remove window title sequences with ST terminator', () => {
+        const input = '\x1b]0;Window Title\x1b\\content';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('content');
+      });
+
+      it('should remove hyperlink sequences', () => {
+        const input = '\x1b]8;;https://example.com\x07Link Text\x1b]8;;\x07';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('Link Text');
+      });
+
+      it('should remove shell integration markers (133)', () => {
+        const input = '\x1b]133;A\x07prompt\x1b]133;B\x07output\x1b]133;D;0\x07';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('promptoutput');
+      });
+
+      it('should remove iTerm2 sequences (1337)', () => {
+        const input = '\x1b]1337;SetUserVar=foo=bar\x07content';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('content');
+      });
+    });
+
+    describe('character set selection', () => {
+      it('should remove character set sequences ESC ( A/B/0/1/2', () => {
+        const input = '\x1b(B\x1b)0\x1b(A\x1b)1\x1b(2text';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('text');
+      });
+    });
+
+    describe('control characters', () => {
+      it('should remove BEL character', () => {
+        const input = 'alert\x07text';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('alerttext');
+      });
+
+      it('should remove NUL and other control characters', () => {
+        const input = 'text\x00\x01\x02\x03\x04more';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('textmore');
+      });
+
+      it('should remove form feed and vertical tab', () => {
+        const input = 'text\x0B\x0Cmore';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('textmore');
+      });
+
+      it('should preserve newlines (0x0A)', () => {
+        const input = 'line1\nline2';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('line1\nline2');
+      });
+
+      it('should preserve tabs (0x09)', () => {
+        const input = 'col1\tcol2';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('col1\tcol2');
+      });
+
+      it('should preserve carriage returns (0x0D)', () => {
+        const input = 'overwrite\rtext';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('overwrite\rtext');
+      });
+    });
+
+    describe('real-world AI agent stderr scenarios', () => {
+      it('should handle stderr with progress spinner and colors', () => {
+        const input = '\x1b[33m⠋\x1b[0m Loading...\x1b[K\x1b[1A\x1b[33m⠙\x1b[0m Loading...';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('⠋ Loading...⠙ Loading...');
+      });
+
+      it('should handle error messages with bold red formatting', () => {
+        const input = '\x1b[1;31mError:\x1b[0m Something went wrong';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('Error: Something went wrong');
+      });
+
+      it('should handle multi-line stderr with mixed codes', () => {
+        const input = '\x1b[31mERROR\x1b[0m on line 42\n\x1b[33mWARNING\x1b[0m deprecated';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('ERROR on line 42\nWARNING deprecated');
+      });
+
+      it('should handle Claude Code style output', () => {
+        const input = '\x1b]133;A\x07\x1b[1m● Claude\x1b[0m is thinking\x1b]133;D;0\x07';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('● Claude is thinking');
+      });
+    });
+
+    describe('edge cases', () => {
+      it('should handle empty string', () => {
+        expect(stripAllAnsiCodes('')).toBe('');
+      });
+
+      it('should handle string with only escape codes', () => {
+        const input = '\x1b[32m\x1b[0m\x1b[1A\x1b]0;Title\x07';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('');
+      });
+
+      it('should handle plain text with no escape codes', () => {
+        const input = 'Hello, World!';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('Hello, World!');
+      });
+
+      it('should handle incomplete escape sequences gracefully', () => {
+        // An incomplete ESC [ followed by letters is treated as a CSI sequence
+        // The regex \x1b\[[\d;]*[A-Za-z] matches ESC [ i since 'i' is a letter
+        // So 'ncomplete' remains after the partial sequence is consumed
+        const input = 'text\x1b[incomplete';
+        const result = stripAllAnsiCodes(input);
+        // ESC [ i is matched and removed, leaving 'textncomplete'
+        expect(result).toBe('textncomplete');
+      });
+
+      it('should handle multiple consecutive color codes', () => {
+        const input = '\x1b[0m\x1b[1m\x1b[32m\x1b[44mtext\x1b[0m\x1b[0m';
+        const result = stripAllAnsiCodes(input);
+        expect(result).toBe('text');
       });
     });
   });

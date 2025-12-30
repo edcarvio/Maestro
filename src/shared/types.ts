@@ -348,3 +348,41 @@ export interface AgentSshRemoteConfig {
   /** Override working directory for this agent */
   workingDirOverride?: string;
 }
+
+// ============================================================================
+// Global Agent Statistics Types
+// ============================================================================
+
+/**
+ * Per-provider statistics breakdown
+ */
+export interface ProviderStats {
+  sessions: number;
+  messages: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  hasCostData: boolean;
+}
+
+/**
+ * Global stats aggregated from all providers.
+ * Used by AboutModal and AgentSessions handlers.
+ */
+export interface GlobalAgentStats {
+  totalSessions: number;
+  totalMessages: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCacheReadTokens: number;
+  totalCacheCreationTokens: number;
+  /** Total cost in USD - only includes providers that support cost tracking */
+  totalCostUsd: number;
+  /** Whether any provider contributed cost data */
+  hasCostData: boolean;
+  totalSizeBytes: number;
+  /** Whether stats calculation is complete (used for progressive updates) */
+  isComplete: boolean;
+  /** Per-provider breakdown */
+  byProvider: Record<string, ProviderStats>;
+}

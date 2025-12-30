@@ -5,12 +5,13 @@ import {
   hasOutputParser,
   getAllOutputParsers,
   clearParserRegistry,
+  isValidToolType,
   type AgentOutputParser,
   type ParsedEvent,
 } from '../../../main/parsers/agent-output-parser';
 import type { ToolType } from '../../../shared/types';
 
-// Mock parser for testing
+// Mock parser for testing - fully implements AgentOutputParser interface
 class MockParser implements AgentOutputParser {
   readonly agentId: ToolType = 'terminal';
 
@@ -42,6 +43,16 @@ class MockParser implements AgentOutputParser {
 
   extractSlashCommands(event: ParsedEvent): string[] | null {
     return event.slashCommands || null;
+  }
+
+  detectErrorFromLine(_line: string): null {
+    // Mock implementation - always returns null (no error detected)
+    return null;
+  }
+
+  detectErrorFromExit(_exitCode: number, _stderr: string, _stdout: string): null {
+    // Mock implementation - always returns null (no error detected)
+    return null;
   }
 }
 
@@ -131,6 +142,8 @@ describe('agent-output-parser', () => {
         extractSessionId: () => null,
         extractUsage: () => null,
         extractSlashCommands: () => null,
+        detectErrorFromLine: () => null,
+        detectErrorFromExit: () => null,
       };
       registerOutputParser(parser2);
 
@@ -201,6 +214,8 @@ describe('agent-output-parser', () => {
         extractSessionId: () => null,
         extractUsage: () => null,
         extractSlashCommands: () => null,
+        detectErrorFromLine: () => null,
+        detectErrorFromExit: () => null,
       };
       registerOutputParser(parser2);
 
@@ -291,6 +306,35 @@ describe('agent-output-parser', () => {
 
       expect(parser.extractSlashCommands(eventWithCommands)).toEqual(['/help', '/clear']);
       expect(parser.extractSlashCommands(eventWithoutCommands)).toBeNull();
+    });
+  });
+
+  describe('isValidToolType', () => {
+    it('should return true for valid ToolType values', () => {
+      expect(isValidToolType('claude-code')).toBe(true);
+      expect(isValidToolType('opencode')).toBe(true);
+      expect(isValidToolType('codex')).toBe(true);
+      expect(isValidToolType('terminal')).toBe(true);
+      expect(isValidToolType('claude')).toBe(true);
+      expect(isValidToolType('aider')).toBe(true);
+    });
+
+    it('should return false for invalid agent IDs', () => {
+      expect(isValidToolType('unknown-agent')).toBe(false);
+      expect(isValidToolType('')).toBe(false);
+      expect(isValidToolType('random-string')).toBe(false);
+      expect(isValidToolType('CLAUDE-CODE')).toBe(false); // case sensitive
+    });
+  });
+
+  describe('type guard integration with getOutputParser', () => {
+    it('should return null for invalid agent IDs', () => {
+      expect(getOutputParser('invalid-agent-id')).toBeNull();
+    });
+
+    it('should work correctly for valid but unregistered agent IDs', () => {
+      // Valid ToolType but no parser registered
+      expect(getOutputParser('claude-code')).toBeNull();
     });
   });
 });

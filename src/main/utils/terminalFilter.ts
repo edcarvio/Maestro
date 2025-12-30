@@ -156,6 +156,10 @@ export function stripAllAnsiCodes(text: string): string {
 /**
  * Detect if a line is likely a command echo in terminal output
  * This helps identify when the terminal is echoing back the command the user typed
+ *
+ * @internal This function is exported for testing purposes only.
+ * It is not used in production code - the echo detection logic is
+ * handled within filterTerminalPrompts() instead.
  */
 export function isCommandEcho(line: string, lastCommand?: string): boolean {
   if (!lastCommand) return false;
@@ -174,6 +178,9 @@ export function isCommandEcho(line: string, lastCommand?: string): boolean {
 
 /**
  * Extract the actual command from user input (without prompt)
+ *
+ * @internal This function is exported for testing purposes only.
+ * It is not used in production code.
  */
 export function extractCommand(input: string): string {
   // Remove common prompt patterns from the beginning

@@ -467,19 +467,21 @@ interface AgentConfig {
 
 ### ParsedEvent Types
 
-Your output parser should emit these normalized event types:
+Your output parser should emit these normalized event types. See [`src/main/parsers/agent-output-parser.ts`](src/main/parsers/agent-output-parser.ts) for the canonical `ParsedEvent` interface definition.
+
+Key event types:
+- `init` - Agent initialization (may contain session ID, available commands)
+- `text` - Text content to display to user
+- `tool_use` - Agent is using a tool (file read, bash, etc.)
+- `result` - Final result/response from agent
+- `error` - Error occurred
+- `usage` - Token usage statistics
+- `system` - System-level messages (not user-facing content)
+
+Import the interface directly rather than defining your own:
 
 ```typescript
-type ParsedEvent = {
-  type: 'init' | 'text' | 'tool_use' | 'result' | 'error' | 'usage';
-  sessionId?: string;
-  text?: string;
-  toolName?: string;
-  toolState?: any;
-  usage?: { input: number; output: number; cacheRead?: number; cacheWrite?: number };
-  slashCommands?: string[];
-  raw: any;
-};
+import { type ParsedEvent } from './agent-output-parser';
 ```
 
 ---

@@ -21,7 +21,8 @@ import fs from 'fs/promises';
 import Store from 'electron-store';
 import { logger } from '../../utils/logger';
 import { withIpcErrorLogging } from '../../utils/ipcHandler';
-import { CLAUDE_SESSION_PARSE_LIMITS, CLAUDE_PRICING } from '../../constants';
+import { CLAUDE_SESSION_PARSE_LIMITS } from '../../constants';
+import { calculateClaudeCost } from '../../utils/pricing';
 import {
   encodeClaudeProjectPath,
   loadStatsCache,
@@ -237,11 +238,7 @@ export function registerClaudeHandlers(deps: ClaudeHandlerDependencies): void {
             for (const m of cacheCreationMatches) totalCacheCreationTokens += parseInt(m[1], 10);
 
             // Calculate cost estimate
-            const inputCost = (totalInputTokens / 1_000_000) * CLAUDE_PRICING.INPUT_PER_MILLION;
-            const outputCost = (totalOutputTokens / 1_000_000) * CLAUDE_PRICING.OUTPUT_PER_MILLION;
-            const cacheReadCost = (totalCacheReadTokens / 1_000_000) * CLAUDE_PRICING.CACHE_READ_PER_MILLION;
-            const cacheCreationCost = (totalCacheCreationTokens / 1_000_000) * CLAUDE_PRICING.CACHE_CREATION_PER_MILLION;
-            const costUsd = inputCost + outputCost + cacheReadCost + cacheCreationCost;
+            const costUsd = calculateClaudeCost(totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens);
 
             // Extract last timestamp for duration
             let lastTimestamp = timestamp;
@@ -433,11 +430,7 @@ export function registerClaudeHandlers(deps: ClaudeHandlerDependencies): void {
             for (const m of cacheCreationMatches) totalCacheCreationTokens += parseInt(m[1], 10);
 
             // Calculate cost
-            const inputCost = (totalInputTokens / 1_000_000) * CLAUDE_PRICING.INPUT_PER_MILLION;
-            const outputCost = (totalOutputTokens / 1_000_000) * CLAUDE_PRICING.OUTPUT_PER_MILLION;
-            const cacheReadCost = (totalCacheReadTokens / 1_000_000) * CLAUDE_PRICING.CACHE_READ_PER_MILLION;
-            const cacheCreationCost = (totalCacheCreationTokens / 1_000_000) * CLAUDE_PRICING.CACHE_CREATION_PER_MILLION;
-            const costUsd = inputCost + outputCost + cacheReadCost + cacheCreationCost;
+            const costUsd = calculateClaudeCost(totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens);
 
             // Extract last timestamp for duration
             let lastTimestamp = timestamp;
@@ -545,11 +538,7 @@ export function registerClaudeHandlers(deps: ClaudeHandlerDependencies): void {
         const cacheCreationMatches = content.matchAll(/"cache_creation_input_tokens"\s*:\s*(\d+)/g);
         for (const m of cacheCreationMatches) cacheCreationTokens += parseInt(m[1], 10);
 
-        const inputCost = (inputTokens / 1_000_000) * CLAUDE_PRICING.INPUT_PER_MILLION;
-        const outputCost = (outputTokens / 1_000_000) * CLAUDE_PRICING.OUTPUT_PER_MILLION;
-        const cacheReadCost = (cacheReadTokens / 1_000_000) * CLAUDE_PRICING.CACHE_READ_PER_MILLION;
-        const cacheCreationCost = (cacheCreationTokens / 1_000_000) * CLAUDE_PRICING.CACHE_CREATION_PER_MILLION;
-        const costUsd = inputCost + outputCost + cacheReadCost + cacheCreationCost;
+        const costUsd = calculateClaudeCost(inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens);
 
         let oldestTimestamp: string | null = null;
         const lines = content.split('\n').filter(l => l.trim());
@@ -761,15 +750,6 @@ export function registerClaudeHandlers(deps: ClaudeHandlerDependencies): void {
         }
       };
 
-      // Helper to calculate cost from tokens
-      const calculateCost = (input: number, output: number, cacheRead: number, cacheCreation: number) => {
-        const inputCost = (input / 1_000_000) * CLAUDE_PRICING.INPUT_PER_MILLION;
-        const outputCost = (output / 1_000_000) * CLAUDE_PRICING.OUTPUT_PER_MILLION;
-        const cacheReadCost = (cacheRead / 1_000_000) * CLAUDE_PRICING.CACHE_READ_PER_MILLION;
-        const cacheCreationCost = (cacheCreation / 1_000_000) * CLAUDE_PRICING.CACHE_CREATION_PER_MILLION;
-        return inputCost + outputCost + cacheReadCost + cacheCreationCost;
-      };
-
       const homeDir = os.homedir();
       const claudeProjectsDir = path.join(homeDir, '.claude', 'projects');
 
@@ -868,7 +848,7 @@ export function registerClaudeHandlers(deps: ClaudeHandlerDependencies): void {
           totalSizeBytes += stats.sizeBytes;
         }
 
-        const totalCostUsd = calculateCost(totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens);
+        const totalCostUsd = calculateClaudeCost(totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens);
 
         return {
           totalSessions,

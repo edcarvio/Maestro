@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { AboutModal } from '../../../renderer/components/AboutModal';
 import type { Theme, AutoRunStats } from '../../../renderer/types';
+import type { GlobalAgentStats } from '../../../shared/types';
 
 // Mock lucide-react icons
 vi.mock('lucide-react', () => ({
@@ -66,7 +67,7 @@ vi.mock('../../../renderer/components/AchievementCard', () => ({
   AchievementCard: ({ theme, autoRunStats, globalStats, onEscapeWithBadgeOpen }: {
     theme: Theme;
     autoRunStats: AutoRunStats;
-    globalStats: ClaudeGlobalStats | null;
+    globalStats: GlobalAgentStats | null;
     onEscapeWithBadgeOpen: (handler: (() => boolean) | null) => void;
   }) => (
     <div data-testid="achievement-card">
@@ -89,20 +90,6 @@ vi.mock('../../../renderer/components/AchievementCard', () => ({
 
 // Add __APP_VERSION__ global
 (globalThis as unknown as { __APP_VERSION__: string }).__APP_VERSION__ = '1.0.0';
-
-// Interface for global stats (matches GlobalAgentStats in AboutModal.tsx)
-interface ClaudeGlobalStats {
-  totalSessions: number;
-  totalMessages: number;
-  totalInputTokens: number;
-  totalOutputTokens: number;
-  totalCacheReadTokens: number;
-  totalCacheCreationTokens: number;
-  totalCostUsd: number;
-  hasCostData: boolean;
-  totalSizeBytes: number;
-  isComplete?: boolean;
-}
 
 // Create test theme
 const createTheme = (): Theme => ({

@@ -9,7 +9,7 @@
 /**
  * Types of layers in the UI hierarchy
  */
-export type LayerType = 'modal' | 'overlay' | 'search' | 'inline';
+export type LayerType = 'modal' | 'overlay';
 
 /**
  * Focus trap behavior modes
@@ -92,6 +92,7 @@ export type LayerInput = ModalLayerInput | OverlayLayerInput;
 
 /**
  * Type guard to check if a layer is a modal
+ * @internal Only used in tests - production code uses direct property checks
  */
 export function isModalLayer(layer: Layer): layer is ModalLayer {
   return layer.type === 'modal';
@@ -99,6 +100,7 @@ export function isModalLayer(layer: Layer): layer is ModalLayer {
 
 /**
  * Type guard to check if a layer is an overlay
+ * @internal Only used in tests - production code uses direct property checks
  */
 export function isOverlayLayer(layer: Layer): layer is OverlayLayer {
   return layer.type === 'overlay';

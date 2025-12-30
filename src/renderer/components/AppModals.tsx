@@ -823,7 +823,6 @@ export interface AppUtilityModalsProps {
   getDocumentTaskCount: (filename: string) => Promise<number>;
   onAutoRunRefresh: () => Promise<void>;
   onOpenMarketplace?: () => void;
-  onOpenDocumentGraph?: () => void;
 
   // TabSwitcherModal
   tabSwitcherOpen: boolean;
@@ -989,7 +988,6 @@ export function AppUtilityModals({
   getDocumentTaskCount,
   onAutoRunRefresh,
   onOpenMarketplace,
-  onOpenDocumentGraph,
   // TabSwitcherModal
   tabSwitcherOpen,
   onCloseTabSwitcher,
@@ -1106,7 +1104,6 @@ export function AppUtilityModals({
           onPublishGist={onPublishGist}
           onInjectOpenSpecPrompt={onInjectOpenSpecPrompt}
           onOpenPlaybookExchange={onOpenMarketplace}
-          onOpenDocumentGraph={onOpenDocumentGraph}
         />
       )}
 
@@ -1835,7 +1832,6 @@ export interface AppModalsProps {
   getDocumentTaskCount: (filename: string) => Promise<number>;
   onAutoRunRefresh: () => Promise<void>;
   onOpenMarketplace?: () => void;
-  onOpenDocumentGraph?: () => void;
   tabSwitcherOpen: boolean;
   onCloseTabSwitcher: () => void;
   onTabSelect: (tabId: string) => void;
@@ -2119,7 +2115,6 @@ export function AppModals(props: AppModalsProps) {
     getDocumentTaskCount,
     onAutoRunRefresh,
     onOpenMarketplace,
-    onOpenDocumentGraph,
     tabSwitcherOpen,
     onCloseTabSwitcher,
     onTabSelect,
@@ -2413,7 +2408,6 @@ export function AppModals(props: AppModalsProps) {
         getDocumentTaskCount={getDocumentTaskCount}
         onAutoRunRefresh={onAutoRunRefresh}
         onOpenMarketplace={onOpenMarketplace}
-        onOpenDocumentGraph={onOpenDocumentGraph}
         tabSwitcherOpen={tabSwitcherOpen}
         onCloseTabSwitcher={onCloseTabSwitcher}
         onTabSelect={onTabSelect}

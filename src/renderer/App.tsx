@@ -8618,7 +8618,6 @@ function MaestroConsoleInner() {
         getDocumentTaskCount={getDocumentTaskCount}
         onAutoRunRefresh={handleAutoRunRefresh}
         onOpenMarketplace={handleOpenMarketplace}
-        onOpenDocumentGraph={() => setIsGraphViewOpen(true)}
         tabSwitcherOpen={tabSwitcherOpen}
         onCloseTabSwitcher={handleCloseTabSwitcher}
         onTabSelect={handleUtilityTabSelect}

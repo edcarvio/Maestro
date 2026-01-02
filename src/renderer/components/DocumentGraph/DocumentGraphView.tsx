@@ -28,7 +28,6 @@ import {
   HelpCircle,
   Calendar,
   CheckSquare,
-  Focus,
   Type,
 } from 'lucide-react';
 import type { Theme } from '../../types';
@@ -954,19 +953,6 @@ export function DocumentGraphView({
             >
               {rootPath.split('/').pop()}
             </span>
-            {activeFocusFile && (
-              <span
-                className="flex items-center gap-1 text-xs px-2 py-0.5 rounded"
-                style={{
-                  backgroundColor: `${theme.colors.accent}30`,
-                  color: theme.colors.accent,
-                }}
-                title="Double-click another node to change focus"
-              >
-                <Focus className="w-3 h-3" />
-                Focus: {activeFocusFile.split('/').pop()}
-              </span>
-            )}
           </div>
 
           <div className="flex items-center gap-3">

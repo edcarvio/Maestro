@@ -2310,6 +2310,14 @@ describe('NewInstanceModal', () => {
           enabled: true,
         }],
       });
+      // Mock fs.stat to return a valid directory for remote path validation
+      vi.mocked(window.maestro.fs.stat).mockResolvedValue({
+        size: 4096,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        modifiedAt: '2024-01-15T12:30:00.000Z',
+        isDirectory: true,
+        isFile: false,
+      });
 
       render(
         <NewInstanceModal
@@ -2344,6 +2352,11 @@ describe('NewInstanceModal', () => {
       // Use the placeholder that appears when SSH is enabled (mentions the remote host)
       const dirInput = screen.getByPlaceholderText(/Enter remote path/i);
       fireEvent.change(dirInput, { target: { value: '/test/path' } });
+
+      // Wait for the remote path validation to complete (debounced 300ms)
+      await waitFor(() => {
+        expect(screen.getByText('Remote directory found')).toBeInTheDocument();
+      });
 
       const createButton = screen.getByText('Create Agent');
       await act(async () => {

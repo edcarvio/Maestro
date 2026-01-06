@@ -48,6 +48,8 @@ vi.mock('lucide-react', () => ({
     <span data-testid="alert-triangle-icon" className={className} style={style}>⚠️</span>,
   X: ({ className, style }: { className?: string; style?: React.CSSProperties }) =>
     <span data-testid="x-icon" className={className} style={style}>✕</span>,
+  Loader2: ({ className, style }: { className?: string; style?: React.CSSProperties }) =>
+    <span data-testid="loader2-icon" className={className} style={style}>⏳</span>,
 }));
 
 // Mock @tanstack/react-virtual for virtualization

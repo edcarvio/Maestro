@@ -68,6 +68,28 @@ function formatTimestamp(timestamp: number): string {
 }
 
 /**
+ * Patterns that indicate the AI said it will do something asynchronously.
+ * This is a UX problem because the wizard can't actually support async operations -
+ * each message is a single turn. If the AI says "let me research this", the user
+ * is left waiting with no indication that they need to respond.
+ */
+const DEFERRED_RESPONSE_PATTERNS = [
+  /let me (?:research|investigate|look into|think about|analyze|examine|check|explore)/i,
+  /give me a (?:moment|minute|second)/i,
+  /i(?:'ll| will) (?:look into|research|investigate|get back|check)/i,
+  /(?:researching|investigating|looking into) (?:this|that|it)/i,
+  /let me (?:take a )?(?:closer )?look/i,
+];
+
+/**
+ * Check if a message contains phrases that imply deferred/async work.
+ * The wizard can't actually support this - we need to auto-continue.
+ */
+function containsDeferredResponsePhrase(message: string): boolean {
+  return DEFERRED_RESPONSE_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+/**
  * ConfidenceMeter - Horizontal progress bar with gradient fill
  */
 function ConfidenceMeter({
@@ -525,6 +547,9 @@ export function ConversationScreen({ theme, showThinking, setShowThinking }: Con
   const [announcement, setAnnouncement] = useState('');
   const [announcementKey, setAnnouncementKey] = useState(0);
 
+  // Pending auto-continue message (when AI says "let me research this")
+  const [pendingAutoContinue, setPendingAutoContinue] = useState<string | null>(null);
+
   // Track previous ready state to avoid duplicate announcements
   const prevReadyRef = useRef(state.isReadyToProceed);
 
@@ -544,6 +569,9 @@ export function ConversationScreen({ theme, showThinking, setShowThinking }: Con
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // Immediate send guard to prevent race conditions from rapid clicking
   const isSendingRef = useRef(false);
+  // Track if we've already triggered auto-continue for the current exchange
+  // This prevents infinite loops if the AI keeps saying "let me research"
+  const autoContinueTriggeredRef = useRef(false);
 
   // Scroll to bottom when messages change
   const scrollToBottom = useCallback(() => {
@@ -558,6 +586,38 @@ export function ConversationScreen({ theme, showThinking, setShowThinking }: Con
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Handle pending auto-continue (when AI says "let me research this")
+  // We set the input and call handleSendMessage after a delay
+  useEffect(() => {
+    if (pendingAutoContinue && !state.isConversationLoading && !isSendingRef.current) {
+      const message = pendingAutoContinue;
+      setPendingAutoContinue(null);
+
+      // Small delay to let the UI update and show the AI's response
+      const timeoutId = setTimeout(() => {
+        // Set the input value first so handleSendMessage picks it up
+        setInputValue(message);
+      }, 800);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [pendingAutoContinue, state.isConversationLoading]);
+
+  // Store handleSendMessage in a ref so we can call it from the effect
+  const handleSendMessageRef = useRef<(() => void) | null>(null);
+
+  // Effect to trigger send when input is set to the auto-continue message
+  useEffect(() => {
+    if (
+      inputValue === 'Please proceed with your analysis.' &&
+      !state.isConversationLoading &&
+      !isSendingRef.current &&
+      handleSendMessageRef.current
+    ) {
+      handleSendMessageRef.current();
+    }
+  }, [inputValue, state.isConversationLoading]);
 
   // Initialize conversation manager when entering this screen
   useEffect(() => {
@@ -685,6 +745,12 @@ export function ConversationScreen({ theme, showThinking, setShowThinking }: Con
 
     // Set immediate guard before any async work
     isSendingRef.current = true;
+
+    // Reset auto-continue flag if this is a user-initiated message (not auto-continue)
+    // This allows auto-continue to trigger again for the next exchange if needed
+    if (trimmedInput !== 'Please proceed with your analysis.') {
+      autoContinueTriggeredRef.current = false;
+    }
 
     // Clear input immediately and reset textarea height
     setInputValue('');
@@ -846,6 +912,21 @@ export function ConversationScreen({ theme, showThinking, setShowThinking }: Con
 
               // Reset error retry count on success
               setErrorRetryCount(0);
+
+              // Check if the AI said something that implies async work (e.g., "let me research this")
+              // The wizard can't support async operations - each message is a single turn.
+              // If we detect this pattern and haven't already auto-continued, schedule a follow-up.
+              const messageContent = sendResult.response.structured?.message || sendResult.response.rawText;
+              if (
+                messageContent &&
+                containsDeferredResponsePhrase(messageContent) &&
+                !autoContinueTriggeredRef.current
+              ) {
+                console.log('[ConversationScreen] Detected deferred response phrase, scheduling auto-continue');
+                autoContinueTriggeredRef.current = true;
+                // Set pending auto-continue - an effect will handle actually sending
+                setPendingAutoContinue('Please proceed with your analysis.');
+              }
             }
           },
           onError: (error) => {
@@ -892,6 +973,11 @@ export function ConversationScreen({ theme, showThinking, setShowThinking }: Con
     setConfidenceLevel,
     setIsReadyToProceed,
   ]);
+
+  // Keep ref updated with current handleSendMessage for auto-continue effect
+  useEffect(() => {
+    handleSendMessageRef.current = handleSendMessage;
+  }, [handleSendMessage]);
 
   /**
    * Auto-send initial message when continuing with existing docs
@@ -1367,6 +1453,22 @@ export function ConversationScreen({ theme, showThinking, setShowThinking }: Con
           borderColor: theme.colors.border,
         }}
       >
+        {/* "Your turn" indicator - shows when AI responded and waiting for user */}
+        {!state.isConversationLoading &&
+          state.conversationHistory.length > 0 &&
+          state.conversationHistory[state.conversationHistory.length - 1].role === 'assistant' &&
+          state.confidenceLevel < READY_CONFIDENCE_THRESHOLD && (
+            <div
+              className="flex items-center gap-2 mb-2 text-xs"
+              style={{ color: theme.colors.accent }}
+            >
+              <span
+                className="w-2 h-2 rounded-full animate-pulse"
+                style={{ backgroundColor: theme.colors.accent }}
+              />
+              <span>Your turn — continue the conversation</span>
+            </div>
+          )}
         <div className="flex gap-3">
           <div className="flex-1 relative flex items-center">
             <textarea

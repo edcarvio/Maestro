@@ -652,12 +652,51 @@ class ConversationManager {
 				return args;
 			}
 
-			case 'codex':
-			case 'opencode': {
-				// For Codex and OpenCode, use base args only
-				// The IPC handler will add batchModePrefix, jsonOutputArgs, batchModeArgs, workingDirArgs
-				return [...(agent.args || [])];
-			}
+      case 'codex': {
+        // Codex requires exec batch mode with JSON output for wizard conversations
+        // Must include these explicitly since wizard pre-builds args before IPC handler
+        const args = [];
+        
+        // Add batch mode prefix: 'exec'
+        if (agent.batchModePrefix) {
+          args.push(...agent.batchModePrefix);
+        }
+        
+        // Add base args (if any)
+        args.push(...(agent.args || []));
+        
+        // Add batch mode args: '--dangerously-bypass-approvals-and-sandbox', '--skip-git-repo-check'
+        if (agent.batchModeArgs) {
+          args.push(...agent.batchModeArgs);
+        }
+        
+        // Add JSON output: '--json'
+        if (agent.jsonOutputArgs) {
+          args.push(...agent.jsonOutputArgs);
+        }
+        
+        return args;
+      }
+      
+      case 'opencode': {
+        // OpenCode requires 'run' batch mode with JSON output for wizard conversations
+        const args = [];
+        
+        // Add batch mode prefix: 'run'
+        if (agent.batchModePrefix) {
+          args.push(...agent.batchModePrefix);
+        }
+        
+        // Add base args (if any)
+        args.push(...(agent.args || []));
+        
+        // Add JSON output: '--format json'
+        if (agent.jsonOutputArgs) {
+          args.push(...agent.jsonOutputArgs);
+        }
+        
+        return args;
+      }
 
 			default: {
 				// For unknown agents, use base args

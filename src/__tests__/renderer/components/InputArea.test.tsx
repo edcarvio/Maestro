@@ -58,8 +58,11 @@ vi.mock('../../../renderer/hooks/agent/useAgentCapabilities', () => ({
 
 // Mock child components to isolate InputArea testing
 vi.mock('../../../renderer/components/ThinkingStatusPill', () => ({
-  ThinkingStatusPill: vi.fn(({ sessions, onSessionClick }) => (
-    <div data-testid="thinking-status-pill">ThinkingStatusPill</div>
+  ThinkingStatusPill: vi.fn(({ thinkingSessions, onSessionClick }) => (
+    // Only render when there are thinking sessions (matches real component behavior)
+    thinkingSessions && thinkingSessions.length > 0 ? (
+      <div data-testid="thinking-status-pill">ThinkingStatusPill</div>
+    ) : null
   )),
 }));
 
@@ -377,6 +380,7 @@ describe('InputArea', () => {
 
     it('renders ThinkingStatusPill when sessions are thinking', () => {
       // ThinkingStatusPill only renders when there are thinking sessions (state: 'busy', busySource: 'ai')
+      // PERF: InputArea now expects pre-filtered thinkingSessions prop
       const thinkingSession = createMockSession({
         inputMode: 'ai',
         state: 'busy',
@@ -384,7 +388,7 @@ describe('InputArea', () => {
       });
       const props = createDefaultProps({
         session: thinkingSession,
-        sessions: [thinkingSession],
+        thinkingSessions: [thinkingSession],
       });
       render(<InputArea {...props} />);
 

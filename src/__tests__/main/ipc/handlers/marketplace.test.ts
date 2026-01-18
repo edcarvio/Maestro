@@ -29,6 +29,7 @@ vi.mock('electron', () => ({
   },
   app: {
     getPath: vi.fn(),
+    on: vi.fn(),
   },
 }));
 
@@ -160,6 +161,7 @@ describe('marketplace IPC handlers', () => {
     // Setup mock app
     mockApp = {
       getPath: vi.fn().mockReturnValue('/mock/userData'),
+      on: vi.fn(),
     } as unknown as App;
 
     // Setup mock settings store for SSH remote lookup
@@ -213,7 +215,7 @@ describe('marketplace IPC handlers', () => {
 
   describe('marketplace:getManifest', () => {
     it('should create cache file in userData after first fetch', async () => {
-      // No existing cache
+      // No existing cache, no local manifest
       vi.mocked(fs.readFile).mockRejectedValue({ code: 'ENOENT' });
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
@@ -242,7 +244,9 @@ describe('marketplace IPC handlers', () => {
 
       // Verify response indicates not from cache
       expect(result.fromCache).toBe(false);
-      expect(result.manifest).toEqual(sampleManifest);
+      // Merged manifest includes source field for each playbook
+      expect(result.manifest.playbooks.length).toBe(sampleManifest.playbooks.length);
+      expect(result.manifest.playbooks.every((p: any) => p.source === 'official')).toBe(true);
     });
 
     it('should use cache when within TTL', async () => {
@@ -252,7 +256,10 @@ describe('marketplace IPC handlers', () => {
         manifest: sampleManifest,
       };
 
-      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(cachedData));
+      // First read returns cache, second read (local manifest) returns ENOENT
+      vi.mocked(fs.readFile)
+        .mockResolvedValueOnce(JSON.stringify(cachedData))
+        .mockRejectedValueOnce({ code: 'ENOENT' });
 
       const handler = handlers.get('marketplace:getManifest');
       const result = await handler!({} as any);
@@ -264,7 +271,9 @@ describe('marketplace IPC handlers', () => {
       expect(result.fromCache).toBe(true);
       expect(result.cacheAge).toBeDefined();
       expect(result.cacheAge).toBeGreaterThanOrEqual(cacheAge);
-      expect(result.manifest).toEqual(sampleManifest);
+      // Merged manifest includes source field for each playbook
+      expect(result.manifest.playbooks.length).toBe(sampleManifest.playbooks.length);
+      expect(result.manifest.playbooks.every((p: any) => p.source === 'official')).toBe(true);
     });
 
     it('should fetch fresh data when cache is expired', async () => {
@@ -277,7 +286,10 @@ describe('marketplace IPC handlers', () => {
         },
       };
 
-      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(expiredCache));
+      // First read returns expired cache, second read (local manifest) returns ENOENT
+      vi.mocked(fs.readFile)
+        .mockResolvedValueOnce(JSON.stringify(expiredCache))
+        .mockRejectedValueOnce({ code: 'ENOENT' });
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
       mockFetch.mockResolvedValue({
@@ -293,7 +305,9 @@ describe('marketplace IPC handlers', () => {
 
       // Should return fresh data
       expect(result.fromCache).toBe(false);
-      expect(result.manifest).toEqual(sampleManifest);
+      // Merged manifest includes source field for each playbook
+      expect(result.manifest.playbooks.length).toBe(sampleManifest.playbooks.length);
+      expect(result.manifest.playbooks.every((p: any) => p.source === 'official')).toBe(true);
     });
 
     it('should handle invalid cache structure gracefully', async () => {
@@ -316,7 +330,8 @@ describe('marketplace IPC handlers', () => {
       expect(result.fromCache).toBe(false);
     });
 
-    it('should handle network errors gracefully', async () => {
+    it('should handle network errors gracefully by returning empty merged manifest', async () => {
+      // No cache, no local manifest
       vi.mocked(fs.readFile).mockRejectedValue({ code: 'ENOENT' });
 
       mockFetch.mockRejectedValue(new Error('Network error'));
@@ -324,11 +339,15 @@ describe('marketplace IPC handlers', () => {
       const handler = handlers.get('marketplace:getManifest');
       const result = await handler!({} as any);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Network error');
+      // With local manifest support, network errors are now handled gracefully
+      // Returns empty manifest (merged result of null official + null local)
+      expect(result.manifest).toBeDefined();
+      expect(result.manifest.playbooks).toEqual([]);
+      expect(result.fromCache).toBe(false);
     });
 
-    it('should handle HTTP error responses', async () => {
+    it('should handle HTTP error responses gracefully by returning empty merged manifest', async () => {
+      // No cache, no local manifest
       vi.mocked(fs.readFile).mockRejectedValue({ code: 'ENOENT' });
 
       mockFetch.mockResolvedValue({
@@ -340,8 +359,11 @@ describe('marketplace IPC handlers', () => {
       const handler = handlers.get('marketplace:getManifest');
       const result = await handler!({} as any);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Failed to fetch manifest');
+      // With local manifest support, HTTP errors are now handled gracefully
+      // Returns empty manifest (merged result of null official + null local)
+      expect(result.manifest).toBeDefined();
+      expect(result.manifest.playbooks).toEqual([]);
+      expect(result.fromCache).toBe(false);
     });
   });
 
@@ -356,7 +378,8 @@ describe('marketplace IPC handlers', () => {
         },
       };
 
-      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(validCache));
+      // First read is for local manifest (returns ENOENT = no local manifest)
+      vi.mocked(fs.readFile).mockRejectedValue({ code: 'ENOENT' });
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
       mockFetch.mockResolvedValue({
@@ -372,7 +395,13 @@ describe('marketplace IPC handlers', () => {
 
       // Should return fresh data
       expect(result.fromCache).toBe(false);
-      expect(result.manifest).toEqual(sampleManifest);
+
+      // Manifest now includes source field from mergeManifests
+      expect(result.manifest.playbooks.length).toBe(sampleManifest.playbooks.length);
+      expect(result.manifest.playbooks.every((p: any) => p.source === 'official')).toBe(true);
+      expect(result.manifest.playbooks.map((p: any) => p.id)).toEqual(
+        sampleManifest.playbooks.map((p) => p.id)
+      );
 
       // Should have updated cache
       expect(fs.writeFile).toHaveBeenCalled();

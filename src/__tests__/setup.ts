@@ -310,6 +310,7 @@ const mockMaestro = {
     getDocument: vi.fn().mockResolvedValue({ success: true, content: '' }),
     getReadme: vi.fn().mockResolvedValue({ success: true, content: null }),
     importPlaybook: vi.fn().mockResolvedValue({ success: true, playbook: {}, importedDocs: [] }),
+    onManifestChanged: vi.fn().mockReturnValue(() => {}),
   },
   web: {
     broadcastAutoRunState: vi.fn(),

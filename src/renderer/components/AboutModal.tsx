@@ -188,6 +188,7 @@ export function AboutModal({
 							</h1>
 							<span className="text-xs font-mono" style={{ color: theme.colors.textDim }}>
 								v{__APP_VERSION__}
+								{__COMMIT_HASH__ && ` (${__COMMIT_HASH__})`}
 							</span>
 						</div>
 						<p className="text-xs opacity-70" style={{ color: theme.colors.textDim }}>

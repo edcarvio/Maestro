@@ -41,6 +41,8 @@ const mockData: StatsAggregation = {
 	sessionsByDay: [],
 	avgSessionDuration: 288000,
 	byAgentByDay: {},
+	bySessionByDay: {},
+
 };
 
 // Empty data for edge case testing
@@ -58,6 +60,8 @@ const emptyData: StatsAggregation = {
 	sessionsByDay: [],
 	avgSessionDuration: 0,
 	byAgentByDay: {},
+	bySessionByDay: {},
+
 };
 
 // Data with large numbers
@@ -78,6 +82,8 @@ const largeNumbersData: StatsAggregation = {
 	sessionsByDay: [],
 	avgSessionDuration: 7200000,
 	byAgentByDay: {},
+	bySessionByDay: {},
+
 };
 
 // Single agent data
@@ -97,6 +103,8 @@ const singleAgentData: StatsAggregation = {
 	sessionsByDay: [],
 	avgSessionDuration: 360000,
 	byAgentByDay: {},
+	bySessionByDay: {},
+
 };
 
 // Only auto queries
@@ -116,6 +124,8 @@ const onlyAutoData: StatsAggregation = {
 	sessionsByDay: [],
 	avgSessionDuration: 360000,
 	byAgentByDay: {},
+	bySessionByDay: {},
+
 };
 
 describe('SummaryCards', () => {

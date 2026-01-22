@@ -211,6 +211,8 @@ const createSampleData = () => ({
 	],
 	avgSessionDuration: 144000,
 	byAgentByDay: {},
+	bySessionByDay: {},
+
 });
 
 describe('UsageDashboard Responsive Layout', () => {

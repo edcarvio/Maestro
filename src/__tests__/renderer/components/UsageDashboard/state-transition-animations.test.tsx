@@ -159,8 +159,10 @@ beforeEach(() => {
 		],
 		avgSessionDuration: 180000,
 		byAgentByDay: {},
+	bySessionByDay: {},
 	});
 	mockStats.getDatabaseSize.mockResolvedValue(1024 * 1024); // 1 MB
+
 });
 
 afterEach(() => {
@@ -280,6 +282,7 @@ describe('Usage Dashboard State Transition Animations', () => {
 			sessionsByDay: [],
 			avgSessionDuration: 240000,
 			byAgentByDay: {},
+	bySessionByDay: {},
 		};
 
 		it('applies dashboard-card-enter class to metric cards', () => {
@@ -586,4 +589,5 @@ describe('Usage Dashboard State Transition Animations', () => {
 			expect(totalMaxDuration).toBeLessThan(1000);
 		});
 	});
+
 });

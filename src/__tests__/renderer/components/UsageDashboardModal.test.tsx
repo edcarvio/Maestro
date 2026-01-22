@@ -146,6 +146,8 @@ const createSampleData = () => ({
 	],
 	avgSessionDuration: 144000,
 	byAgentByDay: {},
+	bySessionByDay: {},
+
 });
 
 describe('UsageDashboardModal', () => {

@@ -2,11 +2,69 @@
  * Main process constants
  *
  * Centralized constants used across the main process for Claude session parsing,
- * API pricing, and demo mode detection.
+ * API pricing, demo mode detection, and pre-compiled regex patterns.
  */
 
 import path from 'path';
 import os from 'os';
+
+// ============================================================================
+// Pre-compiled Regex Patterns (Performance Optimization)
+// ============================================================================
+// These patterns are used in hot paths (process data handlers) that fire hundreds
+// of times per second. Pre-compiling them avoids repeated regex compilation overhead.
+
+// Group chat session ID patterns
+export const REGEX_MODERATOR_SESSION = /^group-chat-(.+)-moderator-/;
+export const REGEX_MODERATOR_SESSION_TIMESTAMP = /^group-chat-(.+)-moderator-\d+$/;
+export const REGEX_PARTICIPANT_UUID =
+	/^group-chat-(.+)-participant-(.+)-([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i;
+export const REGEX_PARTICIPANT_TIMESTAMP = /^group-chat-(.+)-participant-(.+)-(\d{13,})$/;
+export const REGEX_PARTICIPANT_FALLBACK = /^group-chat-(.+)-participant-([^-]+)-/;
+
+// Web broadcast session ID patterns
+export const REGEX_AI_SUFFIX = /-ai-[^-]+$/;
+export const REGEX_AI_TAB_ID = /-ai-([^-]+)$/;
+
+// ============================================================================
+// Buffer Size Limits
+// ============================================================================
+
+/**
+ * Maximum buffer size for group chat output (10MB).
+ * Prevents memory exhaustion from extremely large outputs.
+ * Larger than process-manager's 100KB because group chat conversations can be lengthy.
+ */
+export const MAX_GROUP_CHAT_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
+
+// ============================================================================
+// Debug Logging (Performance Optimization)
+// ============================================================================
+// Debug logs in hot paths (data handlers) are disabled in production to avoid
+// performance overhead from string interpolation and console I/O on every data chunk.
+export const DEBUG_GROUP_CHAT =
+	process.env.NODE_ENV === 'development' || process.env.DEBUG_GROUP_CHAT === '1';
+
+/** Log debug message only in development mode. Avoids overhead in production. */
+export function debugLog(prefix: string, message: string, ...args: unknown[]): void {
+	if (DEBUG_GROUP_CHAT) {
+		console.log(`[${prefix}] ${message}`, ...args);
+	}
+}
+
+/**
+ * Lazy debug logging - accepts a callback to avoid string construction costs in production.
+ * Use this for expensive string operations (e.g., JSON.stringify, template literals with computations).
+ *
+ * @example
+ * // Instead of: debugLog('Parser', `Parsed ${items.length} items: ${JSON.stringify(items)}`)
+ * // Use: debugLogLazy('Parser', () => `Parsed ${items.length} items: ${JSON.stringify(items)}`)
+ */
+export function debugLogLazy(prefix: string, messageFn: () => string, ...args: unknown[]): void {
+	if (DEBUG_GROUP_CHAT) {
+		console.log(`[${prefix}] ${messageFn()}`, ...args);
+	}
+}
 
 /**
  * Demo mode flag - enables isolated data directory for fresh demos

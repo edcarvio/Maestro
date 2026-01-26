@@ -307,7 +307,7 @@ export function createSymphonyApi() {
 		fetchDocumentContent: (
 			url: string
 		): Promise<{ success: boolean; content?: string; error?: string }> =>
-			ipcRenderer.invoke('symphony:fetchDocumentContent', url),
+			ipcRenderer.invoke('symphony:fetchDocumentContent', { url }),
 
 		// Real-time updates
 		onUpdated: (callback: () => void) => {

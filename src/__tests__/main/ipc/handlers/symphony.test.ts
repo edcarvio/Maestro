@@ -83,6 +83,7 @@ describe('Symphony IPC handlers', () => {
 			isDestroyed: vi.fn().mockReturnValue(false),
 			webContents: {
 				send: vi.fn(),
+				isDestroyed: vi.fn().mockReturnValue(false),
 			},
 		} as unknown as BrowserWindow;
 

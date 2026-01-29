@@ -16,6 +16,7 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { logger } from '../../utils/logger';
 import { withIpcErrorLogging, CreateHandlerOptions } from '../../utils/ipcHandler';
 import { getStatsDB } from '../../stats-db';
+import { isWebContentsAvailable } from '../../utils/safe-send';
 import {
 	QueryEvent,
 	AutoRunSession,
@@ -58,7 +59,7 @@ function isStatsCollectionEnabled(settingsStore?: { get: (key: string) => unknow
  */
 function broadcastStatsUpdate(getMainWindow: () => BrowserWindow | null): void {
 	const mainWindow = getMainWindow();
-	if (mainWindow && !mainWindow.isDestroyed()) {
+	if (isWebContentsAvailable(mainWindow)) {
 		mainWindow.webContents.send('stats:updated');
 	}
 }

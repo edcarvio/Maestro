@@ -10,7 +10,7 @@
  * - Force refresh bypasses cache and fetches fresh data
  */
 
-import { ipcMain, App } from 'electron';
+import { ipcMain, App, BrowserWindow } from 'electron';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
@@ -18,6 +18,7 @@ import crypto from 'crypto';
 import Store from 'electron-store';
 import { logger } from '../../utils/logger';
 import { createIpcHandler, CreateHandlerOptions } from '../../utils/ipcHandler';
+import { isWebContentsAvailable } from '../../utils/safe-send';
 import type {
 	MarketplaceManifest,
 	MarketplaceCache,
@@ -532,10 +533,11 @@ function setupLocalManifestWatcher(app: App): void {
 				logger.info('Local manifest changed, broadcasting refresh event', LOG_CONTEXT);
 
 				// Send IPC event to all renderer windows
-				const { BrowserWindow } = require('electron');
 				const allWindows = BrowserWindow.getAllWindows();
 				for (const win of allWindows) {
-					win.webContents.send('marketplace:manifestChanged');
+					if (isWebContentsAvailable(win)) {
+						win.webContents.send('marketplace:manifestChanged');
+					}
 				}
 			}, WATCHER_DEBOUNCE_MS);
 		});

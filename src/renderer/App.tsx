@@ -2735,7 +2735,7 @@ function MaestroConsoleInner() {
 			}
 
 			// Calculate context window usage percentage from CURRENT (per-turn) reported tokens.
-			// Usage data is normalized in StdoutHandler to convert cumulative totals to per-turn deltas.
+			// Claude Code reports per-turn context values (verified via direct CLI testing).
 			//
 			// Per Anthropic docs: total_context = input + cacheRead + cacheCreation
 			// For Codex: context = inputTokens + outputTokens (combined limit)
@@ -2752,7 +2752,23 @@ function MaestroConsoleInner() {
 
 			// Calculate context percentage, falling back to agent-specific defaults if contextWindow not provided
 			let contextPercentage: number;
-			if (usageStats.contextWindow > 0) {
+			const effectiveContextWindow = usageStats.contextWindow > 0 ? usageStats.contextWindow : 200000;
+
+			// Sanity check: if tokens exceed 150% of context window, the data is likely corrupt
+			// (e.g., accumulated session totals instead of per-turn values). In this case,
+			// preserve the previous context percentage rather than showing misleading 100%.
+			if (currentContextTokens > effectiveContextWindow * 1.5) {
+				console.warn('[onUsage] Ignoring anomalous context data - tokens exceed 150% of window', {
+					sessionId: actualSessionId,
+					currentContextTokens,
+					contextWindow: effectiveContextWindow,
+					inputTokens: usageStats.inputTokens,
+					cacheReadInputTokens: usageStats.cacheReadInputTokens,
+					cacheCreationInputTokens: usageStats.cacheCreationInputTokens,
+				});
+				// Keep existing context percentage (don't update)
+				contextPercentage = sessionForUsage?.contextUsage ?? 0;
+			} else if (usageStats.contextWindow > 0) {
 				contextPercentage = Math.min(
 					Math.round((currentContextTokens / usageStats.contextWindow) * 100),
 					100
@@ -6534,6 +6550,15 @@ You are taking over this conversation. Based on the context above, provide a bri
 		}
 
 		try {
+			// Add user log entry showing the /skills command was requested
+			const userLog: LogEntry = {
+				id: generateId(),
+				timestamp: Date.now(),
+				source: 'user',
+				text: '/skills',
+			};
+			addLogToActiveTab(activeSession.id, userLog);
+
 			// Fetch skills from the IPC handler
 			const skills = await window.maestro.claude.getSkills(activeSession.projectRoot);
 
@@ -6541,38 +6566,51 @@ You are taking over this conversation. Based on the context above, provide a bri
 			let skillsMessage: string;
 			if (skills.length === 0) {
 				skillsMessage =
-					'**No skills found**\n\nNo Claude Code skills were found in this project.\n\nTo add skills, create `.claude/skills/<skill-name>/skill.md` files in your project.';
+					'## Skills\n\nNo Claude Code skills were found in this project.\n\nTo add skills, create `.claude/skills/<skill-name>/skill.md` files in your project.';
 			} else {
 				const formatTokenCount = (tokens: number): string => {
 					if (tokens >= 1000) {
-						return `~${(tokens / 1000).toFixed(1)}k tokens`;
+						return `~${(tokens / 1000).toFixed(1)}k`;
 					}
-					return `~${tokens} tokens`;
+					return `~${tokens}`;
 				};
 
 				const projectSkills = skills.filter((s) => s.source === 'project');
 				const userSkills = skills.filter((s) => s.source === 'user');
 
-				const lines: string[] = ['**Skills**', `${skills.length} skills`, ''];
+				const lines: string[] = [
+					`## Skills`,
+					'',
+					`${skills.length} skill${skills.length !== 1 ? 's' : ''} available`,
+					'',
+				];
 
 				if (projectSkills.length > 0) {
-					lines.push('**Project skills** (`.claude/skills`)');
+					lines.push('### Project Skills');
+					lines.push('');
+					lines.push('| Skill | Tokens | Description |');
+					lines.push('|-------|--------|-------------|');
 					for (const skill of projectSkills) {
-						lines.push(`- **${skill.name}** · ${formatTokenCount(skill.tokenCount)}`);
-						if (skill.description && skill.description !== 'No description') {
-							lines.push(`  ${skill.description}`);
-						}
+						const desc =
+							skill.description && skill.description !== 'No description'
+								? skill.description
+								: '—';
+						lines.push(`| **${skill.name}** | ${formatTokenCount(skill.tokenCount)} | ${desc} |`);
 					}
 					lines.push('');
 				}
 
 				if (userSkills.length > 0) {
-					lines.push('**User skills** (`~/.claude/skills`)');
+					lines.push('### User Skills');
+					lines.push('');
+					lines.push('| Skill | Tokens | Description |');
+					lines.push('|-------|--------|-------------|');
 					for (const skill of userSkills) {
-						lines.push(`- **${skill.name}** · ${formatTokenCount(skill.tokenCount)}`);
-						if (skill.description && skill.description !== 'No description') {
-							lines.push(`  ${skill.description}`);
-						}
+						const desc =
+							skill.description && skill.description !== 'No description'
+								? skill.description
+								: '—';
+						lines.push(`| **${skill.name}** | ${formatTokenCount(skill.tokenCount)} | ${desc} |`);
 					}
 				}
 

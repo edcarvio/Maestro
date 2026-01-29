@@ -7,6 +7,7 @@ import { logger } from '../../utils/logger';
 import { createIpcHandler, CreateHandlerOptions } from '../../utils/ipcHandler';
 import { SshRemoteConfig } from '../../../shared/types';
 import { MaestroSettings } from './persistence';
+import { isWebContentsAvailable } from '../../utils/safe-send';
 import {
 	readDirRemote,
 	readFileRemote,
@@ -737,7 +738,7 @@ export function registerAutorunHandlers(
 						autoRunWatchDebounceTimer = null;
 						// Send event to renderer
 						const mainWindow = getMainWindow();
-						if (mainWindow && !mainWindow.isDestroyed()) {
+						if (isWebContentsAvailable(mainWindow)) {
 							// Remove .md extension from filename to match autorun conventions
 							const filenameWithoutExt = filename.replace(/\.md$/i, '');
 							mainWindow.webContents.send('autorun:fileChanged', {

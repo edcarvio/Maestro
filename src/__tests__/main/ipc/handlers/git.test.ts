@@ -3739,8 +3739,10 @@ branch refs/heads/bugfix-123
 
 			// Mock window for event emission
 			const mockWindow = {
+				isDestroyed: vi.fn().mockReturnValue(false),
 				webContents: {
 					send: vi.fn(),
+					isDestroyed: vi.fn().mockReturnValue(false),
 				},
 			};
 			const { BrowserWindow } = await import('electron');
@@ -3800,8 +3802,10 @@ branch refs/heads/bugfix-123
 			vi.mocked(mockChokidar.watch).mockReturnValue(mockWatcher as any);
 
 			const mockWindow = {
+				isDestroyed: vi.fn().mockReturnValue(false),
 				webContents: {
 					send: vi.fn(),
+					isDestroyed: vi.fn().mockReturnValue(false),
 				},
 			};
 			const { BrowserWindow } = await import('electron');
@@ -3839,8 +3843,10 @@ branch refs/heads/bugfix-123
 			vi.mocked(mockChokidar.watch).mockReturnValue(mockWatcher as any);
 
 			const mockWindow = {
+				isDestroyed: vi.fn().mockReturnValue(false),
 				webContents: {
 					send: vi.fn(),
+					isDestroyed: vi.fn().mockReturnValue(false),
 				},
 			};
 			const { BrowserWindow } = await import('electron');
@@ -3889,8 +3895,10 @@ branch refs/heads/bugfix-123
 			vi.mocked(mockChokidar.watch).mockReturnValue(mockWatcher as any);
 
 			const mockWindow = {
+				isDestroyed: vi.fn().mockReturnValue(false),
 				webContents: {
 					send: vi.fn(),
+					isDestroyed: vi.fn().mockReturnValue(false),
 				},
 			};
 			const { BrowserWindow } = await import('electron');
@@ -3936,8 +3944,10 @@ branch refs/heads/bugfix-123
 			vi.mocked(mockChokidar.watch).mockReturnValue(mockWatcher as any);
 
 			const mockWindow = {
+				isDestroyed: vi.fn().mockReturnValue(false),
 				webContents: {
 					send: vi.fn(),
+					isDestroyed: vi.fn().mockReturnValue(false),
 				},
 			};
 			const { BrowserWindow } = await import('electron');
@@ -4031,8 +4041,10 @@ branch refs/heads/bugfix-123
 			vi.mocked(mockChokidar.watch).mockReturnValue(mockWatcher as any);
 
 			const mockWindow = {
+				isDestroyed: vi.fn().mockReturnValue(false),
 				webContents: {
 					send: vi.fn(),
+					isDestroyed: vi.fn().mockReturnValue(false),
 				},
 			};
 			const { BrowserWindow } = await import('electron');

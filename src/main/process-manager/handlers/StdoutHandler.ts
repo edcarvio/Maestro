@@ -238,13 +238,17 @@ export class StdoutHandler {
 		const usage = outputParser.extractUsage(event);
 		if (usage) {
 			const usageStats = this.buildUsageStats(managedProcess, usage);
-			// Codex reports cumulative session totals, not per-turn values - normalize to deltas.
-			// Claude Code reports per-turn context values (each turn shows actual context window usage).
+			// Claude Code reports PER-TURN context values (verified via direct CLI testing).
+			// Each turn shows the current context window usage, not cumulative totals.
+			//
+			// Codex reports CUMULATIVE session totals that must be normalized to deltas.
+			//
 			// Terminal has no usage reporting.
 			const normalizedUsageStats =
 				managedProcess.toolType === 'codex'
 					? normalizeUsageToDelta(managedProcess, usageStats)
 					: usageStats;
+
 			this.emitter.emit('usage', sessionId, normalizedUsageStats);
 		}
 

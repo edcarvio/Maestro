@@ -21,6 +21,7 @@ import os from 'os';
 import fs from 'fs/promises';
 import { logger } from '../../utils/logger';
 import { withIpcErrorLogging } from '../../utils/ipcHandler';
+import { isWebContentsAvailable } from '../../utils/safe-send';
 import {
 	getSessionStorage,
 	hasSessionStorage,
@@ -826,7 +827,7 @@ export function registerAgentSessionsHandlers(deps?: AgentSessionsHandlerDepende
 
 			// Helper to send progressive updates
 			const sendUpdate = (cache: GlobalStatsCache, isComplete: boolean) => {
-				if (mainWindow && !mainWindow.isDestroyed()) {
+				if (isWebContentsAvailable(mainWindow)) {
 					const stats = buildResultFromCache(cache, isComplete);
 					mainWindow.webContents.send('agentSessions:globalStatsUpdate', stats);
 				}

@@ -13,6 +13,7 @@
 import { ipcMain, Notification, BrowserWindow } from 'electron';
 import { spawn, type ChildProcess } from 'child_process';
 import { logger } from '../../utils/logger';
+import { isWebContentsAvailable } from '../../utils/safe-send';
 
 // ==========================================================================
 // Constants
@@ -297,7 +298,9 @@ async function executeTts(text: string, command?: string): Promise<TtsResponse> 
 
 				// Notify renderer that TTS has completed
 				BrowserWindow.getAllWindows().forEach((win) => {
-					win.webContents.send('tts:completed', ttsId);
+					if (isWebContentsAvailable(win)) {
+						win.webContents.send('tts:completed', ttsId);
+					}
 				});
 
 				// Resolve the promise now that TTS has completed

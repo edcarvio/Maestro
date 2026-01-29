@@ -4,6 +4,7 @@ import * as os from 'os';
 import { ProcessManager } from '../../process-manager';
 import { AgentDetector } from '../../agent-detector';
 import { logger } from '../../utils/logger';
+import { isWebContentsAvailable } from '../../utils/safe-send';
 import {
 	buildAgentArgs,
 	applyAgentConfigOverrides,
@@ -448,7 +449,7 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
 				// Emit SSH remote status event for renderer to update session state
 				// This is emitted for all spawns (sshRemote will be null for local execution)
 				const mainWindow = getMainWindow();
-				if (mainWindow && !mainWindow.isDestroyed()) {
+				if (isWebContentsAvailable(mainWindow)) {
 					const sshRemoteInfo = sshRemoteUsed
 						? {
 								id: sshRemoteUsed.id,

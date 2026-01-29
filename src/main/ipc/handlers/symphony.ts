@@ -14,6 +14,7 @@ import { ipcMain, App, BrowserWindow } from 'electron';
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '../../utils/logger';
+import { isWebContentsAvailable } from '../../utils/safe-send';
 import { createIpcHandler, CreateHandlerOptions } from '../../utils/ipcHandler';
 import { execFileNoThrow } from '../../utils/execFile';
 import {
@@ -788,7 +789,7 @@ This pull request was created using [Maestro Symphony](https://runmaestro.ai/sym
  */
 function broadcastSymphonyUpdate(getMainWindow: () => BrowserWindow | null): void {
 	const mainWindow = getMainWindow?.();
-	if (mainWindow && !mainWindow.isDestroyed()) {
+	if (isWebContentsAvailable(mainWindow)) {
 		mainWindow.webContents.send('symphony:updated');
 	}
 }
@@ -1983,7 +1984,7 @@ This PR will be updated automatically when the Auto Run completes.`;
 
 					// 5. Broadcast status update (no PR yet - will be created on first commit)
 					const mainWindow = getMainWindow?.();
-					if (mainWindow && !mainWindow.isDestroyed()) {
+					if (isWebContentsAvailable(mainWindow)) {
 						mainWindow.webContents.send('symphony:contributionStarted', {
 							contributionId,
 							sessionId,
@@ -2153,7 +2154,7 @@ This PR will be updated automatically when the Auto Run completes.`;
 
 				// Broadcast PR creation event
 				const mainWindow = getMainWindow?.();
-				if (mainWindow && !mainWindow.isDestroyed()) {
+				if (isWebContentsAvailable(mainWindow)) {
 					mainWindow.webContents.send('symphony:prCreated', {
 						contributionId,
 						sessionId,

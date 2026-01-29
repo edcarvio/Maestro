@@ -5,6 +5,7 @@ import chokidar, { FSWatcher } from 'chokidar';
 import { execFileNoThrow } from '../../utils/execFile';
 import { execGit } from '../../utils/remote-git';
 import { logger } from '../../utils/logger';
+import { isWebContentsAvailable } from '../../utils/safe-send';
 import {
 	withIpcErrorLogging,
 	createIpcHandler,
@@ -1220,14 +1221,16 @@ export function registerGitHandlers(deps: GitHandlerDependencies): void {
 							// Emit event to renderer
 							const windows = BrowserWindow.getAllWindows();
 							for (const win of windows) {
-								win.webContents.send('worktree:discovered', {
-									sessionId,
-									worktree: {
-										path: dirPath,
-										name: path.basename(dirPath),
-										branch,
-									},
-								});
+								if (isWebContentsAvailable(win)) {
+									win.webContents.send('worktree:discovered', {
+										sessionId,
+										worktree: {
+											path: dirPath,
+											name: path.basename(dirPath),
+											branch,
+										},
+									});
+								}
 							}
 
 							logger.info(`${LOG_CONTEXT} New worktree discovered: ${dirPath} (branch: ${branch})`);

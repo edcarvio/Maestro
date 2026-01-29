@@ -1042,7 +1042,7 @@ export const HistoryPanel = React.memo(
 		// Scroll selected item into view when selectedIndex changes (keyboard navigation)
 		useEffect(() => {
 			if (selectedIndex >= 0 && selectedIndex < allFilteredEntries.length) {
-				virtualizer.scrollToIndex(selectedIndex, { align: 'auto', behavior: 'smooth' });
+				virtualizer.scrollToIndex(selectedIndex, { align: 'auto' });
 			}
 		}, [selectedIndex, allFilteredEntries.length, virtualizer]);
 

@@ -21,6 +21,7 @@ import fs from 'fs/promises';
 import Store from 'electron-store';
 import { logger } from '../../utils/logger';
 import { withIpcErrorLogging } from '../../utils/ipcHandler';
+import { isWebContentsAvailable } from '../../utils/safe-send';
 import { CLAUDE_SESSION_PARSE_LIMITS } from '../../constants';
 import { calculateClaudeCost } from '../../utils/pricing';
 import {
@@ -572,7 +573,7 @@ export function registerClaudeHandlers(deps: ClaudeHandlerDependencies): void {
 				processedCount?: number;
 				isComplete: boolean;
 			}) => {
-				if (mainWindow && !mainWindow.isDestroyed()) {
+				if (isWebContentsAvailable(mainWindow)) {
 					mainWindow.webContents.send('claude:projectStatsUpdate', { projectPath, ...stats });
 				}
 			};
@@ -833,7 +834,7 @@ export function registerClaudeHandlers(deps: ClaudeHandlerDependencies): void {
 				totalSizeBytes: number;
 				isComplete: boolean;
 			}) => {
-				if (mainWindow && !mainWindow.isDestroyed()) {
+				if (isWebContentsAvailable(mainWindow)) {
 					mainWindow.webContents.send('claude:globalStatsUpdate', stats);
 				}
 			};

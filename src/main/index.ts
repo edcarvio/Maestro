@@ -92,7 +92,7 @@ import {
 	clearGroupChatBuffer,
 } from './group-chat/output-buffer';
 // Phase 2 refactoring - dependency injection
-import { createSafeSend } from './utils/safe-send';
+import { createSafeSend, isWebContentsAvailable } from './utils/safe-send';
 import { createWebServerFactory } from './web-server/web-server-factory';
 // Phase 4 refactoring - app lifecycle
 import {
@@ -305,7 +305,7 @@ app.whenReady().then(async () => {
 				`History file changed for session ${sessionId}, notifying renderer`,
 				'HistoryWatcher'
 			);
-			if (mainWindow && !mainWindow.isDestroyed()) {
+			if (isWebContentsAvailable(mainWindow)) {
 				mainWindow.webContents.send('history:externalChange', sessionId);
 			}
 		});

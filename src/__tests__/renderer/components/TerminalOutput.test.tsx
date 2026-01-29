@@ -1018,7 +1018,7 @@ describe('TerminalOutput', () => {
 		});
 	});
 
-	describe('TTS functionality', () => {
+	describe('Custom notification functionality', () => {
 		it('shows speak button when audioFeedbackCommand is provided', () => {
 			const logs: LogEntry[] = [createLogEntry({ text: 'Text to speak', source: 'stdout' })];
 

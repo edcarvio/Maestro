@@ -61,21 +61,21 @@ export function NotificationsPanel({
 				</button>
 			</div>
 
-			{/* Audio Feedback */}
+			{/* Custom Notification */}
 			<div>
 				<SettingCheckbox
 					icon={Volume2}
-					sectionLabel="Audio Feedback"
-					title="Enable Audio Feedback"
-					description="Speak the one-sentence feedback synopsis from LLM analysis using text-to-speech"
+					sectionLabel="Custom Notification"
+					title="Enable Custom Notification"
+					description="Execute a custom command when AI tasks complete, such as text-to-speech feedback"
 					checked={audioFeedbackEnabled}
 					onChange={setAudioFeedbackEnabled}
 					theme={theme}
 				/>
 
-				{/* Audio Command Configuration */}
+				{/* Command Chain Configuration */}
 				<div className="mt-3">
-					<label className="block text-xs font-medium opacity-70 mb-1">TTS Command</label>
+					<label className="block text-xs font-medium opacity-70 mb-1">Command Chain</label>
 					<div className="flex gap-2">
 						<input
 							type="text"
@@ -137,14 +137,14 @@ export function NotificationsPanel({
 						)}
 					</div>
 					<p className="text-xs opacity-50 mt-2" style={{ color: theme.colors.textDim }}>
-						Command that accepts text via stdin. Pipes are supported (e.g.,{' '}
+						Command that accepts text via stdin. Chain multiple commands using pipes (e.g.,{' '}
 						<code
 							className="px-1 py-0.5 rounded"
 							style={{ backgroundColor: theme.colors.bgActivity }}
 						>
 							cmd1 | cmd2
 						</code>
-						). Examples:{' '}
+						) to mix and match tools. Default TTS examples:{' '}
 						<code
 							className="px-1 py-0.5 rounded"
 							style={{ backgroundColor: theme.colors.bgActivity }}
@@ -165,6 +165,14 @@ export function NotificationsPanel({
 						>
 							festival --tts
 						</code>
+						. You can also use non-TTS commands or combine them, e.g.,{' '}
+						<code
+							className="px-1 py-0.5 rounded"
+							style={{ backgroundColor: theme.colors.bgActivity }}
+						>
+							tee ~/log.txt | say
+						</code>{' '}
+						to log and speak simultaneously.
 					</p>
 				</div>
 			</div>
@@ -208,8 +216,19 @@ export function NotificationsPanel({
 				<ul className="text-xs opacity-70 space-y-1" style={{ color: theme.colors.textDim }}>
 					<li>• When an AI task completes</li>
 					<li>• When a long-running command finishes</li>
-					<li>• When the LLM analysis generates a feedback synopsis (audio only, if configured)</li>
+					<li>
+						• When the LLM analysis generates a feedback synopsis (custom notification only, if
+						configured)
+					</li>
 				</ul>
+				<div
+					className="text-xs opacity-60 mt-3 pt-3"
+					style={{ color: theme.colors.textDim, borderTop: `1px solid ${theme.colors.border}` }}
+				>
+					<strong>Tip:</strong> The default Command Chain uses TTS (text-to-speech), but you can
+					leverage any notification stack you prefer. Chain commands together with pipes to mix and
+					match—for example, log to a file while also speaking aloud.
+				</div>
 			</div>
 		</div>
 	);

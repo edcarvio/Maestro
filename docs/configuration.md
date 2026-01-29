@@ -76,20 +76,23 @@ Enable desktop notifications to be alerted when:
 1. Toggle **Enable OS Notifications** on
 2. Click **Test Notification** to verify it works
 
-### Audio Feedback (Text-to-Speech)
+### Custom Notification
 
-Maestro can speak a brief summary when AI tasks complete using your system's text-to-speech.
+Execute a custom command when AI tasks complete. By default, this uses text-to-speech (TTS), but you can leverage any notification stack you prefer.
 
 **To configure:**
-1. Toggle **Enable Audio Feedback** on
-2. Set the **TTS Command** — the command that accepts text via stdin:
-   - **macOS:** `say` (built-in)
-   - **Linux:** `espeak` or `festival --tts`
+1. Toggle **Enable Custom Notification** on
+2. Set the **Command Chain** — the command(s) that accept text via stdin:
+   - **TTS (default):** `say` (macOS), `espeak` or `festival --tts` (Linux)
    - **Windows:** Use a PowerShell script or third-party TTS tool
-3. Click **Test** to hear a sample message
+   - **Custom:** Any command or script that accepts stdin
+3. Click **Test** to verify your command works
 4. Click **Stop** to interrupt a running test
 
-**Piped commands:** You can pipe through multiple commands, e.g., `cmd1 | cmd2`.
+**Command chaining:** Chain multiple commands together using pipes to mix and match tools. Examples:
+- `say` — speak aloud using macOS TTS
+- `tee ~/log.txt | say` — log to a file AND speak aloud
+- `notify-send "Maestro" && espeak` — show desktop notification and speak (Linux)
 
 ### Toast Notifications
 
@@ -104,9 +107,9 @@ In-app toast notifications appear in the corner when events occur. Configure how
 ### When Notifications Trigger
 
 Notifications are sent when:
-- An AI task completes (OS notification + optional TTS)
+- An AI task completes (OS notification + optional custom notification)
 - A long-running command finishes (OS notification)
-- The LLM analysis generates a feedback synopsis (TTS only, if configured)
+- The LLM analysis generates a feedback synopsis (custom notification only, if configured)
 
 ## Sleep Prevention
 

@@ -1148,14 +1148,14 @@ describe('SettingsModal', () => {
 			);
 		});
 
-		it('should display audio feedback setting', async () => {
+		it('should display custom notification setting', async () => {
 			render(<SettingsModal {...createDefaultProps({ initialTab: 'notifications' })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
 			});
 
-			expect(screen.getByText('Enable Audio Feedback')).toBeInTheDocument();
+			expect(screen.getByText('Enable Custom Notification')).toBeInTheDocument();
 		});
 
 		it('should call setAudioFeedbackEnabled when toggle switch is changed', async () => {
@@ -1175,7 +1175,7 @@ describe('SettingsModal', () => {
 			});
 
 			// SettingCheckbox uses a button with role="switch" instead of input[type="checkbox"]
-			const titleElement = screen.getByText('Enable Audio Feedback');
+			const titleElement = screen.getByText('Enable Custom Notification');
 			const toggleContainer = titleElement.closest('[role="button"]');
 			const toggleSwitch = toggleContainer?.querySelector('button[role="switch"]');
 			fireEvent.click(toggleSwitch!);
@@ -1183,7 +1183,7 @@ describe('SettingsModal', () => {
 			expect(setAudioFeedbackEnabled).toHaveBeenCalledWith(true);
 		});
 
-		it('should call setAudioFeedbackCommand when TTS command is changed', async () => {
+		it('should call setAudioFeedbackCommand when Command Chain is changed', async () => {
 			const setAudioFeedbackCommand = vi.fn();
 			render(
 				<SettingsModal
@@ -1201,7 +1201,7 @@ describe('SettingsModal', () => {
 			expect(setAudioFeedbackCommand).toHaveBeenCalledWith('espeak');
 		});
 
-		it('should test TTS when test button is clicked', async () => {
+		it('should test Command Chain when test button is clicked', async () => {
 			render(<SettingsModal {...createDefaultProps({ initialTab: 'notifications' })} />);
 
 			await act(async () => {
@@ -1520,8 +1520,8 @@ describe('SettingsModal', () => {
 		});
 	});
 
-	describe('TTS Stop button', () => {
-		it('should show Stop button when TTS is playing and handle click', async () => {
+	describe('Custom notification Stop button', () => {
+		it('should show Stop button when Command Chain is running and handle click', async () => {
 			// Mock speak to return a ttsId
 			vi.mocked(window.maestro.notification.speak).mockResolvedValue({ success: true, ttsId: 123 });
 			vi.mocked(window.maestro.notification.stopSpeak).mockResolvedValue({ success: true });
@@ -1532,7 +1532,7 @@ describe('SettingsModal', () => {
 				await vi.advanceTimersByTimeAsync(100);
 			});
 
-			// Click Test button to start TTS
+			// Click Test button to start Command Chain
 			fireEvent.click(screen.getByRole('button', { name: 'Test' }));
 
 			await act(async () => {
@@ -1564,7 +1564,7 @@ describe('SettingsModal', () => {
 				await vi.advanceTimersByTimeAsync(100);
 			});
 
-			// Click Test button to start TTS
+			// Click Test button to start Command Chain
 			fireEvent.click(screen.getByRole('button', { name: 'Test' }));
 
 			await act(async () => {
@@ -1604,7 +1604,7 @@ describe('SettingsModal', () => {
 			consoleSpy.mockRestore();
 		});
 
-		it('should auto-clear TTS state after timeout', async () => {
+		it('should auto-clear Command Chain state after timeout', async () => {
 			vi.mocked(window.maestro.notification.speak).mockResolvedValue({ success: true, ttsId: 789 });
 
 			render(<SettingsModal {...createDefaultProps({ initialTab: 'notifications' })} />);
@@ -1613,7 +1613,7 @@ describe('SettingsModal', () => {
 				await vi.advanceTimersByTimeAsync(100);
 			});
 
-			// Click Test button to start TTS
+			// Click Test button to start Command Chain
 			fireEvent.click(screen.getByRole('button', { name: 'Test' }));
 
 			await act(async () => {

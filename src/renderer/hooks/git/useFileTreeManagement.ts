@@ -20,13 +20,23 @@ import { logger } from '../../utils/logger';
 const FILE_TREE_RETRY_DELAY_MS = 20000;
 
 /**
+ * Options for building SSH context
+ */
+interface SshContextOptions {
+	/** Glob patterns to ignore when indexing remote files */
+	ignorePatterns?: string[];
+	/** Whether to honor .gitignore files on remote hosts */
+	honorGitignore?: boolean;
+}
+
+/**
  * Extract SSH context from session for remote file operations.
  * Returns undefined if no SSH remote is configured.
  *
  * Note: sshRemoteId is only set after AI agent spawns. For terminal-only SSH sessions,
  * we must fall back to sessionSshRemoteConfig.remoteId. See CLAUDE.md "SSH Remote Sessions".
  */
-function getSshContext(session: Session): SshContext | undefined {
+function getSshContext(session: Session, options?: SshContextOptions): SshContext | undefined {
 	// First check if there's a spawned sshRemoteId (set by agent spawn)
 	let sshRemoteId: string | undefined = session.sshRemoteId;
 
@@ -56,9 +66,11 @@ function getSshContext(session: Session): SshContext | undefined {
 		return undefined;
 	}
 
-	const context = {
+	const context: SshContext = {
 		sshRemoteId,
 		remoteCwd: session.remoteCwd || session.sessionSshRemoteConfig?.workingDirOverride,
+		ignorePatterns: options?.ignorePatterns,
+		honorGitignore: options?.honorGitignore,
 	};
 	logger.debug('getSshContext: Returning context', 'FileTreeManagement', context);
 	return context;
@@ -85,6 +97,10 @@ export interface UseFileTreeManagementDeps {
 	fileTreeFilter: string;
 	/** Ref to RightPanel for refreshing history */
 	rightPanelRef: React.RefObject<RightPanelHandle | null>;
+	/** SSH remote ignore patterns (glob patterns) */
+	sshRemoteIgnorePatterns?: string[];
+	/** Whether to honor .gitignore files on remote hosts */
+	sshRemoteHonorGitignore?: boolean;
 }
 
 /**
@@ -122,7 +138,18 @@ export function useFileTreeManagement(
 		activeSession,
 		fileTreeFilter,
 		rightPanelRef,
+		sshRemoteIgnorePatterns,
+		sshRemoteHonorGitignore,
 	} = deps;
+
+	// Build SSH context options from settings
+	const sshContextOptions: SshContextOptions = useMemo(
+		() => ({
+			ignorePatterns: sshRemoteIgnorePatterns,
+			honorGitignore: sshRemoteHonorGitignore,
+		}),
+		[sshRemoteIgnorePatterns, sshRemoteHonorGitignore]
+	);
 
 	/**
 	 * Refresh file tree for a session and return the changes detected.
@@ -135,8 +162,8 @@ export function useFileTreeManagement(
 			const session = sessionsRef.current.find((s) => s.id === sessionId);
 			if (!session) return undefined;
 
-			// Extract SSH context for remote file operations
-			const sshContext = getSshContext(session);
+			// Extract SSH context for remote file operations (with ignore patterns)
+			const sshContext = getSshContext(session, sshContextOptions);
 
 			// Use projectRoot for file tree (consistent with Files tab header)
 			// This ensures the file tree always shows the agent's working directory, not wherever cd'd to
@@ -191,7 +218,7 @@ export function useFileTreeManagement(
 				return undefined;
 			}
 		},
-		[sessionsRef, setSessions]
+		[sessionsRef, setSessions, sshContextOptions]
 	);
 
 	/**
@@ -210,8 +237,8 @@ export function useFileTreeManagement(
 			const gitRoot =
 				session.inputMode === 'terminal' ? session.shellCwd || session.cwd : session.cwd;
 
-			// Extract SSH context for remote file/git operations
-			const sshContext = getSshContext(session);
+			// Extract SSH context for remote file/git operations (with ignore patterns)
+			const sshContext = getSshContext(session, sshContextOptions);
 
 			try {
 				// Refresh file tree, stats, git repo status, branches, and tags in parallel
@@ -278,7 +305,7 @@ export function useFileTreeManagement(
 				);
 			}
 		},
-		[sessions, setSessions, rightPanelRef]
+		[sessions, setSessions, rightPanelRef, sshContextOptions]
 	);
 
 	// Ref to track pending retry timers per session
@@ -320,8 +347,8 @@ export function useFileTreeManagement(
 				return; // Don't load now, wait for retry timer
 			}
 
-			// Extract SSH context for remote file operations
-			const sshContext = getSshContext(session);
+			// Extract SSH context for remote file operations (with ignore patterns)
+			const sshContext = getSshContext(session, sshContextOptions);
 
 			// Use projectRoot for file tree (consistent with Files tab header)
 			const treeRoot = session.projectRoot || session.cwd;
@@ -406,7 +433,7 @@ export function useFileTreeManagement(
 					);
 				});
 		}
-	}, [activeSessionId, sessions, setSessions]);
+	}, [activeSessionId, sessions, setSessions, sshContextOptions]);
 
 	// Cleanup retry timers on unmount
 	useEffect(() => {
@@ -435,6 +462,7 @@ export function useFileTreeManagement(
 
 		if (!needsStatsMigration) return;
 
+		// No ignore patterns needed for stats-only fetch
 		const sshContext = getSshContext(session);
 		const treeRoot = session.projectRoot || session.cwd;
 

@@ -53,6 +53,7 @@ import { SettingCheckbox } from './SettingCheckbox';
 import { FontConfigurationPanel } from './FontConfigurationPanel';
 import { NotificationsPanel } from './NotificationsPanel';
 import { SshRemotesSection } from './Settings/SshRemotesSection';
+import { SshRemoteIgnoreSection } from './Settings/SshRemoteIgnoreSection';
 
 // Feature flags - set to true to enable dormant features
 const FEATURE_FLAGS = {
@@ -301,6 +302,11 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
 		setDisableGpuAcceleration,
 		disableConfetti,
 		setDisableConfetti,
+		// SSH Remote file indexing settings
+		sshRemoteIgnorePatterns,
+		setSshRemoteIgnorePatterns,
+		sshRemoteHonorGitignore,
+		setSshRemoteHonorGitignore,
 	} = useSettings();
 
 	const [activeTab, setActiveTab] = useState<
@@ -2546,6 +2552,13 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
 					{activeTab === 'ssh' && (
 						<div className="space-y-5">
 							<SshRemotesSection theme={theme} />
+							<SshRemoteIgnoreSection
+								theme={theme}
+								ignorePatterns={sshRemoteIgnorePatterns}
+								onIgnorePatternsChange={setSshRemoteIgnorePatterns}
+								honorGitignore={sshRemoteHonorGitignore}
+								onHonorGitignoreChange={setSshRemoteHonorGitignore}
+							/>
 						</div>
 					)}
 				</div>

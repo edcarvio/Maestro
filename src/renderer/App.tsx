@@ -10573,6 +10573,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 		activeSession,
 		fileTreeFilter,
 		rightPanelRef,
+		sshRemoteIgnorePatterns: settings.sshRemoteIgnorePatterns,
+		sshRemoteHonorGitignore: settings.sshRemoteHonorGitignore,
 	});
 
 	// --- GROUP MANAGEMENT ---

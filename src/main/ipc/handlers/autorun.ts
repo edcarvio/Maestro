@@ -1167,41 +1167,101 @@ export function registerAutorunHandlers(
 	);
 
 	// Delete all backup files in a folder
+	// Supports SSH remote execution via optional sshRemoteId parameter
 	ipcMain.handle(
 		'autorun:deleteBackups',
-		createIpcHandler(handlerOpts('deleteBackups'), async (folderPath: string) => {
-			// Validate folder exists
-			const folderStat = await fs.stat(folderPath);
-			if (!folderStat.isDirectory()) {
-				throw new Error('Path is not a directory');
-			}
-
-			// Find and delete all .backup.md files recursively
-			const deleteBackupsRecursive = async (dirPath: string): Promise<number> => {
-				let deleted = 0;
-				const entries = await fs.readdir(dirPath, { withFileTypes: true });
-
-				for (const entry of entries) {
-					const entryPath = path.join(dirPath, entry.name);
-
-					if (entry.isDirectory()) {
-						// Recurse into subdirectory
-						deleted += await deleteBackupsRecursive(entryPath);
-					} else if (entry.isFile() && entry.name.endsWith('.backup.md')) {
-						// Delete backup file
-						await fs.unlink(entryPath);
-						deleted++;
-						logger.info(`Deleted Auto Run backup: ${entry.name}`, LOG_CONTEXT);
+		createIpcHandler(
+			handlerOpts('deleteBackups'),
+			async (folderPath: string, sshRemoteId?: string) => {
+				// SSH remote: dispatch to remote operations
+				if (sshRemoteId) {
+					const sshConfig = getSshRemoteById(settingsStore, sshRemoteId);
+					if (!sshConfig) {
+						throw new Error(`SSH remote not found: ${sshRemoteId}`);
 					}
+
+					logger.debug(`${LOG_CONTEXT} deleteBackups via SSH: ${folderPath}`, LOG_CONTEXT);
+
+					// Recursive function to find and delete .backup.md files on remote
+					const deleteBackupsRemoteRecursive = async (dirPath: string): Promise<number> => {
+						let deleted = 0;
+
+						// Read remote directory contents
+						const dirResult = await readDirRemote(dirPath, sshConfig);
+						if (!dirResult.success || !dirResult.data) {
+							// Directory doesn't exist or can't be read - skip
+							logger.debug(
+								`${LOG_CONTEXT} Skipping remote directory: ${dirPath} - ${dirResult.error}`,
+								LOG_CONTEXT
+							);
+							return 0;
+						}
+
+						for (const entry of dirResult.data) {
+							const entryPath = `${dirPath}/${entry.name}`;
+
+							if (entry.isDirectory && !entry.isSymlink) {
+								// Recurse into subdirectory
+								deleted += await deleteBackupsRemoteRecursive(entryPath);
+							} else if (!entry.isDirectory && entry.name.endsWith('.backup.md')) {
+								// Delete backup file
+								const deleteResult = await deleteRemote(entryPath, sshConfig, false);
+								if (deleteResult.success) {
+									deleted++;
+									logger.info(`Deleted remote Auto Run backup: ${entry.name}`, LOG_CONTEXT);
+								} else {
+									logger.warn(
+										`${LOG_CONTEXT} Failed to delete remote backup ${entry.name}: ${deleteResult.error}`,
+										LOG_CONTEXT
+									);
+								}
+							}
+						}
+
+						return deleted;
+					};
+
+					const deletedCount = await deleteBackupsRemoteRecursive(folderPath);
+					logger.info(
+						`Deleted ${deletedCount} remote Auto Run backup(s) in ${folderPath}`,
+						LOG_CONTEXT
+					);
+					return { deletedCount };
 				}
 
-				return deleted;
-			};
+				// Local: Validate folder exists
+				const folderStat = await fs.stat(folderPath);
+				if (!folderStat.isDirectory()) {
+					throw new Error('Path is not a directory');
+				}
 
-			const deletedCount = await deleteBackupsRecursive(folderPath);
-			logger.info(`Deleted ${deletedCount} Auto Run backup(s) in ${folderPath}`, LOG_CONTEXT);
-			return { deletedCount };
-		})
+				// Find and delete all .backup.md files recursively
+				const deleteBackupsRecursive = async (dirPath: string): Promise<number> => {
+					let deleted = 0;
+					const entries = await fs.readdir(dirPath, { withFileTypes: true });
+
+					for (const entry of entries) {
+						const entryPath = path.join(dirPath, entry.name);
+
+						if (entry.isDirectory()) {
+							// Recurse into subdirectory
+							deleted += await deleteBackupsRecursive(entryPath);
+						} else if (entry.isFile() && entry.name.endsWith('.backup.md')) {
+							// Delete backup file
+							await fs.unlink(entryPath);
+							deleted++;
+							logger.info(`Deleted Auto Run backup: ${entry.name}`, LOG_CONTEXT);
+						}
+					}
+
+					return deleted;
+				};
+
+				const deletedCount = await deleteBackupsRecursive(folderPath);
+				logger.info(`Deleted ${deletedCount} Auto Run backup(s) in ${folderPath}`, LOG_CONTEXT);
+				return { deletedCount };
+			}
+		)
 	);
 
 	// Clean up all watchers on app quit

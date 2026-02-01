@@ -75,8 +75,12 @@ vi.mock('../../../../main/utils/ssh-command-builder', () => ({
 			args.push('-p', config.port.toString());
 		}
 
-		// Build destination
-		args.push(`${config.username}@${config.host}`);
+		// Build destination - use user@host if username provided, otherwise just host
+		if (config.username && config.username.trim()) {
+			args.push(`${config.username}@${config.host}`);
+		} else {
+			args.push(config.host);
+		}
 
 		// Build the remote command parts
 		const commandParts: string[] = [];

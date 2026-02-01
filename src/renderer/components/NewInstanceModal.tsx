@@ -505,16 +505,15 @@ export function NewInstanceModal({
 		// 2. User specified a custom path for it
 		const hasCustomPath = customAgentPaths[selectedAgent]?.trim();
 		const isAgentUsable = agent?.available || !!hasCustomPath;
-		// For SSH sessions, require remote path validation to succeed
-		const remotePathOk = !isSshEnabled || remotePathValidation.valid;
+		// Remote path validation is informational only - don't block creation
+		// Users may want to set up agent for a remote before the path exists
 		return (
 			selectedAgent &&
 			isAgentUsable &&
 			workingDir.trim() &&
 			instanceName.trim() &&
 			validation.valid &&
-			!hasWarningThatNeedsAck &&
-			remotePathOk
+			!hasWarningThatNeedsAck
 		);
 	}, [
 		selectedAgent,
@@ -525,8 +524,6 @@ export function NewInstanceModal({
 		validation.warning,
 		directoryWarningAcknowledged,
 		customAgentPaths,
-		isSshEnabled,
-		remotePathValidation.valid,
 	]);
 
 	// Handle keyboard shortcuts
@@ -1471,10 +1468,10 @@ export function EditAgentModal({
 
 	// Check if form is valid for submission
 	const isFormValid = useMemo(() => {
-		// For SSH sessions, require remote path validation to succeed
-		const remotePathOk = !isSshEnabled || remotePathValidation.valid;
-		return instanceName.trim() && validation.valid && remotePathOk;
-	}, [instanceName, validation.valid, isSshEnabled, remotePathValidation.valid]);
+		// Remote path validation is informational only - don't block save
+		// Users may want to configure SSH remote before the path exists
+		return !!instanceName.trim() && validation.valid;
+	}, [instanceName, validation.valid]);
 
 	// Handle keyboard shortcuts
 	const handleKeyDown = useCallback(

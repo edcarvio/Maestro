@@ -219,15 +219,9 @@ export async function buildSshCommand(
 		args.push('-tt');
 	}
 
-	// When using SSH config, we let SSH handle authentication settings
-	// Only add explicit overrides if provided
-	if (config.useSshConfig) {
-		// Only specify identity file if explicitly provided (override SSH config)
-		if (config.privateKeyPath && config.privateKeyPath.trim()) {
-			args.push('-i', expandTilde(config.privateKeyPath));
-		}
-	} else {
-		// Direct connection: require private key
+	// Private key - only add if explicitly provided
+	// SSH will use ~/.ssh/config or ssh-agent if no key is specified
+	if (config.privateKeyPath && config.privateKeyPath.trim()) {
 		args.push('-i', expandTilde(config.privateKeyPath));
 	}
 
@@ -249,19 +243,12 @@ export async function buildSshCommand(
 		args.push('-p', config.port.toString());
 	}
 
-	// Build the destination (user@host or just host for SSH config)
-	if (config.useSshConfig) {
-		// When using SSH config, just pass the Host pattern
-		// SSH will look up User, HostName, Port, IdentityFile from config
-		// But if username is explicitly provided, use it as override
-		if (config.username && config.username.trim()) {
-			args.push(`${config.username}@${config.host}`);
-		} else {
-			args.push(config.host);
-		}
-	} else {
-		// Direct connection: always include username
+	// Build destination - use user@host if username provided, otherwise just host
+	// SSH will use current user or ~/.ssh/config User directive if no username specified
+	if (config.username && config.username.trim()) {
 		args.push(`${config.username}@${config.host}`);
+	} else {
+		args.push(config.host);
 	}
 
 	// Merge remote config's environment with the command-specific environment

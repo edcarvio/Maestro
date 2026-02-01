@@ -13,6 +13,35 @@ Maestro can update itself automatically! This feature was introduced in **v0.8.7
 
 ---
 
+## v0.15.x - Maestro Symphony (RC)
+
+**Latest: v0.15.0** | Released February 1, 2026
+
+🎶 Maestro Symphony - Contribute to open source with AI assistance! Browse curated issues from projects with the `runmaestro.ai` label, clone repos with one click, and automatically process the relevant Auto Run playbooks. Track your contributions, streaks, and stats. You're contributing CPU and tokens towards your favorite open source projects and features.
+
+🤖 Factory.ai Droid Support - Added support for the [Factory.ai](https://factory.ai/product/cli) droid agent. Full session management and output parsing integration (#223).
+
+🧠 Three-State Thinking Toggle - The thinking toggle now cycles through three modes: off, on, and sticky. Sticky mode keeps thinking content visible after the response completes. Cycle with CMD/CTRL+SHIFT+K ⌨️ (#165).
+
+🔧 Windows and SSH Stability Improvements - Major fixes for remote agent execution including wizard support, synopsis generation, and proper shell profile sourcing across platforms. (#131, #156, #159, #187, #195).
+
+## Smaller Changes in 0.15.x
+
+- Added safety controls around agent working directory deletion 🔒 (#206)
+- Added `/skills` command for enumerate Claude Code skills 🧰  (#154)
+- Renamed "Audio Notifications" to "Custom Notifications" 🔔 (#168)
+- Auto-scroll now respects user scroll position in AI mode 📜 (#237)
+- Spec-Kit and OpenSpec commands now accept arguments properly ⚙️ (#238)
+- Added a table of contents jump menu for markdown files being previewed 📄
+- Added option to open document preview from within the graph view 📈
+- Added configuration options to ignore remote file patterns over SSH connections 🚯
+- Fixed context consumption calculation bugs 🧮
+- Hide Empty "Ungrouped Agents" Folder 📁
+- Web interface synchronization improvements 🌐
+- All sorts of other bug fixes 🐛
+
+---
+
 ## v0.14.x - Doc Graphs, SSH Agents, Inline Wizard
 
 **Latest: v0.14.5** | Released January 24, 2026

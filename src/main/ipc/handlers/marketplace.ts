@@ -628,12 +628,20 @@ export function registerMarketplaceHandlers(deps: MarketplaceHandlerDependencies
 					officialManifest = await fetchManifest();
 					await writeCache(app, officialManifest);
 				} catch (error) {
-					logger.warn(
-						'Failed to fetch official manifest, continuing with local only',
-						LOG_CONTEXT,
-						{ error }
-					);
-					// Continue - we might still have local playbooks
+					logger.warn('Failed to fetch official manifest from GitHub', LOG_CONTEXT, { error });
+
+					// Fallback to expired cache if available (better than showing nothing)
+					if (cache) {
+						cacheAge = Date.now() - cache.fetchedAt;
+						logger.info(
+							`Using expired cache as fallback (age: ${Math.round(cacheAge / 1000)}s)`,
+							LOG_CONTEXT
+						);
+						officialManifest = cache.manifest;
+						fromCache = true;
+					} else {
+						logger.warn('No cache available, continuing with local only', LOG_CONTEXT);
+					}
 				}
 			}
 
@@ -668,15 +676,22 @@ export function registerMarketplaceHandlers(deps: MarketplaceHandlerDependencies
 			logger.info('Force refreshing manifest (bypass cache)', LOG_CONTEXT);
 
 			let officialManifest: MarketplaceManifest | null = null;
+			let fromCache = false;
 			try {
 				officialManifest = await fetchManifest();
 				await writeCache(app, officialManifest);
 			} catch (error) {
-				logger.warn(
-					'Failed to fetch official manifest during refresh, continuing with local only',
-					LOG_CONTEXT,
-					{ error }
-				);
+				logger.warn('Failed to fetch official manifest during refresh', LOG_CONTEXT, { error });
+
+				// Fallback to existing cache if available (better than showing nothing)
+				const cache = await readCache(app);
+				if (cache) {
+					logger.info('Using existing cache as fallback after refresh failure', LOG_CONTEXT);
+					officialManifest = cache.manifest;
+					fromCache = true;
+				} else {
+					logger.warn('No cache available, continuing with local only', LOG_CONTEXT);
+				}
 			}
 
 			// Read local manifest (always fresh, not cached)
@@ -687,7 +702,7 @@ export function registerMarketplaceHandlers(deps: MarketplaceHandlerDependencies
 
 			return {
 				manifest: mergedManifest,
-				fromCache: false,
+				fromCache,
 			};
 		})
 	);

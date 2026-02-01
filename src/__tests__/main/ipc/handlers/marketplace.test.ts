@@ -331,7 +331,7 @@ describe('marketplace IPC handlers', () => {
 			expect(result.fromCache).toBe(false);
 		});
 
-		it('should handle network errors gracefully by returning empty merged manifest', async () => {
+		it('should handle network errors gracefully when no cache exists', async () => {
 			// No cache, no local manifest
 			vi.mocked(fs.readFile).mockRejectedValue({ code: 'ENOENT' });
 
@@ -340,14 +340,37 @@ describe('marketplace IPC handlers', () => {
 			const handler = handlers.get('marketplace:getManifest');
 			const result = await handler!({} as any);
 
-			// With local manifest support, network errors are now handled gracefully
-			// Returns empty manifest (merged result of null official + null local)
+			// With no cache to fall back to, returns empty manifest
 			expect(result.manifest).toBeDefined();
 			expect(result.manifest.playbooks).toEqual([]);
 			expect(result.fromCache).toBe(false);
 		});
 
-		it('should handle HTTP error responses gracefully by returning empty merged manifest', async () => {
+		it('should fallback to expired cache when network fetch fails', async () => {
+			const cacheAge = 1000 * 60 * 60 * 7; // 7 hours ago (past 6 hour TTL)
+			const expiredCache: MarketplaceCache = {
+				fetchedAt: Date.now() - cacheAge,
+				manifest: sampleManifest,
+			};
+
+			// First read returns expired cache, second read (local manifest) returns ENOENT
+			vi.mocked(fs.readFile)
+				.mockResolvedValueOnce(JSON.stringify(expiredCache))
+				.mockRejectedValueOnce({ code: 'ENOENT' });
+
+			// Network fetch fails
+			mockFetch.mockRejectedValue(new Error('Network error'));
+
+			const handler = handlers.get('marketplace:getManifest');
+			const result = await handler!({} as any);
+
+			// Should fallback to expired cache data
+			expect(result.manifest.playbooks.length).toBe(sampleManifest.playbooks.length);
+			expect(result.fromCache).toBe(true);
+			expect(result.cacheAge).toBeGreaterThanOrEqual(cacheAge);
+		});
+
+		it('should handle HTTP error responses gracefully when no cache exists', async () => {
 			// No cache, no local manifest
 			vi.mocked(fs.readFile).mockRejectedValue({ code: 'ENOENT' });
 
@@ -360,8 +383,7 @@ describe('marketplace IPC handlers', () => {
 			const handler = handlers.get('marketplace:getManifest');
 			const result = await handler!({} as any);
 
-			// With local manifest support, HTTP errors are now handled gracefully
-			// Returns empty manifest (merged result of null official + null local)
+			// With no cache to fall back to, returns empty manifest
 			expect(result.manifest).toBeDefined();
 			expect(result.manifest.playbooks).toEqual([]);
 			expect(result.fromCache).toBe(false);
@@ -406,6 +428,48 @@ describe('marketplace IPC handlers', () => {
 
 			// Should have updated cache
 			expect(fs.writeFile).toHaveBeenCalled();
+		});
+
+		it('should fallback to existing cache when refresh fails', async () => {
+			const existingCache: MarketplaceCache = {
+				fetchedAt: Date.now() - 1000 * 60 * 60, // 1 hour ago
+				manifest: sampleManifest,
+			};
+
+			// Order of reads in refreshManifest:
+			// 1. Cache read (fallback after fetch failure)
+			// 2. Local manifest read
+			vi.mocked(fs.readFile)
+				.mockResolvedValueOnce(JSON.stringify(existingCache)) // cache fallback
+				.mockRejectedValueOnce({ code: 'ENOENT' }); // local manifest
+
+			// Network fetch fails
+			mockFetch.mockRejectedValue(new Error('Network error'));
+
+			const handler = handlers.get('marketplace:refreshManifest');
+			const result = await handler!({} as any);
+
+			// Should have attempted to fetch
+			expect(mockFetch).toHaveBeenCalled();
+
+			// Should fallback to existing cache
+			expect(result.manifest.playbooks.length).toBe(sampleManifest.playbooks.length);
+			expect(result.fromCache).toBe(true);
+		});
+
+		it('should return empty manifest when refresh fails and no cache exists', async () => {
+			// No cache, no local manifest
+			vi.mocked(fs.readFile).mockRejectedValue({ code: 'ENOENT' });
+
+			// Network fetch fails
+			mockFetch.mockRejectedValue(new Error('Network error'));
+
+			const handler = handlers.get('marketplace:refreshManifest');
+			const result = await handler!({} as any);
+
+			// Should return empty manifest
+			expect(result.manifest.playbooks).toEqual([]);
+			expect(result.fromCache).toBe(false);
 		});
 	});
 

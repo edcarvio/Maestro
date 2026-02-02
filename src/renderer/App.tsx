@@ -6444,6 +6444,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 
 	// PERF: Memoized callbacks for MainPanel file preview navigation
 	// These were inline arrow functions causing MainPanel re-renders on every keystroke
+	// Updated to use file tabs (handleOpenFileTab) instead of legacy preview overlay
 	const handleMainPanelFileClick = useCallback(async (relativePath: string) => {
 		const currentSession = sessionsRef.current.find((s) => s.id === activeSessionIdRef.current);
 		if (!currentSession) return;
@@ -6462,34 +6463,25 @@ You are taking over this conversation. Based on the context above, provide a bri
 
 		try {
 			const fullPath = `${currentSession.fullPath}/${relativePath}`;
-			const content = await window.maestro.fs.readFile(fullPath, sshRemoteId);
-			const newFile = { name: filename, content, path: fullPath };
-
-			const history = currentSession.filePreviewHistory ?? [];
-			const historyIndex = currentSession.filePreviewHistoryIndex ?? -1;
-			const currentFile = history[historyIndex];
-
-			if (!currentFile || currentFile.path !== fullPath) {
-				const newHistory = history.slice(0, historyIndex + 1);
-				newHistory.push(newFile);
-				setSessions((prev) =>
-					prev.map((s) =>
-						s.id === currentSession.id
-							? {
-									...s,
-									filePreviewHistory: newHistory,
-									filePreviewHistoryIndex: newHistory.length - 1,
-								}
-							: s
-					)
-				);
-			}
-			setPreviewFile(newFile);
+			// Fetch content and stat in parallel for efficiency
+			const [content, stat] = await Promise.all([
+				window.maestro.fs.readFile(fullPath, sshRemoteId),
+				window.maestro.fs.stat(fullPath, sshRemoteId).catch(() => null), // stat is optional, don't fail if unavailable
+			]);
+			const lastModified = stat?.modifiedAt ? new Date(stat.modifiedAt).getTime() : undefined;
+			// Open file in a tab (or select existing tab if already open)
+			handleOpenFileTab({
+				path: fullPath,
+				name: filename,
+				content,
+				sshRemoteId,
+				lastModified,
+			});
 			setActiveFocus('main');
 		} catch (error) {
 			console.error('[onFileClick] Failed to read file:', error);
 		}
-	}, []);
+	}, [handleOpenFileTab]);
 
 	const handleNavigateBack = useCallback(() => {
 		const currentSession = sessionsRef.current.find((s) => s.id === activeSessionIdRef.current);

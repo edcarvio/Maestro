@@ -5417,70 +5417,161 @@ You are taking over this conversation. Based on the context above, provide a bri
 	}, []);
 
 	/**
-	 * Close all tabs except the active tab.
+	 * Close all tabs except the active tab (works with unified tabs).
+	 * Supports both AI tabs and file preview tabs based on unifiedTabOrder.
 	 */
 	const handleCloseOtherTabs = useCallback(() => {
 		setSessions((prev) =>
 			prev.map((s) => {
 				if (s.id !== activeSessionIdRef.current) return s;
+
+				// Determine the currently active tab in unified order
+				const activeUnifiedId = s.activeFileTabId ?? s.activeTabId;
+				const activeUnifiedType = s.activeFileTabId ? 'file' : 'ai';
+
+				// Find tabs to close (all except the active one)
+				const tabsToClose = s.unifiedTabOrder.filter(
+					(ref) => !(ref.type === activeUnifiedType && ref.id === activeUnifiedId)
+				);
+
 				let updatedSession = s;
-				const tabsToClose = s.aiTabs.filter((t) => t.id !== s.activeTabId);
-				for (const tab of tabsToClose) {
-					const result = closeTab(updatedSession, tab.id, false, {
-						skipHistory: hasActiveWizard(tab),
-					});
-					if (result) {
-						updatedSession = result.session;
+
+				for (const tabRef of tabsToClose) {
+					if (tabRef.type === 'ai') {
+						// Close AI tab using closeTab helper
+						const tab = updatedSession.aiTabs.find((t) => t.id === tabRef.id);
+						if (tab) {
+							const result = closeTab(updatedSession, tab.id, false, {
+								skipHistory: hasActiveWizard(tab),
+							});
+							if (result) {
+								updatedSession = result.session;
+							}
+						}
+					} else {
+						// Close file tab by removing from arrays
+						updatedSession = {
+							...updatedSession,
+							filePreviewTabs: updatedSession.filePreviewTabs.filter(
+								(t) => t.id !== tabRef.id
+							),
+							unifiedTabOrder: updatedSession.unifiedTabOrder.filter(
+								(ref) => !(ref.type === 'file' && ref.id === tabRef.id)
+							),
+						};
 					}
 				}
+
 				return updatedSession;
 			})
 		);
 	}, []);
 
 	/**
-	 * Close all tabs to the left of the active tab.
+	 * Close all tabs to the left of the active tab (works with unified tabs).
+	 * Supports both AI tabs and file preview tabs based on unifiedTabOrder.
 	 */
 	const handleCloseTabsLeft = useCallback(() => {
 		setSessions((prev) =>
 			prev.map((s) => {
 				if (s.id !== activeSessionIdRef.current) return s;
-				const activeIndex = s.aiTabs.findIndex((t) => t.id === s.activeTabId);
+
+				// Determine the currently active tab in unified order
+				const activeUnifiedId = s.activeFileTabId ?? s.activeTabId;
+				const activeUnifiedType = s.activeFileTabId ? 'file' : 'ai';
+
+				// Find the active tab's position in unifiedTabOrder
+				const activeIndex = s.unifiedTabOrder.findIndex(
+					(ref) => ref.type === activeUnifiedType && ref.id === activeUnifiedId
+				);
 				if (activeIndex <= 0) return s; // Nothing to close
+
+				// Get all tabs to the left of the active tab
+				const tabsToClose = s.unifiedTabOrder.slice(0, activeIndex);
+
 				let updatedSession = s;
-				const tabsToClose = s.aiTabs.slice(0, activeIndex);
-				for (const tab of tabsToClose) {
-					const result = closeTab(updatedSession, tab.id, false, {
-						skipHistory: hasActiveWizard(tab),
-					});
-					if (result) {
-						updatedSession = result.session;
+
+				for (const tabRef of tabsToClose) {
+					if (tabRef.type === 'ai') {
+						// Close AI tab using closeTab helper
+						const tab = updatedSession.aiTabs.find((t) => t.id === tabRef.id);
+						if (tab) {
+							const result = closeTab(updatedSession, tab.id, false, {
+								skipHistory: hasActiveWizard(tab),
+							});
+							if (result) {
+								updatedSession = result.session;
+							}
+						}
+					} else {
+						// Close file tab by removing from arrays
+						updatedSession = {
+							...updatedSession,
+							filePreviewTabs: updatedSession.filePreviewTabs.filter(
+								(t) => t.id !== tabRef.id
+							),
+							unifiedTabOrder: updatedSession.unifiedTabOrder.filter(
+								(ref) => !(ref.type === 'file' && ref.id === tabRef.id)
+							),
+						};
 					}
 				}
+
 				return updatedSession;
 			})
 		);
 	}, []);
 
 	/**
-	 * Close all tabs to the right of the active tab.
+	 * Close all tabs to the right of the active tab (works with unified tabs).
+	 * Supports both AI tabs and file preview tabs based on unifiedTabOrder.
 	 */
 	const handleCloseTabsRight = useCallback(() => {
 		setSessions((prev) =>
 			prev.map((s) => {
 				if (s.id !== activeSessionIdRef.current) return s;
-				const activeIndex = s.aiTabs.findIndex((t) => t.id === s.activeTabId);
-				if (activeIndex < 0 || activeIndex >= s.aiTabs.length - 1) return s; // Nothing to close
+
+				// Determine the currently active tab in unified order
+				const activeUnifiedId = s.activeFileTabId ?? s.activeTabId;
+				const activeUnifiedType = s.activeFileTabId ? 'file' : 'ai';
+
+				// Find the active tab's position in unifiedTabOrder
+				const activeIndex = s.unifiedTabOrder.findIndex(
+					(ref) => ref.type === activeUnifiedType && ref.id === activeUnifiedId
+				);
+				if (activeIndex < 0 || activeIndex >= s.unifiedTabOrder.length - 1) return s; // Nothing to close
+
+				// Get all tabs to the right of the active tab
+				const tabsToClose = s.unifiedTabOrder.slice(activeIndex + 1);
+
 				let updatedSession = s;
-				const tabsToClose = s.aiTabs.slice(activeIndex + 1);
-				for (const tab of tabsToClose) {
-					const result = closeTab(updatedSession, tab.id, false, {
-						skipHistory: hasActiveWizard(tab),
-					});
-					if (result) {
-						updatedSession = result.session;
+
+				for (const tabRef of tabsToClose) {
+					if (tabRef.type === 'ai') {
+						// Close AI tab using closeTab helper
+						const tab = updatedSession.aiTabs.find((t) => t.id === tabRef.id);
+						if (tab) {
+							const result = closeTab(updatedSession, tab.id, false, {
+								skipHistory: hasActiveWizard(tab),
+							});
+							if (result) {
+								updatedSession = result.session;
+							}
+						}
+					} else {
+						// Close file tab by removing from arrays
+						updatedSession = {
+							...updatedSession,
+							filePreviewTabs: updatedSession.filePreviewTabs.filter(
+								(t) => t.id !== tabRef.id
+							),
+							unifiedTabOrder: updatedSession.unifiedTabOrder.filter(
+								(ref) => !(ref.type === 'file' && ref.id === tabRef.id)
+							),
+						};
 					}
 				}
+
 				return updatedSession;
 			})
 		);

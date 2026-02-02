@@ -22,6 +22,8 @@ export interface SaveMarkdownModalProps {
 	defaultFolder?: string;
 	/** Whether the session is running over SSH (hides folder browser button) */
 	isRemoteSession?: boolean;
+	/** SSH remote ID for saving to remote filesystem */
+	sshRemoteId?: string;
 }
 
 export function SaveMarkdownModal({
@@ -30,6 +32,7 @@ export function SaveMarkdownModal({
 	onClose,
 	defaultFolder = '',
 	isRemoteSession = false,
+	sshRemoteId,
 }: SaveMarkdownModalProps) {
 	const [folder, setFolder] = useState(defaultFolder);
 	const [filename, setFilename] = useState('');
@@ -80,8 +83,8 @@ export function SaveMarkdownModal({
 			const separator = folder.includes('\\') ? '\\' : '/';
 			const fullPath = `${folder}${folder.endsWith(separator) ? '' : separator}${finalFilename}`;
 
-			// Write the file
-			const result = await window.maestro.fs.writeFile(fullPath, content);
+			// Write the file (local or remote via SSH)
+			const result = await window.maestro.fs.writeFile(fullPath, content, sshRemoteId);
 			if (result.success) {
 				onClose();
 			} else {

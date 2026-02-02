@@ -1709,6 +1709,11 @@ export const TerminalOutput = memo(
 							session.sessionSshRemoteConfig?.enabled &&
 							!!session.sessionSshRemoteConfig?.remoteId
 						}
+						sshRemoteId={
+							session.sessionSshRemoteConfig?.enabled
+								? session.sessionSshRemoteConfig?.remoteId ?? undefined
+								: undefined
+						}
 					/>
 				)}
 			</div>

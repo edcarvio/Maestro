@@ -6,7 +6,7 @@
  * - Basic rendering
  * - Form validation
  * - Save functionality
- * - SSH remote session behavior (folder browse button visibility)
+ * - SSH remote session behavior (folder browse button visibility, remote saving)
  * - Keyboard interaction (Enter to save)
  * - Error handling
  */
@@ -141,6 +141,51 @@ describe('SaveMarkdownModal', () => {
 			fireEvent.change(folderInput, { target: { value: '/remote/path' } });
 			expect(folderInput).toHaveValue('/remote/path');
 		});
+
+		it('passes sshRemoteId to writeFile when saving to remote', async () => {
+			mockWriteFile.mockResolvedValue({ success: true });
+			render(
+				<SaveMarkdownModal
+					{...defaultProps}
+					isRemoteSession={true}
+					sshRemoteId="ssh-remote-123"
+					defaultFolder="/home/user"
+				/>
+			);
+
+			const filenameInput = screen.getByPlaceholderText('document.md');
+			fireEvent.change(filenameInput, { target: { value: 'remote-doc.md' } });
+
+			const saveButton = screen.getByRole('button', { name: 'Save' });
+			await act(async () => {
+				fireEvent.click(saveButton);
+			});
+
+			expect(mockWriteFile).toHaveBeenCalledWith(
+				'/home/user/remote-doc.md',
+				'# Test Markdown\n\nThis is test content.',
+				'ssh-remote-123'
+			);
+		});
+
+		it('saves without sshRemoteId when not provided', async () => {
+			mockWriteFile.mockResolvedValue({ success: true });
+			render(<SaveMarkdownModal {...defaultProps} isRemoteSession={false} />);
+
+			const filenameInput = screen.getByPlaceholderText('document.md');
+			fireEvent.change(filenameInput, { target: { value: 'local-doc.md' } });
+
+			const saveButton = screen.getByRole('button', { name: 'Save' });
+			await act(async () => {
+				fireEvent.click(saveButton);
+			});
+
+			expect(mockWriteFile).toHaveBeenCalledWith(
+				'/test/folder/local-doc.md',
+				expect.any(String),
+				undefined
+			);
+		});
 	});
 
 	describe('folder browser', () => {
@@ -252,7 +297,8 @@ describe('SaveMarkdownModal', () => {
 
 			expect(mockWriteFile).toHaveBeenCalledWith(
 				'/test/folder/test.md',
-				'# Test Markdown\n\nThis is test content.'
+				'# Test Markdown\n\nThis is test content.',
+				undefined // No SSH remote ID for local save
 			);
 		});
 
@@ -268,7 +314,7 @@ describe('SaveMarkdownModal', () => {
 				fireEvent.click(saveButton);
 			});
 
-			expect(mockWriteFile).toHaveBeenCalledWith('/test/folder/test.md', expect.any(String));
+			expect(mockWriteFile).toHaveBeenCalledWith('/test/folder/test.md', expect.any(String), undefined);
 		});
 
 		it('does not duplicate .md extension', async () => {
@@ -283,7 +329,7 @@ describe('SaveMarkdownModal', () => {
 				fireEvent.click(saveButton);
 			});
 
-			expect(mockWriteFile).toHaveBeenCalledWith('/test/folder/test.md', expect.any(String));
+			expect(mockWriteFile).toHaveBeenCalledWith('/test/folder/test.md', expect.any(String), undefined);
 		});
 
 		it('handles .MD extension case-insensitively', async () => {
@@ -299,7 +345,7 @@ describe('SaveMarkdownModal', () => {
 			});
 
 			// Should not add another .md
-			expect(mockWriteFile).toHaveBeenCalledWith('/test/folder/test.MD', expect.any(String));
+			expect(mockWriteFile).toHaveBeenCalledWith('/test/folder/test.MD', expect.any(String), undefined);
 		});
 
 		it('calls onClose after successful save', async () => {
@@ -384,7 +430,7 @@ describe('SaveMarkdownModal', () => {
 			});
 
 			// Should not have double slash
-			expect(mockWriteFile).toHaveBeenCalledWith('/test/folder/test.md', expect.any(String));
+			expect(mockWriteFile).toHaveBeenCalledWith('/test/folder/test.md', expect.any(String), undefined);
 		});
 
 		it('handles Windows-style paths', async () => {
@@ -402,7 +448,7 @@ describe('SaveMarkdownModal', () => {
 			});
 
 			// Should use backslash for Windows paths
-			expect(mockWriteFile).toHaveBeenCalledWith(`${windowsPath}\\test.md`, expect.any(String));
+			expect(mockWriteFile).toHaveBeenCalledWith(`${windowsPath}\\test.md`, expect.any(String), undefined);
 		});
 	});
 

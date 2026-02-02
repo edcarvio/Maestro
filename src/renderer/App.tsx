@@ -2731,6 +2731,19 @@ function MaestroConsoleInner() {
 						agentType: tabNamingInfo.agentType,
 					});
 
+					// Set isGeneratingName to show spinner in tab
+					setSessions((prev) =>
+						prev.map((s) => {
+							if (s.id !== actualSessionId) return s;
+							return {
+								...s,
+								aiTabs: s.aiTabs.map((t) =>
+									t.id === tabNamingInfo!.tabId ? { ...t, isGeneratingName: true } : t
+								),
+							};
+						})
+					);
+
 					// Call the tab naming API (async, don't await)
 					window.maestro.tabNaming
 						.generateTabName({
@@ -2740,6 +2753,19 @@ function MaestroConsoleInner() {
 							sessionSshRemoteConfig: tabNamingInfo.sessionSshRemoteConfig,
 						})
 						.then((generatedName) => {
+							// Clear the generating indicator
+							setSessions((prev) =>
+								prev.map((s) => {
+									if (s.id !== actualSessionId) return s;
+									return {
+										...s,
+										aiTabs: s.aiTabs.map((t) =>
+											t.id === tabNamingInfo!.tabId ? { ...t, isGeneratingName: false } : t
+										),
+									};
+								})
+							);
+
 							if (!generatedName) {
 								console.log('[onSessionId] Tab naming returned null (timeout or error)');
 								return;
@@ -2773,6 +2799,18 @@ function MaestroConsoleInner() {
 						})
 						.catch((error) => {
 							console.error('[onSessionId] Tab naming failed:', error);
+							// Clear the generating indicator on error
+							setSessions((prev) =>
+								prev.map((s) => {
+									if (s.id !== actualSessionId) return s;
+									return {
+										...s,
+										aiTabs: s.aiTabs.map((t) =>
+											t.id === tabNamingInfo!.tabId ? { ...t, isGeneratingName: false } : t
+										),
+									};
+								})
+							);
 						});
 				}
 			}

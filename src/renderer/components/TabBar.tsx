@@ -17,6 +17,7 @@ import {
 	Share2,
 	ChevronsLeft,
 	ChevronsRight,
+	Loader2,
 } from 'lucide-react';
 import type { AITab, Theme } from '../types';
 import { hasDraft } from '../utils/tabHelpers';
@@ -518,6 +519,16 @@ const Tab = memo(function Tab({
 					className="w-2 h-2 rounded-full shrink-0 animate-pulse"
 					style={{ backgroundColor: theme.colors.warning }}
 				/>
+			)}
+
+			{/* Generating name indicator - spinning loader while tab name is being generated */}
+			{tab.isGeneratingName && tab.state !== 'busy' && (
+				<span title="Generating tab name...">
+					<Loader2
+						className="w-3 h-3 shrink-0 animate-spin"
+						style={{ color: theme.colors.textDim }}
+					/>
+				</span>
 			)}
 
 			{/* Unread indicator - solid dot for tabs with unread messages (not shown when busy) */}

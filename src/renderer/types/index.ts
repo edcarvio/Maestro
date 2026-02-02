@@ -431,6 +431,7 @@ export interface AITab {
 	pendingMergedContext?: string; // Context from merge that needs to be sent with next message
 	autoSendOnActivate?: boolean; // When true, automatically send inputValue when tab becomes active
 	wizardState?: SessionWizardState; // Per-tab inline wizard state for /wizard command
+	isGeneratingName?: boolean; // True while automatic tab naming is in progress
 }
 
 // Closed tab entry for undo functionality (Cmd+Shift+T)

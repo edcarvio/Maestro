@@ -641,9 +641,11 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 					ctx.toggleTabUnread();
 					trackShortcut('toggleTabUnread');
 				}
+				// Cmd+Shift+] - Navigate to next tab in unified tab order
+				// Cycles through both AI tabs and file preview tabs
 				if (ctx.isTabShortcut(e, 'nextTab')) {
 					e.preventDefault();
-					const result = ctx.navigateToNextTab(ctx.activeSession, ctx.showUnreadOnly);
+					const result = ctx.navigateToNextUnifiedTab(ctx.activeSession, ctx.showUnreadOnly);
 					if (result) {
 						ctx.setSessions((prev: Session[]) =>
 							prev.map((s: Session) => (s.id === ctx.activeSession!.id ? result.session : s))
@@ -651,9 +653,11 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 						trackShortcut('nextTab');
 					}
 				}
+				// Cmd+Shift+[ - Navigate to previous tab in unified tab order
+				// Cycles through both AI tabs and file preview tabs
 				if (ctx.isTabShortcut(e, 'prevTab')) {
 					e.preventDefault();
-					const result = ctx.navigateToPrevTab(ctx.activeSession, ctx.showUnreadOnly);
+					const result = ctx.navigateToPrevUnifiedTab(ctx.activeSession, ctx.showUnreadOnly);
 					if (result) {
 						ctx.setSessions((prev: Session[]) =>
 							prev.map((s: Session) => (s.id === ctx.activeSession!.id ? result.session : s))

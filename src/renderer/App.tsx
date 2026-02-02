@@ -177,6 +177,8 @@ import {
 	navigateToLastTab,
 	navigateToUnifiedTabByIndex,
 	navigateToLastUnifiedTab,
+	navigateToNextUnifiedTab,
+	navigateToPrevUnifiedTab,
 	getInitialRenameValue,
 	hasActiveWizard,
 } from './utils/tabHelpers';
@@ -12578,6 +12580,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 		navigateToLastTab,
 		navigateToUnifiedTabByIndex,
 		navigateToLastUnifiedTab,
+		navigateToNextUnifiedTab,
+		navigateToPrevUnifiedTab,
 		setFileTreeFilterOpen,
 		isShortcut,
 		isTabShortcut,

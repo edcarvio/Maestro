@@ -1176,6 +1176,152 @@ export function navigateToLastUnifiedTab(session: Session): NavigateToUnifiedTab
 }
 
 /**
+ * Get the current index in the unified tab order.
+ * Returns the index of the currently active tab (file tab if active, otherwise AI tab).
+ *
+ * @param session - The Maestro session
+ * @returns The index in unifiedTabOrder, or -1 if not found
+ */
+function getCurrentUnifiedTabIndex(session: Session): number {
+	if (!session.unifiedTabOrder || session.unifiedTabOrder.length === 0) {
+		return -1;
+	}
+
+	// If a file tab is active, find it in the unified order
+	if (session.activeFileTabId) {
+		return session.unifiedTabOrder.findIndex(
+			(ref) => ref.type === 'file' && ref.id === session.activeFileTabId
+		);
+	}
+
+	// Otherwise find the active AI tab
+	return session.unifiedTabOrder.findIndex(
+		(ref) => ref.type === 'ai' && ref.id === session.activeTabId
+	);
+}
+
+/**
+ * Navigate to the next tab in the unified tab order.
+ * Cycles through both AI tabs and file preview tabs in their visual order.
+ * Wraps around to the first tab if currently on the last tab.
+ *
+ * Note: The showUnreadOnly parameter is included for API compatibility but
+ * only filters AI tabs - file tabs are always included in navigation.
+ *
+ * @param session - The Maestro session
+ * @param showUnreadOnly - If true, skip AI tabs that are not unread and don't have drafts
+ * @returns Object with the tab type, id, and updated session, or null if no navigation possible
+ *
+ * @example
+ * const result = navigateToNextUnifiedTab(session);
+ * if (result) {
+ *   setSessions(prev => prev.map(s => s.id === session.id ? result.session : s));
+ * }
+ */
+export function navigateToNextUnifiedTab(
+	session: Session,
+	showUnreadOnly = false
+): NavigateToUnifiedTabResult | null {
+	if (!session || !session.unifiedTabOrder || session.unifiedTabOrder.length < 2) {
+		return null;
+	}
+
+	const currentIndex = getCurrentUnifiedTabIndex(session);
+
+	// If current tab not found, go to first tab
+	if (currentIndex === -1) {
+		return navigateToUnifiedTabByIndex(session, 0);
+	}
+
+	// When showUnreadOnly is true, we need to skip AI tabs that are read and have no drafts
+	if (showUnreadOnly) {
+		const length = session.unifiedTabOrder.length;
+		for (let offset = 1; offset < length; offset++) {
+			const nextIndex = (currentIndex + offset) % length;
+			const tabRef = session.unifiedTabOrder[nextIndex];
+
+			// File tabs are always navigable
+			if (tabRef.type === 'file') {
+				return navigateToUnifiedTabByIndex(session, nextIndex);
+			}
+
+			// For AI tabs, check if it's unread or has a draft
+			const aiTab = session.aiTabs.find((t) => t.id === tabRef.id);
+			if (aiTab && (aiTab.hasUnread || hasDraft(aiTab))) {
+				return navigateToUnifiedTabByIndex(session, nextIndex);
+			}
+		}
+		// No navigable tab found
+		return null;
+	}
+
+	// Simple case: just go to next tab with wrap-around
+	const nextIndex = (currentIndex + 1) % session.unifiedTabOrder.length;
+	return navigateToUnifiedTabByIndex(session, nextIndex);
+}
+
+/**
+ * Navigate to the previous tab in the unified tab order.
+ * Cycles through both AI tabs and file preview tabs in their visual order.
+ * Wraps around to the last tab if currently on the first tab.
+ *
+ * Note: The showUnreadOnly parameter is included for API compatibility but
+ * only filters AI tabs - file tabs are always included in navigation.
+ *
+ * @param session - The Maestro session
+ * @param showUnreadOnly - If true, skip AI tabs that are not unread and don't have drafts
+ * @returns Object with the tab type, id, and updated session, or null if no navigation possible
+ *
+ * @example
+ * const result = navigateToPrevUnifiedTab(session);
+ * if (result) {
+ *   setSessions(prev => prev.map(s => s.id === session.id ? result.session : s));
+ * }
+ */
+export function navigateToPrevUnifiedTab(
+	session: Session,
+	showUnreadOnly = false
+): NavigateToUnifiedTabResult | null {
+	if (!session || !session.unifiedTabOrder || session.unifiedTabOrder.length < 2) {
+		return null;
+	}
+
+	const currentIndex = getCurrentUnifiedTabIndex(session);
+
+	// If current tab not found, go to last tab
+	if (currentIndex === -1) {
+		return navigateToLastUnifiedTab(session);
+	}
+
+	// When showUnreadOnly is true, we need to skip AI tabs that are read and have no drafts
+	if (showUnreadOnly) {
+		const length = session.unifiedTabOrder.length;
+		for (let offset = 1; offset < length; offset++) {
+			const prevIndex = (currentIndex - offset + length) % length;
+			const tabRef = session.unifiedTabOrder[prevIndex];
+
+			// File tabs are always navigable
+			if (tabRef.type === 'file') {
+				return navigateToUnifiedTabByIndex(session, prevIndex);
+			}
+
+			// For AI tabs, check if it's unread or has a draft
+			const aiTab = session.aiTabs.find((t) => t.id === tabRef.id);
+			if (aiTab && (aiTab.hasUnread || hasDraft(aiTab))) {
+				return navigateToUnifiedTabByIndex(session, prevIndex);
+			}
+		}
+		// No navigable tab found
+		return null;
+	}
+
+	// Simple case: just go to previous tab with wrap-around
+	const length = session.unifiedTabOrder.length;
+	const prevIndex = (currentIndex - 1 + length) % length;
+	return navigateToUnifiedTabByIndex(session, prevIndex);
+}
+
+/**
  * Options for creating a new AI tab at a specific position.
  */
 export interface CreateTabAtPositionOptions extends CreateTabOptions {

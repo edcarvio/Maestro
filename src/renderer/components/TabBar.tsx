@@ -476,6 +476,9 @@ const Tab = memo(function Tab({
 	// Memoize display name to avoid recalculation on every render
 	const displayName = useMemo(() => getTabDisplayName(tab), [tab.name, tab.agentSessionId]);
 
+	// Hover background varies by theme mode for proper contrast
+	const hoverBgColor = theme.mode === 'light' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.08)';
+
 	// Memoize tab styles to avoid creating new object references on every render
 	const tabStyle = useMemo(
 		() =>
@@ -485,11 +488,7 @@ const Tab = memo(function Tab({
 				borderTopRightRadius: '6px',
 				// Active tab: bright background matching content area
 				// Inactive tabs: transparent with subtle hover
-				backgroundColor: isActive
-					? theme.colors.bgMain
-					: isHovered
-						? 'rgba(255, 255, 255, 0.08)'
-						: 'transparent',
+				backgroundColor: isActive ? theme.colors.bgMain : isHovered ? hoverBgColor : 'transparent',
 				// Active tab has visible borders, inactive tabs have no borders (cleaner look)
 				borderTop: isActive ? `1px solid ${theme.colors.border}` : '1px solid transparent',
 				borderLeft: isActive ? `1px solid ${theme.colors.border}` : '1px solid transparent',
@@ -502,7 +501,7 @@ const Tab = memo(function Tab({
 				zIndex: isActive ? 1 : 0,
 				'--tw-ring-color': isDragOver ? theme.colors.accent : 'transparent',
 			}) as React.CSSProperties,
-		[isActive, isHovered, isDragOver, theme.colors.bgMain, theme.colors.border, theme.colors.accent]
+		[isActive, isHovered, isDragOver, theme.colors.bgMain, theme.colors.border, theme.colors.accent, hoverBgColor]
 	);
 
 	// Browser-style tab: all tabs have borders, active tab "connects" to content
@@ -952,28 +951,65 @@ interface FileTabProps {
 /**
  * Get color for file extension badge.
  * Returns a muted color based on file type for visual differentiation.
+ * Colors are adapted for both light and dark themes for good contrast.
  */
 function getExtensionColor(extension: string, theme: Theme): { bg: string; text: string } {
 	const ext = extension.toLowerCase();
+	const isLightTheme = theme.mode === 'light';
+
 	// TypeScript/JavaScript - blue tones
 	if (['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
-		return { bg: 'rgba(59, 130, 246, 0.3)', text: 'rgba(147, 197, 253, 0.9)' };
+		return isLightTheme
+			? { bg: 'rgba(37, 99, 235, 0.15)', text: 'rgba(29, 78, 216, 0.9)' }
+			: { bg: 'rgba(59, 130, 246, 0.3)', text: 'rgba(147, 197, 253, 0.9)' };
 	}
 	// Markdown/Docs - green tones
 	if (['.md', '.mdx', '.txt', '.rst'].includes(ext)) {
-		return { bg: 'rgba(34, 197, 94, 0.3)', text: 'rgba(134, 239, 172, 0.9)' };
+		return isLightTheme
+			? { bg: 'rgba(22, 163, 74, 0.15)', text: 'rgba(21, 128, 61, 0.9)' }
+			: { bg: 'rgba(34, 197, 94, 0.3)', text: 'rgba(134, 239, 172, 0.9)' };
 	}
-	// JSON/Config - yellow tones
+	// JSON/Config - yellow/amber tones
 	if (['.json', '.yaml', '.yml', '.toml', '.ini', '.env'].includes(ext)) {
-		return { bg: 'rgba(234, 179, 8, 0.3)', text: 'rgba(253, 224, 71, 0.9)' };
+		return isLightTheme
+			? { bg: 'rgba(217, 119, 6, 0.15)', text: 'rgba(180, 83, 9, 0.9)' }
+			: { bg: 'rgba(234, 179, 8, 0.3)', text: 'rgba(253, 224, 71, 0.9)' };
 	}
 	// CSS/Styles - purple tones
 	if (['.css', '.scss', '.sass', '.less', '.styl'].includes(ext)) {
-		return { bg: 'rgba(168, 85, 247, 0.3)', text: 'rgba(216, 180, 254, 0.9)' };
+		return isLightTheme
+			? { bg: 'rgba(147, 51, 234, 0.15)', text: 'rgba(126, 34, 206, 0.9)' }
+			: { bg: 'rgba(168, 85, 247, 0.3)', text: 'rgba(216, 180, 254, 0.9)' };
 	}
 	// HTML/Templates - orange tones
 	if (['.html', '.htm', '.xml', '.svg'].includes(ext)) {
-		return { bg: 'rgba(249, 115, 22, 0.3)', text: 'rgba(253, 186, 116, 0.9)' };
+		return isLightTheme
+			? { bg: 'rgba(234, 88, 12, 0.15)', text: 'rgba(194, 65, 12, 0.9)' }
+			: { bg: 'rgba(249, 115, 22, 0.3)', text: 'rgba(253, 186, 116, 0.9)' };
+	}
+	// Python - teal/cyan tones
+	if (['.py', '.pyw', '.pyi'].includes(ext)) {
+		return isLightTheme
+			? { bg: 'rgba(13, 148, 136, 0.15)', text: 'rgba(15, 118, 110, 0.9)' }
+			: { bg: 'rgba(20, 184, 166, 0.3)', text: 'rgba(94, 234, 212, 0.9)' };
+	}
+	// Rust - rust/orange-red tones
+	if (['.rs'].includes(ext)) {
+		return isLightTheme
+			? { bg: 'rgba(185, 28, 28, 0.15)', text: 'rgba(153, 27, 27, 0.9)' }
+			: { bg: 'rgba(239, 68, 68, 0.3)', text: 'rgba(252, 165, 165, 0.9)' };
+	}
+	// Go - cyan tones
+	if (['.go'].includes(ext)) {
+		return isLightTheme
+			? { bg: 'rgba(8, 145, 178, 0.15)', text: 'rgba(14, 116, 144, 0.9)' }
+			: { bg: 'rgba(6, 182, 212, 0.3)', text: 'rgba(103, 232, 249, 0.9)' };
+	}
+	// Shell scripts - gray/slate tones
+	if (['.sh', '.bash', '.zsh', '.fish'].includes(ext)) {
+		return isLightTheme
+			? { bg: 'rgba(71, 85, 105, 0.15)', text: 'rgba(51, 65, 85, 0.9)' }
+			: { bg: 'rgba(100, 116, 139, 0.3)', text: 'rgba(203, 213, 225, 0.9)' };
 	}
 	// Default - use theme's dim colors
 	return { bg: theme.colors.border, text: theme.colors.textDim };
@@ -1211,6 +1247,9 @@ const FileTab = memo(function FileTab({
 		[tab.extension, theme]
 	);
 
+	// Hover background varies by theme mode for proper contrast
+	const hoverBgColor = theme.mode === 'light' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.08)';
+
 	// Memoize tab styles to avoid creating new object references on every render
 	const tabStyle = useMemo(
 		() =>
@@ -1220,11 +1259,7 @@ const FileTab = memo(function FileTab({
 				borderTopRightRadius: '6px',
 				// Active tab: bright background matching content area
 				// Inactive tabs: transparent with subtle hover
-				backgroundColor: isActive
-					? theme.colors.bgMain
-					: isHovered
-						? 'rgba(255, 255, 255, 0.08)'
-						: 'transparent',
+				backgroundColor: isActive ? theme.colors.bgMain : isHovered ? hoverBgColor : 'transparent',
 				// Active tab has visible borders, inactive tabs have no borders (cleaner look)
 				borderTop: isActive ? `1px solid ${theme.colors.border}` : '1px solid transparent',
 				borderLeft: isActive ? `1px solid ${theme.colors.border}` : '1px solid transparent',
@@ -1237,7 +1272,7 @@ const FileTab = memo(function FileTab({
 				zIndex: isActive ? 1 : 0,
 				'--tw-ring-color': isDragOver ? theme.colors.accent : 'transparent',
 			}) as React.CSSProperties,
-		[isActive, isHovered, isDragOver, theme.colors.bgMain, theme.colors.border, theme.colors.accent]
+		[isActive, isHovered, isDragOver, theme.colors.bgMain, theme.colors.border, theme.colors.accent, hoverBgColor]
 	);
 
 	// Check if tab has unsaved edits
@@ -1273,7 +1308,7 @@ const FileTab = memo(function FileTab({
 
 			{/* Tab name - filename without extension */}
 			<span
-				className={`text-xs font-medium ${isActive ? 'whitespace-nowrap' : 'truncate max-w-[100px]'}`}
+				className={`text-xs font-medium ${isActive ? 'whitespace-nowrap' : 'truncate max-w-[120px]'}`}
 				style={{ color: isActive ? theme.colors.textMain : theme.colors.textDim }}
 			>
 				{tab.name}

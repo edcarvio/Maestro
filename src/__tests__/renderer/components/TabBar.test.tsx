@@ -3994,3 +3994,388 @@ describe('File tab content and SSH support', () => {
 		expect(fileTab.editMode).toBe(true);
 	});
 });
+
+// Extension badge styling tests for visual polish across themes
+describe('Extension badge styling across themes', () => {
+	const mockOnTabSelect = vi.fn();
+	const mockOnTabClose = vi.fn();
+	const mockOnNewTab = vi.fn();
+	const mockOnFileTabSelect = vi.fn();
+	const mockOnFileTabClose = vi.fn();
+
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.clearAllMocks();
+		Element.prototype.scrollTo = vi.fn();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	// Light theme for testing contrast
+	const lightTheme: Theme = {
+		id: 'github-light',
+		name: 'GitHub Light',
+		mode: 'light',
+		colors: {
+			bgMain: '#ffffff',
+			bgSidebar: '#f6f8fa',
+			bgActivity: '#eff2f5',
+			textMain: '#24292f',
+			textDim: '#57606a',
+			accent: '#0969da',
+			border: '#d0d7de',
+			error: '#cf222e',
+			success: '#1a7f37',
+			warning: '#9a6700',
+		},
+	};
+
+	// Dark theme for comparison
+	const darkTheme: Theme = {
+		id: 'dracula',
+		name: 'Dracula',
+		mode: 'dark',
+		colors: {
+			bgMain: '#282a36',
+			bgSidebar: '#21222c',
+			bgActivity: '#343746',
+			textMain: '#f8f8f2',
+			textDim: '#6272a4',
+			accent: '#bd93f9',
+			border: '#44475a',
+			error: '#ff5555',
+			success: '#50fa7b',
+			warning: '#ffb86c',
+		},
+	};
+
+	const createFileTab = (extension: string): FilePreviewTab => ({
+		id: `file-tab-${extension}`,
+		path: `/test/file${extension}`,
+		name: 'file',
+		extension: extension,
+		content: 'test content',
+		scrollTop: 0,
+		searchQuery: '',
+		editMode: false,
+		editContent: undefined,
+		createdAt: Date.now(),
+		lastModified: Date.now(),
+	});
+
+	it('renders extension badges for TypeScript files with appropriate styling', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.ts');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+			/>
+		);
+
+		// Extension badge should be rendered
+		const badge = screen.getByText('.ts');
+		expect(badge).toBeInTheDocument();
+		// Badge should have blue-ish background for TypeScript
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(59, 130, 246, 0.3)' });
+	});
+
+	it('renders extension badges for TypeScript files with light theme appropriate styling', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.tsx');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={lightTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+			/>
+		);
+
+		// Extension badge should be rendered with light theme colors
+		const badge = screen.getByText('.tsx');
+		expect(badge).toBeInTheDocument();
+		// Badge should have darker blue for better contrast on light backgrounds
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(37, 99, 235, 0.15)' });
+	});
+
+	it('renders extension badges for Markdown files with dark theme styling', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.md');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+			/>
+		);
+
+		const badge = screen.getByText('.md');
+		expect(badge).toBeInTheDocument();
+		// Green tones for Markdown/Docs
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(34, 197, 94, 0.3)' });
+	});
+
+	it('renders extension badges for JSON files with dark theme styling', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.json');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+			/>
+		);
+
+		const badge = screen.getByText('.json');
+		expect(badge).toBeInTheDocument();
+		// Yellow tones for JSON/Config
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(234, 179, 8, 0.3)' });
+	});
+
+	it('renders extension badges for CSS files with dark theme styling', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.css');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+			/>
+		);
+
+		const badge = screen.getByText('.css');
+		expect(badge).toBeInTheDocument();
+		// Purple tones for CSS/Styles
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(168, 85, 247, 0.3)' });
+	});
+
+	it('renders extension badges for HTML files with dark theme styling', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.html');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+			/>
+		);
+
+		const badge = screen.getByText('.html');
+		expect(badge).toBeInTheDocument();
+		// Orange tones for HTML/Templates
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(249, 115, 22, 0.3)' });
+	});
+
+	it('renders extension badges for Python files with dark theme styling', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.py');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+			/>
+		);
+
+		const badge = screen.getByText('.py');
+		expect(badge).toBeInTheDocument();
+		// Teal/cyan tones for Python
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(20, 184, 166, 0.3)' });
+	});
+
+	it('renders extension badges for Rust files with dark theme styling', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.rs');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+			/>
+		);
+
+		const badge = screen.getByText('.rs');
+		expect(badge).toBeInTheDocument();
+		// Rust/red-orange tones for Rust
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(239, 68, 68, 0.3)' });
+	});
+
+	it('renders extension badges for unknown files using theme border color', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.xyz');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+			/>
+		);
+
+		const badge = screen.getByText('.xyz');
+		expect(badge).toBeInTheDocument();
+		// Uses theme border color for unknown extensions
+		expect(badge).toHaveStyle({ backgroundColor: darkTheme.colors.border });
+	});
+
+	it('renders consistent tab name truncation for file tabs (max-w-[120px])', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab: FilePreviewTab = {
+			id: 'file-tab-1',
+			path: '/test/very-long-filename-that-should-be-truncated.ts',
+			name: 'very-long-filename-that-should-be-truncated',
+			extension: '.ts',
+			content: 'test',
+			scrollTop: 0,
+			searchQuery: '',
+			editMode: false,
+			editContent: undefined,
+			createdAt: Date.now(),
+			lastModified: Date.now(),
+		};
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1" // AI tab active, file tab inactive
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+			/>
+		);
+
+		// File tab name span should have truncation class
+		const fileNameSpan = screen.getByText('very-long-filename-that-should-be-truncated');
+		expect(fileNameSpan).toHaveClass('truncate');
+		expect(fileNameSpan).toHaveClass('max-w-[120px]');
+	});
+});

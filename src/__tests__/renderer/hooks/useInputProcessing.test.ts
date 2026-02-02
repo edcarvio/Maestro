@@ -555,6 +555,12 @@ describe('useInputProcessing', () => {
 			},
 		];
 
+		beforeEach(() => {
+			// Clear the processQueuedItemRef mock between tests in this suite
+			// to ensure mock.calls[0] always refers to current test's call
+			mockProcessQueuedItemRef.current.mockClear();
+		});
+
 		it('matches command with arguments and stores args in queued item', async () => {
 			vi.useFakeTimers();
 

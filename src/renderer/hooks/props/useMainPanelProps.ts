@@ -133,6 +133,9 @@ export interface UseMainPanelPropsDeps {
 	// Unread filter
 	showUnreadOnly: boolean;
 
+	// Accessibility
+	colorBlindMode: boolean;
+
 	// Setters (these are stable callbacks - should be memoized at definition site)
 	setLogViewerSelectedLevels: (levels: string[]) => void;
 	setGitDiffPreview: (preview: string | null) => void;
@@ -403,6 +406,7 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			onTabMarkUnread: deps.handleTabMarkUnread,
 			onToggleTabReadOnlyMode: deps.handleToggleTabReadOnlyMode,
 			showUnreadOnly: deps.showUnreadOnly,
+			colorBlindMode: deps.colorBlindMode,
 			onToggleUnreadFilter: deps.toggleUnreadFilter,
 			onOpenTabSearch: deps.handleOpenTabSearch,
 			onCloseAllTabs: deps.handleCloseAllTabs,
@@ -579,6 +583,7 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			deps.ghCliAvailable,
 			deps.hasGist,
 			deps.showUnreadOnly,
+			deps.colorBlindMode,
 			// Stable callbacks (shouldn't cause re-renders, but included for completeness)
 			deps.setLogViewerSelectedLevels,
 			deps.setGitDiffPreview,

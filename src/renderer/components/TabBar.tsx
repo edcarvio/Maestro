@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import type { AITab, Theme, FilePreviewTab, UnifiedTab } from '../types';
 import { hasDraft } from '../utils/tabHelpers';
+import { getColorBlindExtensionColor } from '../constants/colorblindPalettes';
 
 interface TabBarProps {
 	tabs: AITab[];
@@ -73,6 +74,10 @@ interface TabBarProps {
 	onFileTabSelect?: (tabId: string) => void;
 	/** Handler to close a file preview tab */
 	onFileTabClose?: (tabId: string) => void;
+
+	// === Accessibility ===
+	/** Whether colorblind-friendly colors should be used for extension badges */
+	colorBlindMode?: boolean;
 }
 
 interface TabProps {
@@ -946,16 +951,35 @@ interface FileTabProps {
 	totalTabs?: number;
 	/** Tab index in the full unified list (0-based) */
 	tabIndex?: number;
+	/** Whether colorblind-friendly colors should be used for extension badges */
+	colorBlindMode?: boolean;
 }
 
 /**
  * Get color for file extension badge.
  * Returns a muted color based on file type for visual differentiation.
  * Colors are adapted for both light and dark themes for good contrast.
+ * When colorBlindMode is enabled, uses Wong's colorblind-safe palette.
  */
-function getExtensionColor(extension: string, theme: Theme): { bg: string; text: string } {
-	const ext = extension.toLowerCase();
+function getExtensionColor(
+	extension: string,
+	theme: Theme,
+	colorBlindMode?: boolean
+): { bg: string; text: string } {
 	const isLightTheme = theme.mode === 'light';
+
+	// Use colorblind-safe colors when enabled
+	if (colorBlindMode) {
+		const colorBlindColors = getColorBlindExtensionColor(extension, isLightTheme);
+		if (colorBlindColors) {
+			return colorBlindColors;
+		}
+		// Fall through to default for unknown extensions
+		return { bg: theme.colors.border, text: theme.colors.textDim };
+	}
+
+	// Standard color scheme
+	const ext = extension.toLowerCase();
 
 	// TypeScript/JavaScript - blue tones
 	if (['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
@@ -1047,6 +1071,7 @@ const FileTab = memo(function FileTab({
 	onCloseTabsRight,
 	totalTabs,
 	tabIndex,
+	colorBlindMode,
 }: FileTabProps) {
 	const [isHovered, setIsHovered] = useState(false);
 	const [overlayOpen, setOverlayOpen] = useState(false);
@@ -1243,8 +1268,8 @@ const FileTab = memo(function FileTab({
 
 	// Get extension badge colors
 	const extensionColors = useMemo(
-		() => getExtensionColor(tab.extension, theme),
-		[tab.extension, theme]
+		() => getExtensionColor(tab.extension, theme, colorBlindMode),
+		[tab.extension, theme, colorBlindMode]
 	);
 
 	// Hover background varies by theme mode for proper contrast
@@ -1587,6 +1612,8 @@ function TabBarInner({
 	onFileTabSelect,
 	onFileTabClose,
 	onUnifiedTabReorder,
+	// Accessibility
+	colorBlindMode,
 }: TabBarProps) {
 	const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
 	const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
@@ -2035,6 +2062,7 @@ function TabBarInner({
 										onCloseTabsRight={onCloseTabsRight ? handleTabCloseRight : undefined}
 										totalTabs={unifiedTabs!.length}
 										tabIndex={originalIndex}
+										colorBlindMode={colorBlindMode}
 									/>
 								</React.Fragment>
 							);

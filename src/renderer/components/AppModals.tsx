@@ -874,6 +874,8 @@ export interface AppUtilityModalsProps {
 		sessionName: string,
 		starred?: boolean
 	) => void;
+	/** Whether colorblind-friendly colors should be used for extension badges */
+	colorBlindMode?: boolean;
 
 	// FileSearchModal
 	fuzzyFileSearchOpen: boolean;
@@ -1051,6 +1053,7 @@ export function AppUtilityModals({
 	onTabSelect,
 	onFileTabSelect,
 	onNamedSessionSelect,
+	colorBlindMode,
 	// FileSearchModal
 	fuzzyFileSearchOpen,
 	filteredFileTree,
@@ -1255,6 +1258,7 @@ export function AppUtilityModals({
 					onFileTabSelect={onFileTabSelect}
 					onNamedSessionSelect={onNamedSessionSelect}
 					onClose={onCloseTabSwitcher}
+					colorBlindMode={colorBlindMode}
 				/>
 			)}
 
@@ -2551,6 +2555,7 @@ export function AppModals(props: AppModalsProps) {
 				onCloseTabSwitcher={onCloseTabSwitcher}
 				onTabSelect={onTabSelect}
 				onNamedSessionSelect={onNamedSessionSelect}
+				colorBlindMode={colorBlindMode}
 				fuzzyFileSearchOpen={fuzzyFileSearchOpen}
 				filteredFileTree={filteredFileTree}
 				onCloseFileSearch={onCloseFileSearch}

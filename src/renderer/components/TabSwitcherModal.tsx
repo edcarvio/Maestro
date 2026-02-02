@@ -9,6 +9,7 @@ import { getContextColor } from '../utils/theme';
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
 import { formatTokensCompact, formatRelativeTime, formatCost } from '../utils/formatters';
 import { calculateContextTokens } from '../utils/contextUsage';
+import { getColorBlindExtensionColor } from '../constants/colorblindPalettes';
 
 /** Named session from the store (not currently open) */
 interface NamedSession {
@@ -47,6 +48,8 @@ interface TabSwitcherModalProps {
 		starred?: boolean
 	) => void;
 	onClose: () => void;
+	/** Whether colorblind-friendly colors should be used for extension badges */
+	colorBlindMode?: boolean;
 }
 
 // formatTokensCompact, formatRelativeTime, and formatCost imported from ../utils/formatters
@@ -108,9 +111,27 @@ function getUuidPill(agentSessionId: string | undefined | null): string | null {
 /**
  * Get color for file extension badge.
  * Returns a muted color based on file type for visual differentiation.
- * (Copied from TabBar.tsx for consistency)
+ * When colorBlindMode is enabled, uses Wong's colorblind-safe palette.
+ * (Synchronized with TabBar.tsx for consistency)
  */
-function getExtensionColor(extension: string, theme: Theme): { bg: string; text: string } {
+function getExtensionColor(
+	extension: string,
+	theme: Theme,
+	colorBlindMode?: boolean
+): { bg: string; text: string } {
+	const isLightTheme = theme.mode === 'light';
+
+	// Use colorblind-safe colors when enabled
+	if (colorBlindMode) {
+		const colorBlindColors = getColorBlindExtensionColor(extension, isLightTheme);
+		if (colorBlindColors) {
+			return colorBlindColors;
+		}
+		// Fall through to default for unknown extensions
+		return { bg: theme.colors.border, text: theme.colors.textDim };
+	}
+
+	// Standard color scheme (dark theme only for backward compatibility)
 	const ext = extension.toLowerCase();
 	// TypeScript/JavaScript - blue tones
 	if (['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
@@ -212,6 +233,7 @@ export function TabSwitcherModal({
 	onFileTabSelect,
 	onNamedSessionSelect,
 	onClose,
+	colorBlindMode,
 }: TabSwitcherModalProps) {
 	const [search, setSearch] = useState('');
 	const [firstVisibleIndex, setFirstVisibleIndex] = useState(0);
@@ -776,7 +798,7 @@ export function TabSwitcherModal({
 							// File preview tab
 							const { tab } = item;
 							const isActive = tab.id === activeFileTabId;
-							const extColors = getExtensionColor(tab.extension, theme);
+							const extColors = getExtensionColor(tab.extension, theme, colorBlindMode);
 							const hasUnsavedEdits = !!tab.editContent;
 
 							return (

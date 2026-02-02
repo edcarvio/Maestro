@@ -13068,6 +13068,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 		// Unread filter
 		showUnreadOnly,
 
+		// Accessibility
+		colorBlindMode,
+
 		// Setters
 		setLogViewerSelectedLevels,
 		setGitDiffPreview,

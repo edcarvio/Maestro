@@ -4379,3 +4379,416 @@ describe('Extension badge styling across themes', () => {
 		expect(fileNameSpan).toHaveClass('max-w-[120px]');
 	});
 });
+
+describe('File tab extension badge colorblind mode', () => {
+	const mockOnTabSelect = vi.fn();
+	const mockOnTabClose = vi.fn();
+	const mockOnNewTab = vi.fn();
+	const mockOnFileTabSelect = vi.fn();
+	const mockOnFileTabClose = vi.fn();
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	// Light theme for testing contrast
+	const lightTheme: Theme = {
+		id: 'github-light',
+		name: 'GitHub Light',
+		mode: 'light',
+		colors: {
+			bgMain: '#ffffff',
+			bgSidebar: '#f6f8fa',
+			bgActivity: '#eff2f5',
+			textMain: '#24292f',
+			textDim: '#57606a',
+			accent: '#0969da',
+			border: '#d0d7de',
+			error: '#cf222e',
+			success: '#1a7f37',
+			warning: '#9a6700',
+		},
+	};
+
+	// Dark theme for comparison
+	const darkTheme: Theme = {
+		id: 'dracula',
+		name: 'Dracula',
+		mode: 'dark',
+		colors: {
+			bgMain: '#282a36',
+			bgSidebar: '#21222c',
+			bgActivity: '#343746',
+			textMain: '#f8f8f2',
+			textDim: '#6272a4',
+			accent: '#bd93f9',
+			border: '#44475a',
+			error: '#ff5555',
+			success: '#50fa7b',
+			warning: '#ffb86c',
+		},
+	};
+
+	const createTab = (overrides: Partial<AITab> = {}): AITab => ({
+		id: 'test-tab',
+		name: '',
+		agentSessionId: 'abc12345-def6-7890',
+		logs: [],
+		...overrides,
+	});
+
+	const createFileTab = (extension: string): FilePreviewTab => ({
+		id: `file-tab-${extension}`,
+		path: `/test/example${extension}`,
+		name: 'example',
+		extension: extension,
+		content: 'test content',
+		scrollTop: 0,
+		searchQuery: '',
+		editMode: false,
+		editContent: undefined,
+		createdAt: Date.now(),
+		lastModified: Date.now(),
+	});
+
+	it('renders colorblind-safe colors for TypeScript files in dark mode', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.ts');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+				colorBlindMode={true}
+			/>
+		);
+
+		const badge = screen.getByText('.ts');
+		expect(badge).toBeInTheDocument();
+		// Strong Blue (#0077BB) from Wong's colorblind-safe palette
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(0, 119, 187, 0.35)' });
+	});
+
+	it('renders colorblind-safe colors for TypeScript files in light mode', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.tsx');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={lightTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+				colorBlindMode={true}
+			/>
+		);
+
+		const badge = screen.getByText('.tsx');
+		expect(badge).toBeInTheDocument();
+		// Strong Blue (#0077BB) lighter for light theme
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(0, 119, 187, 0.18)' });
+	});
+
+	it('renders colorblind-safe colors for Markdown files (teal)', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.md');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+				colorBlindMode={true}
+			/>
+		);
+
+		const badge = screen.getByText('.md');
+		expect(badge).toBeInTheDocument();
+		// Teal (#009988) from Wong's colorblind-safe palette
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(0, 153, 136, 0.35)' });
+	});
+
+	it('renders colorblind-safe colors for JSON/Config files (orange)', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.json');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+				colorBlindMode={true}
+			/>
+		);
+
+		const badge = screen.getByText('.json');
+		expect(badge).toBeInTheDocument();
+		// Orange (#EE7733) from Wong's colorblind-safe palette
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(238, 119, 51, 0.35)' });
+	});
+
+	it('renders colorblind-safe colors for CSS files (purple)', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.css');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+				colorBlindMode={true}
+			/>
+		);
+
+		const badge = screen.getByText('.css');
+		expect(badge).toBeInTheDocument();
+		// Purple (#AA4499) from Wong's colorblind-safe palette
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(170, 68, 153, 0.35)' });
+	});
+
+	it('renders colorblind-safe colors for HTML files (vermillion)', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.html');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+				colorBlindMode={true}
+			/>
+		);
+
+		const badge = screen.getByText('.html');
+		expect(badge).toBeInTheDocument();
+		// Vermillion (#CC3311) from Wong's colorblind-safe palette
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(204, 51, 17, 0.35)' });
+	});
+
+	it('renders colorblind-safe colors for Python files (cyan)', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.py');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+				colorBlindMode={true}
+			/>
+		);
+
+		const badge = screen.getByText('.py');
+		expect(badge).toBeInTheDocument();
+		// Cyan (#33BBEE) from Wong's colorblind-safe palette
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(51, 187, 238, 0.35)' });
+	});
+
+	it('renders colorblind-safe colors for Rust files (magenta)', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.rs');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+				colorBlindMode={true}
+			/>
+		);
+
+		const badge = screen.getByText('.rs');
+		expect(badge).toBeInTheDocument();
+		// Magenta (#EE3377) from Wong's colorblind-safe palette
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(238, 51, 119, 0.35)' });
+	});
+
+	it('renders colorblind-safe colors for Go files (blue-green)', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.go');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+				colorBlindMode={true}
+			/>
+		);
+
+		const badge = screen.getByText('.go');
+		expect(badge).toBeInTheDocument();
+		// Blue-Green (#44AA99) from Wong's colorblind-safe palette
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(68, 170, 153, 0.35)' });
+	});
+
+	it('renders colorblind-safe colors for Shell scripts (gray)', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.sh');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+				colorBlindMode={true}
+			/>
+		);
+
+		const badge = screen.getByText('.sh');
+		expect(badge).toBeInTheDocument();
+		// Gray for shell scripts (distinguishable by luminance)
+		expect(badge).toHaveStyle({ backgroundColor: 'rgba(150, 150, 150, 0.35)' });
+	});
+
+	it('falls back to theme colors for unknown extensions in colorblind mode', () => {
+		const aiTab = createTab({ id: 'ai-tab-1', name: 'AI Tab' });
+		const fileTab = createFileTab('.xyz');
+
+		const unifiedTabs = [
+			{ type: 'ai' as const, id: 'ai-tab-1', data: aiTab },
+			{ type: 'file' as const, id: fileTab.id, data: fileTab },
+		];
+
+		render(
+			<TabBar
+				tabs={[aiTab]}
+				activeTabId="ai-tab-1"
+				theme={darkTheme}
+				onTabSelect={mockOnTabSelect}
+				onTabClose={mockOnTabClose}
+				onNewTab={mockOnNewTab}
+				unifiedTabs={unifiedTabs}
+				activeFileTabId={null}
+				onFileTabSelect={mockOnFileTabSelect}
+				onFileTabClose={mockOnFileTabClose}
+				colorBlindMode={true}
+			/>
+		);
+
+		const badge = screen.getByText('.xyz');
+		expect(badge).toBeInTheDocument();
+		// Falls back to theme border color for unknown extensions
+		expect(badge).toHaveStyle({ backgroundColor: darkTheme.colors.border });
+	});
+});

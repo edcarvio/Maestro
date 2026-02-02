@@ -197,6 +197,8 @@ interface MainPanelProps {
 	onToggleTabSaveToHistory?: () => void;
 	onToggleTabShowThinking?: () => void;
 	showUnreadOnly?: boolean;
+	/** Whether colorblind-friendly colors should be used for extension badges */
+	colorBlindMode?: boolean;
 	onToggleUnreadFilter?: () => void;
 	onOpenTabSearch?: () => void;
 	// Bulk tab close operations
@@ -471,6 +473,7 @@ export const MainPanel = React.memo(
 			onTabStar,
 			onTabMarkUnread,
 			showUnreadOnly,
+			colorBlindMode,
 			onToggleUnreadFilter,
 			onOpenTabSearch,
 			onCloseAllTabs,
@@ -1471,6 +1474,8 @@ export const MainPanel = React.memo(
 									activeFileTabId={activeFileTabId}
 									onFileTabSelect={onFileTabSelect}
 									onFileTabClose={onFileTabClose}
+									// Accessibility
+									colorBlindMode={colorBlindMode}
 								/>
 							)}
 

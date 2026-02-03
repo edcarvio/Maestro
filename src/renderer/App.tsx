@@ -2850,7 +2850,9 @@ function MaestroConsoleInner() {
 				if (groupChatParsed.isGroupChat) {
 					const groupChatId = groupChatParsed.groupChatId!;
 					const isModeratorError = groupChatParsed.isModerator ?? false;
-					const participantOrModerator = isModeratorError ? 'moderator' : groupChatParsed.participantName!;
+					const participantOrModerator = isModeratorError
+						? 'moderator'
+						: groupChatParsed.participantName!;
 
 					console.log('[onAgentError] Group chat error received:', {
 						rawSessionId: sessionId,
@@ -3656,7 +3658,13 @@ function MaestroConsoleInner() {
 	 */
 	const handleOpenFileTab = useCallback(
 		(
-			file: { path: string; name: string; content: string; sshRemoteId?: string; lastModified?: number },
+			file: {
+				path: string;
+				name: string;
+				content: string;
+				sshRemoteId?: string;
+				lastModified?: number;
+			},
 			options?: {
 				/** If true, create new tab adjacent to current file tab. If false, replace current file tab content. Default: true (create new tab) */
 				openInNewTab?: boolean;
@@ -3694,9 +3702,7 @@ function MaestroConsoleInner() {
 					if (!openInNewTab && s.activeFileTabId) {
 						const currentTabId = s.activeFileTabId;
 						const currentTab = s.filePreviewTabs.find((tab) => tab.id === currentTabId);
-						const extension = file.name.includes('.')
-							? '.' + file.name.split('.').pop()
-							: '';
+						const extension = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
 						const nameWithoutExtension = extension
 							? file.name.slice(0, -extension.length)
 							: file.name;
@@ -3770,9 +3776,7 @@ function MaestroConsoleInner() {
 
 					// Create a new file preview tab
 					const newTabId = generateId();
-					const extension = file.name.includes('.')
-						? '.' + file.name.split('.').pop()
-						: '';
+					const extension = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
 					const nameWithoutExtension = extension
 						? file.name.slice(0, -extension.length)
 						: file.name;
@@ -4741,19 +4745,13 @@ You are taking over this conversation. Based on the context above, provide a bri
 				}
 			})
 			.filter((tab): tab is UnifiedTab => tab !== null);
-	}, [
-		activeSession?.aiTabs,
-		activeSession?.filePreviewTabs,
-		activeSession?.unifiedTabOrder,
-	]);
+	}, [activeSession?.aiTabs, activeSession?.filePreviewTabs, activeSession?.unifiedTabOrder]);
 
 	// Get the active file preview tab (if a file tab is active)
 	const activeFileTab = useMemo((): FilePreviewTab | null => {
 		if (!activeSession?.activeFileTabId) return null;
 		return (
-			activeSession.filePreviewTabs.find(
-				(tab) => tab.id === activeSession.activeFileTabId
-			) ?? null
+			activeSession.filePreviewTabs.find((tab) => tab.id === activeSession.activeFileTabId) ?? null
 		);
 	}, [activeSession?.activeFileTabId, activeSession?.filePreviewTabs]);
 
@@ -5172,7 +5170,13 @@ You are taking over this conversation. Based on the context above, provide a bri
 				forceCloseFileTab(tabId);
 			}
 		},
-		[sessions, forceCloseFileTab, setConfirmModalMessage, setConfirmModalOnConfirm, setConfirmModalOpen]
+		[
+			sessions,
+			forceCloseFileTab,
+			setConfirmModalMessage,
+			setConfirmModalOnConfirm,
+			setConfirmModalOpen,
+		]
 	);
 
 	/**
@@ -5281,9 +5285,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 	 * If fileTabAutoRefreshEnabled setting is true, checks if file has changed on disk and refreshes content.
 	 */
 	const handleSelectFileTab = useCallback(async (tabId: string) => {
-		const currentSession = sessionsRef.current.find(
-			(s) => s.id === activeSessionIdRef.current
-		);
+		const currentSession = sessionsRef.current.find((s) => s.id === activeSessionIdRef.current);
 		if (!currentSession) return;
 
 		// Verify the file tab exists
@@ -5320,9 +5322,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 							return {
 								...s,
 								filePreviewTabs: s.filePreviewTabs.map((tab) =>
-									tab.id === tabId
-										? { ...tab, content, lastModified: currentMtime }
-										: tab
+									tab.id === tabId ? { ...tab, content, lastModified: currentMtime } : tab
 								),
 							};
 						})
@@ -5340,34 +5340,31 @@ You are taking over this conversation. Based on the context above, provide a bri
 	 * relative to each other. The fromIndex and toIndex refer to positions in unifiedTabOrder.
 	 * This replaces/supplements handleTabReorder for the unified tab system.
 	 */
-	const handleUnifiedTabReorder = useCallback(
-		(fromIndex: number, toIndex: number) => {
-			setSessions((prev) =>
-				prev.map((s) => {
-					if (s.id !== activeSessionIdRef.current) return s;
+	const handleUnifiedTabReorder = useCallback((fromIndex: number, toIndex: number) => {
+		setSessions((prev) =>
+			prev.map((s) => {
+				if (s.id !== activeSessionIdRef.current) return s;
 
-					// Validate indices
-					if (
-						fromIndex < 0 ||
-						fromIndex >= s.unifiedTabOrder.length ||
-						toIndex < 0 ||
-						toIndex >= s.unifiedTabOrder.length ||
-						fromIndex === toIndex
-					) {
-						return s;
-					}
+				// Validate indices
+				if (
+					fromIndex < 0 ||
+					fromIndex >= s.unifiedTabOrder.length ||
+					toIndex < 0 ||
+					toIndex >= s.unifiedTabOrder.length ||
+					fromIndex === toIndex
+				) {
+					return s;
+				}
 
-					// Reorder the unifiedTabOrder array
-					const newOrder = [...s.unifiedTabOrder];
-					const [movedRef] = newOrder.splice(fromIndex, 1);
-					newOrder.splice(toIndex, 0, movedRef);
+				// Reorder the unifiedTabOrder array
+				const newOrder = [...s.unifiedTabOrder];
+				const [movedRef] = newOrder.splice(fromIndex, 1);
+				newOrder.splice(toIndex, 0, movedRef);
 
-					return { ...s, unifiedTabOrder: newOrder };
-				})
-			);
-		},
-		[]
-	);
+				return { ...s, unifiedTabOrder: newOrder };
+			})
+		);
+	}, []);
 
 	/**
 	 * Internal tab close handler that performs the actual close.
@@ -5496,9 +5493,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 						// Close file tab by removing from arrays
 						updatedSession = {
 							...updatedSession,
-							filePreviewTabs: updatedSession.filePreviewTabs.filter(
-								(t) => t.id !== tabRef.id
-							),
+							filePreviewTabs: updatedSession.filePreviewTabs.filter((t) => t.id !== tabRef.id),
 							unifiedTabOrder: updatedSession.unifiedTabOrder.filter(
 								(ref) => !(ref.type === 'file' && ref.id === tabRef.id)
 							),
@@ -5551,9 +5546,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 						// Close file tab by removing from arrays
 						updatedSession = {
 							...updatedSession,
-							filePreviewTabs: updatedSession.filePreviewTabs.filter(
-								(t) => t.id !== tabRef.id
-							),
+							filePreviewTabs: updatedSession.filePreviewTabs.filter((t) => t.id !== tabRef.id),
 							unifiedTabOrder: updatedSession.unifiedTabOrder.filter(
 								(ref) => !(ref.type === 'file' && ref.id === tabRef.id)
 							),
@@ -5606,9 +5599,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 						// Close file tab by removing from arrays
 						updatedSession = {
 							...updatedSession,
-							filePreviewTabs: updatedSession.filePreviewTabs.filter(
-								(t) => t.id !== tabRef.id
-							),
+							filePreviewTabs: updatedSession.filePreviewTabs.filter((t) => t.id !== tabRef.id),
 							unifiedTabOrder: updatedSession.unifiedTabOrder.filter(
 								(ref) => !(ref.type === 'file' && ref.id === tabRef.id)
 							),
@@ -7372,9 +7363,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 					lines.push('|-------|--------|-------------|');
 					for (const skill of projectSkills) {
 						const desc =
-							skill.description && skill.description !== 'No description'
-								? skill.description
-								: '—';
+							skill.description && skill.description !== 'No description' ? skill.description : '—';
 						lines.push(`| **${skill.name}** | ${formatTokenCount(skill.tokenCount)} | ${desc} |`);
 					}
 					lines.push('');
@@ -7387,9 +7376,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 					lines.push('|-------|--------|-------------|');
 					for (const skill of userSkills) {
 						const desc =
-							skill.description && skill.description !== 'No description'
-								? skill.description
-								: '—';
+							skill.description && skill.description !== 'No description' ? skill.description : '—';
 						lines.push(`| **${skill.name}** | ${formatTokenCount(skill.tokenCount)} | ${desc} |`);
 					}
 				}
@@ -8617,7 +8604,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 						...s,
 						aiTabs: s.aiTabs.map((tab) =>
 							// Clear isGeneratingName to cancel any in-progress automatic naming
-							tab.id === renameTabId ? { ...tab, name: newName || null, isGeneratingName: false } : tab
+							tab.id === renameTabId
+								? { ...tab, name: newName || null, isGeneratingName: false }
+								: tab
 						),
 					};
 				})
@@ -12289,7 +12278,13 @@ You are taking over this conversation. Based on the context above, provide a bri
 		} else {
 			setChatRawTextMode(!chatRawTextMode);
 		}
-	}, [activeSession?.activeFileTabId, markdownEditMode, chatRawTextMode, setMarkdownEditMode, setChatRawTextMode]);
+	}, [
+		activeSession?.activeFileTabId,
+		markdownEditMode,
+		chatRawTextMode,
+		setMarkdownEditMode,
+		setChatRawTextMode,
+	]);
 	const handleQuickActionsStartTour = useCallback(() => {
 		setTourFromWizard(false);
 		setTourOpen(true);
@@ -12833,6 +12828,11 @@ You are taking over this conversation. Based on the context above, provide a bri
 	// to prevent re-evaluating 50-100+ props on every state change.
 	// ============================================================================
 
+	// Stable fileTree reference - prevents FilePreview re-renders during agent activity.
+	// Without this, activeSession?.fileTree || [] creates a new empty array on every render
+	// when fileTree is undefined, and a new reference whenever activeSession updates.
+	const stableFileTree = useMemo(() => activeSession?.fileTree || [], [activeSession?.fileTree]);
+
 	const mainPanelProps = useMainPanelProps({
 		// Core state
 		logViewerOpen,
@@ -12885,7 +12885,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		currentSessionBatchState: currentSessionBatchState ?? undefined,
 
 		// File tree
-		fileTree: activeSession?.fileTree || [],
+		fileTree: stableFileTree,
 
 		// File preview navigation (per-tab)
 		canGoBack: fileTabCanGoBack,
@@ -13753,174 +13753,174 @@ You are taking over this conversation. Based on the context above, provide a bri
 							theme={theme}
 							isOpen={symphonyModalOpen}
 							onClose={() => setSymphonyModalOpen(false)}
-					onStartContribution={async (data: SymphonyContributionData) => {
-						console.log('[Symphony] Creating session for contribution:', data);
+							onStartContribution={async (data: SymphonyContributionData) => {
+								console.log('[Symphony] Creating session for contribution:', data);
 
-						// Get agent definition
-						const agent = await window.maestro.agents.get(data.agentType);
-						if (!agent) {
-							console.error(`Agent not found: ${data.agentType}`);
-							addToast({
-								type: 'error',
-								title: 'Symphony Error',
-								message: `Agent not found: ${data.agentType}`,
-							});
-							return;
-						}
+								// Get agent definition
+								const agent = await window.maestro.agents.get(data.agentType);
+								if (!agent) {
+									console.error(`Agent not found: ${data.agentType}`);
+									addToast({
+										type: 'error',
+										title: 'Symphony Error',
+										message: `Agent not found: ${data.agentType}`,
+									});
+									return;
+								}
 
-						// Validate uniqueness
-						const validation = validateNewSession(
-							data.sessionName,
-							data.localPath,
-							data.agentType as ToolType,
-							sessions
-						);
-						if (!validation.valid) {
-							console.error(`Session validation failed: ${validation.error}`);
-							addToast({
-								type: 'error',
-								title: 'Session Creation Failed',
-								message: validation.error || 'Cannot create duplicate session',
-							});
-							return;
-						}
+								// Validate uniqueness
+								const validation = validateNewSession(
+									data.sessionName,
+									data.localPath,
+									data.agentType as ToolType,
+									sessions
+								);
+								if (!validation.valid) {
+									console.error(`Session validation failed: ${validation.error}`);
+									addToast({
+										type: 'error',
+										title: 'Session Creation Failed',
+										message: validation.error || 'Cannot create duplicate session',
+									});
+									return;
+								}
 
-						const newId = generateId();
-						const initialTabId = generateId();
+								const newId = generateId();
+								const initialTabId = generateId();
 
-						// Check git repo status
-						const isGitRepo = await gitService.isRepo(data.localPath);
-						let gitBranches: string[] | undefined;
-						let gitTags: string[] | undefined;
-						let gitRefsCacheTime: number | undefined;
+								// Check git repo status
+								const isGitRepo = await gitService.isRepo(data.localPath);
+								let gitBranches: string[] | undefined;
+								let gitTags: string[] | undefined;
+								let gitRefsCacheTime: number | undefined;
 
-						if (isGitRepo) {
-							[gitBranches, gitTags] = await Promise.all([
-								gitService.getBranches(data.localPath),
-								gitService.getTags(data.localPath),
-							]);
-							gitRefsCacheTime = Date.now();
-						}
+								if (isGitRepo) {
+									[gitBranches, gitTags] = await Promise.all([
+										gitService.getBranches(data.localPath),
+										gitService.getTags(data.localPath),
+									]);
+									gitRefsCacheTime = Date.now();
+								}
 
-						// Create initial tab
-						const initialTab: AITab = {
-							id: initialTabId,
-							agentSessionId: null,
-							name: null,
-							starred: false,
-							logs: [],
-							inputValue: '',
-							stagedImages: [],
-							createdAt: Date.now(),
-							state: 'idle',
-							saveToHistory: defaultSaveToHistory,
-						};
+								// Create initial tab
+								const initialTab: AITab = {
+									id: initialTabId,
+									agentSessionId: null,
+									name: null,
+									starred: false,
+									logs: [],
+									inputValue: '',
+									stagedImages: [],
+									createdAt: Date.now(),
+									state: 'idle',
+									saveToHistory: defaultSaveToHistory,
+								};
 
-						// Create session with Symphony metadata
-						const newSession: Session = {
-							id: newId,
-							name: data.sessionName,
-							toolType: data.agentType as ToolType,
-							state: 'idle',
-							cwd: data.localPath,
-							fullPath: data.localPath,
-							projectRoot: data.localPath,
-							isGitRepo,
-							gitBranches,
-							gitTags,
-							gitRefsCacheTime,
-							aiLogs: [],
-							shellLogs: [
-								{
-									id: generateId(),
-									timestamp: Date.now(),
-									source: 'system',
-									text: 'Shell Session Ready.',
-								},
-							],
-							workLog: [],
-							contextUsage: 0,
-							inputMode: 'ai',
-							aiPid: 0,
-							terminalPid: 0,
-							port: 3000 + Math.floor(Math.random() * 100),
-							isLive: false,
-							changedFiles: [],
-							fileTree: [],
-							fileExplorerExpanded: [],
-							fileExplorerScrollPos: 0,
-							fileTreeAutoRefreshInterval: 180,
-							shellCwd: data.localPath,
-							aiCommandHistory: [],
-							shellCommandHistory: [],
-							executionQueue: [],
-							activeTimeMs: 0,
-							aiTabs: [initialTab],
-							activeTabId: initialTabId,
-							closedTabHistory: [],
-							filePreviewTabs: [],
-							activeFileTabId: null,
-							unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
-							unifiedClosedTabHistory: [],
-							// Custom agent config
-							customPath: data.customPath,
-							customArgs: data.customArgs,
-							customEnvVars: data.customEnvVars,
-							// Auto Run setup - use autoRunPath from contribution
-							autoRunFolderPath: data.autoRunPath,
-							// Symphony metadata for tracking
-							symphonyMetadata: {
-								isSymphonySession: true,
-								contributionId: data.contributionId,
-								repoSlug: data.repo.slug,
-								issueNumber: data.issue.number,
-								issueTitle: data.issue.title,
-								documentPaths: data.issue.documentPaths.map((d) => d.path),
-								status: 'running',
-							},
-						};
+								// Create session with Symphony metadata
+								const newSession: Session = {
+									id: newId,
+									name: data.sessionName,
+									toolType: data.agentType as ToolType,
+									state: 'idle',
+									cwd: data.localPath,
+									fullPath: data.localPath,
+									projectRoot: data.localPath,
+									isGitRepo,
+									gitBranches,
+									gitTags,
+									gitRefsCacheTime,
+									aiLogs: [],
+									shellLogs: [
+										{
+											id: generateId(),
+											timestamp: Date.now(),
+											source: 'system',
+											text: 'Shell Session Ready.',
+										},
+									],
+									workLog: [],
+									contextUsage: 0,
+									inputMode: 'ai',
+									aiPid: 0,
+									terminalPid: 0,
+									port: 3000 + Math.floor(Math.random() * 100),
+									isLive: false,
+									changedFiles: [],
+									fileTree: [],
+									fileExplorerExpanded: [],
+									fileExplorerScrollPos: 0,
+									fileTreeAutoRefreshInterval: 180,
+									shellCwd: data.localPath,
+									aiCommandHistory: [],
+									shellCommandHistory: [],
+									executionQueue: [],
+									activeTimeMs: 0,
+									aiTabs: [initialTab],
+									activeTabId: initialTabId,
+									closedTabHistory: [],
+									filePreviewTabs: [],
+									activeFileTabId: null,
+									unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
+									unifiedClosedTabHistory: [],
+									// Custom agent config
+									customPath: data.customPath,
+									customArgs: data.customArgs,
+									customEnvVars: data.customEnvVars,
+									// Auto Run setup - use autoRunPath from contribution
+									autoRunFolderPath: data.autoRunPath,
+									// Symphony metadata for tracking
+									symphonyMetadata: {
+										isSymphonySession: true,
+										contributionId: data.contributionId,
+										repoSlug: data.repo.slug,
+										issueNumber: data.issue.number,
+										issueTitle: data.issue.title,
+										documentPaths: data.issue.documentPaths.map((d) => d.path),
+										status: 'running',
+									},
+								};
 
-						setSessions((prev) => [...prev, newSession]);
-						setActiveSessionId(newId);
-						setSymphonyModalOpen(false);
+								setSessions((prev) => [...prev, newSession]);
+								setActiveSessionId(newId);
+								setSymphonyModalOpen(false);
 
-						// Register active contribution in Symphony persistent state
-						// This makes it show up in the Active tab of the Symphony modal
-						window.maestro.symphony
-							.registerActive({
-								contributionId: data.contributionId,
-								sessionId: newId,
-								repoSlug: data.repo.slug,
-								repoName: data.repo.name,
-								issueNumber: data.issue.number,
-								issueTitle: data.issue.title,
-								localPath: data.localPath,
-								branchName: data.branchName || '',
-								totalDocuments: data.issue.documentPaths.length,
-								agentType: data.agentType,
-							})
-							.catch((err: unknown) => {
-								console.error('[Symphony] Failed to register active contribution:', err);
-							});
+								// Register active contribution in Symphony persistent state
+								// This makes it show up in the Active tab of the Symphony modal
+								window.maestro.symphony
+									.registerActive({
+										contributionId: data.contributionId,
+										sessionId: newId,
+										repoSlug: data.repo.slug,
+										repoName: data.repo.name,
+										issueNumber: data.issue.number,
+										issueTitle: data.issue.title,
+										localPath: data.localPath,
+										branchName: data.branchName || '',
+										totalDocuments: data.issue.documentPaths.length,
+										agentType: data.agentType,
+									})
+									.catch((err: unknown) => {
+										console.error('[Symphony] Failed to register active contribution:', err);
+									});
 
-						// Track stats
-						updateGlobalStats({ totalSessions: 1 });
-						window.maestro.stats.recordSessionCreated({
-							sessionId: newId,
-							agentType: data.agentType,
-							projectPath: data.localPath,
-							createdAt: Date.now(),
-							isRemote: false,
-						});
+								// Track stats
+								updateGlobalStats({ totalSessions: 1 });
+								window.maestro.stats.recordSessionCreated({
+									sessionId: newId,
+									agentType: data.agentType,
+									projectPath: data.localPath,
+									createdAt: Date.now(),
+									isRemote: false,
+								});
 
-						// Focus input
-						setActiveFocus('main');
-						setTimeout(() => inputRef.current?.focus(), 50);
+								// Focus input
+								setActiveFocus('main');
+								setTimeout(() => inputRef.current?.focus(), 50);
 
-						// Switch to Auto Run tab so user sees the documents
-						setActiveRightTab('autorun');
-					}}
-				/>
+								// Switch to Auto Run tab so user sees the documents
+								setActiveRightTab('autorun');
+							}}
+						/>
 					</Suspense>
 				)}
 
@@ -13929,7 +13929,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 				{gistPublishModalOpen && (activeFileTab || tabGistContent) && (
 					<GistPublishModal
 						theme={theme}
-						filename={tabGistContent?.filename ?? (activeFileTab ? activeFileTab.name + activeFileTab.extension : 'conversation.md')}
+						filename={
+							tabGistContent?.filename ??
+							(activeFileTab ? activeFileTab.name + activeFileTab.extension : 'conversation.md')
+						}
 						content={tabGistContent?.content ?? activeFileTab?.content ?? ''}
 						onClose={() => {
 							setGistPublishModalOpen(false);
@@ -13969,67 +13972,69 @@ You are taking over this conversation. Based on the context above, provide a bri
 				{graphFocusFilePath && (
 					<Suspense fallback={null}>
 						<DocumentGraphView
-						isOpen={isGraphViewOpen}
-						onClose={() => {
-							setIsGraphViewOpen(false);
-							setGraphFocusFilePath(undefined);
-							// Return focus to file preview if it was open
-							requestAnimationFrame(() => {
-								mainPanelRef.current?.focusFilePreview();
-							});
-						}}
-						theme={theme}
-						rootPath={activeSession?.projectRoot || activeSession?.cwd || ''}
-						onDocumentOpen={async (filePath) => {
-							// Open the document in a file tab (migrated from legacy setPreviewFile overlay)
-							const treeRoot = activeSession?.projectRoot || activeSession?.cwd || '';
-							const fullPath = `${treeRoot}/${filePath}`;
-							const filename = filePath.split('/').pop() || filePath;
+							isOpen={isGraphViewOpen}
+							onClose={() => {
+								setIsGraphViewOpen(false);
+								setGraphFocusFilePath(undefined);
+								// Return focus to file preview if it was open
+								requestAnimationFrame(() => {
+									mainPanelRef.current?.focusFilePreview();
+								});
+							}}
+							theme={theme}
+							rootPath={activeSession?.projectRoot || activeSession?.cwd || ''}
+							onDocumentOpen={async (filePath) => {
+								// Open the document in a file tab (migrated from legacy setPreviewFile overlay)
+								const treeRoot = activeSession?.projectRoot || activeSession?.cwd || '';
+								const fullPath = `${treeRoot}/${filePath}`;
+								const filename = filePath.split('/').pop() || filePath;
+								// Note: sshRemoteId is only set after AI agent spawns. For terminal-only SSH sessions,
+								// use sessionSshRemoteConfig.remoteId as fallback (see CLAUDE.md SSH Remote Sessions)
+								const sshRemoteId =
+									activeSession?.sshRemoteId ||
+									activeSession?.sessionSshRemoteConfig?.remoteId ||
+									undefined;
+								try {
+									// Fetch content and stat in parallel for efficiency
+									const [content, stat] = await Promise.all([
+										window.maestro.fs.readFile(fullPath, sshRemoteId),
+										window.maestro.fs.stat(fullPath, sshRemoteId).catch(() => null), // stat is optional
+									]);
+									if (content !== null) {
+										const lastModified = stat?.modifiedAt
+											? new Date(stat.modifiedAt).getTime()
+											: undefined;
+										handleOpenFileTab({
+											path: fullPath,
+											name: filename,
+											content,
+											sshRemoteId,
+											lastModified,
+										});
+									}
+								} catch (error) {
+									console.error('[DocumentGraph] Failed to open file:', error);
+								}
+								setIsGraphViewOpen(false);
+							}}
+							onExternalLinkOpen={(url) => {
+								// Open external URL in default browser
+								window.maestro.shell.openExternal(url);
+							}}
+							focusFilePath={graphFocusFilePath}
+							defaultShowExternalLinks={documentGraphShowExternalLinks}
+							onExternalLinksChange={settings.setDocumentGraphShowExternalLinks}
+							defaultMaxNodes={documentGraphMaxNodes}
+							defaultPreviewCharLimit={documentGraphPreviewCharLimit}
+							onPreviewCharLimitChange={settings.setDocumentGraphPreviewCharLimit}
 							// Note: sshRemoteId is only set after AI agent spawns. For terminal-only SSH sessions,
 							// use sessionSshRemoteConfig.remoteId as fallback (see CLAUDE.md SSH Remote Sessions)
-							const sshRemoteId =
+							sshRemoteId={
 								activeSession?.sshRemoteId ||
 								activeSession?.sessionSshRemoteConfig?.remoteId ||
-								undefined;
-							try {
-								// Fetch content and stat in parallel for efficiency
-								const [content, stat] = await Promise.all([
-									window.maestro.fs.readFile(fullPath, sshRemoteId),
-									window.maestro.fs.stat(fullPath, sshRemoteId).catch(() => null), // stat is optional
-								]);
-								if (content !== null) {
-									const lastModified = stat?.modifiedAt ? new Date(stat.modifiedAt).getTime() : undefined;
-									handleOpenFileTab({
-										path: fullPath,
-										name: filename,
-										content,
-										sshRemoteId,
-										lastModified,
-									});
-								}
-							} catch (error) {
-								console.error('[DocumentGraph] Failed to open file:', error);
+								undefined
 							}
-							setIsGraphViewOpen(false);
-						}}
-						onExternalLinkOpen={(url) => {
-							// Open external URL in default browser
-							window.maestro.shell.openExternal(url);
-						}}
-						focusFilePath={graphFocusFilePath}
-						defaultShowExternalLinks={documentGraphShowExternalLinks}
-						onExternalLinksChange={settings.setDocumentGraphShowExternalLinks}
-						defaultMaxNodes={documentGraphMaxNodes}
-						defaultPreviewCharLimit={documentGraphPreviewCharLimit}
-						onPreviewCharLimitChange={settings.setDocumentGraphPreviewCharLimit}
-						// Note: sshRemoteId is only set after AI agent spawns. For terminal-only SSH sessions,
-						// use sessionSshRemoteConfig.remoteId as fallback (see CLAUDE.md SSH Remote Sessions)
-						sshRemoteId={
-							activeSession?.sshRemoteId ||
-							activeSession?.sessionSshRemoteConfig?.remoteId ||
-							undefined
-						}
-					/>
+						/>
 					</Suspense>
 				)}
 

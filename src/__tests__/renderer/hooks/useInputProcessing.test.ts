@@ -977,4 +977,246 @@ describe('useInputProcessing', () => {
 			expect(updatedSessions[0].aiCommandHistory).toContain('/test');
 		});
 	});
+
+	describe('automatic tab naming', () => {
+		const mockGenerateTabName = vi.fn();
+
+		beforeEach(() => {
+			mockGenerateTabName.mockClear();
+			mockGenerateTabName.mockResolvedValue('Generated Tab Name');
+
+			// Add tabNaming mock to window.maestro
+			window.maestro = {
+				...window.maestro,
+				tabNaming: {
+					generateTabName: mockGenerateTabName,
+				},
+			} as typeof window.maestro;
+		});
+
+		it('triggers tab naming for new AI session with text message', async () => {
+			// Tab with no agentSessionId (new session) and no custom name
+			const newTab = createMockTab({
+				agentSessionId: null,
+				name: null,
+			});
+			const session = createMockSession({
+				aiTabs: [newTab],
+				activeTabId: newTab.id,
+			});
+			const deps = createDeps({
+				activeSession: session,
+				sessionsRef: { current: [session] },
+				inputValue: 'Help me implement a new feature',
+				automaticTabNamingEnabled: true,
+			});
+			const { result } = renderHook(() => useInputProcessing(deps));
+
+			await act(async () => {
+				await result.current.processInput();
+			});
+
+			// Should call generateTabName
+			expect(mockGenerateTabName).toHaveBeenCalledTimes(1);
+			expect(mockGenerateTabName).toHaveBeenCalledWith({
+				userMessage: 'Help me implement a new feature',
+				agentType: 'claude-code',
+				cwd: '/test/project',
+				sessionSshRemoteConfig: undefined,
+			});
+		});
+
+		it('does not trigger tab naming when setting is disabled', async () => {
+			const newTab = createMockTab({
+				agentSessionId: null,
+				name: null,
+			});
+			const session = createMockSession({
+				aiTabs: [newTab],
+				activeTabId: newTab.id,
+			});
+			const deps = createDeps({
+				activeSession: session,
+				sessionsRef: { current: [session] },
+				inputValue: 'Help me with something',
+				automaticTabNamingEnabled: false,
+			});
+			const { result } = renderHook(() => useInputProcessing(deps));
+
+			await act(async () => {
+				await result.current.processInput();
+			});
+
+			// Should NOT call generateTabName
+			expect(mockGenerateTabName).not.toHaveBeenCalled();
+		});
+
+		it('does not trigger tab naming for existing session (has agentSessionId)', async () => {
+			const existingTab = createMockTab({
+				agentSessionId: 'existing-session-123',
+				name: null,
+			});
+			const session = createMockSession({
+				aiTabs: [existingTab],
+				activeTabId: existingTab.id,
+			});
+			const deps = createDeps({
+				activeSession: session,
+				sessionsRef: { current: [session] },
+				inputValue: 'Follow up question',
+				automaticTabNamingEnabled: true,
+			});
+			const { result } = renderHook(() => useInputProcessing(deps));
+
+			await act(async () => {
+				await result.current.processInput();
+			});
+
+			// Should NOT call generateTabName for existing sessions
+			expect(mockGenerateTabName).not.toHaveBeenCalled();
+		});
+
+		it('does not trigger tab naming when tab already has custom name', async () => {
+			const namedTab = createMockTab({
+				agentSessionId: null,
+				name: 'My Custom Tab Name',
+			});
+			const session = createMockSession({
+				aiTabs: [namedTab],
+				activeTabId: namedTab.id,
+			});
+			const deps = createDeps({
+				activeSession: session,
+				sessionsRef: { current: [session] },
+				inputValue: 'New message',
+				automaticTabNamingEnabled: true,
+			});
+			const { result } = renderHook(() => useInputProcessing(deps));
+
+			await act(async () => {
+				await result.current.processInput();
+			});
+
+			// Should NOT call generateTabName when tab already has a name
+			expect(mockGenerateTabName).not.toHaveBeenCalled();
+		});
+
+		it('does not trigger tab naming in terminal mode', async () => {
+			const newTab = createMockTab({
+				agentSessionId: null,
+				name: null,
+			});
+			const session = createMockSession({
+				inputMode: 'terminal',
+				aiTabs: [newTab],
+				activeTabId: newTab.id,
+			});
+			const deps = createDeps({
+				activeSession: session,
+				sessionsRef: { current: [session] },
+				inputValue: 'ls -la',
+				isAiMode: false,
+				automaticTabNamingEnabled: true,
+			});
+			const { result } = renderHook(() => useInputProcessing(deps));
+
+			await act(async () => {
+				await result.current.processInput();
+			});
+
+			// Should NOT call generateTabName in terminal mode
+			expect(mockGenerateTabName).not.toHaveBeenCalled();
+		});
+
+		it('does not trigger tab naming for empty/whitespace-only message', async () => {
+			const newTab = createMockTab({
+				agentSessionId: null,
+				name: null,
+			});
+			const session = createMockSession({
+				aiTabs: [newTab],
+				activeTabId: newTab.id,
+			});
+			const deps = createDeps({
+				activeSession: session,
+				sessionsRef: { current: [session] },
+				inputValue: '',
+				stagedImages: ['base64-image-data'], // Only images, no text
+				automaticTabNamingEnabled: true,
+			});
+			const { result } = renderHook(() => useInputProcessing(deps));
+
+			await act(async () => {
+				await result.current.processInput();
+			});
+
+			// Should NOT call generateTabName for image-only messages
+			expect(mockGenerateTabName).not.toHaveBeenCalled();
+		});
+
+		it('sets isGeneratingName flag while naming is in progress', async () => {
+			// Use a promise that doesn't resolve immediately
+			let resolveNaming: (value: string) => void;
+			const namingPromise = new Promise<string>((resolve) => {
+				resolveNaming = resolve;
+			});
+			mockGenerateTabName.mockReturnValue(namingPromise);
+
+			const newTab = createMockTab({
+				agentSessionId: null,
+				name: null,
+			});
+			const session = createMockSession({
+				aiTabs: [newTab],
+				activeTabId: newTab.id,
+			});
+			const deps = createDeps({
+				activeSession: session,
+				sessionsRef: { current: [session] },
+				inputValue: 'Test message',
+				automaticTabNamingEnabled: true,
+			});
+			const { result } = renderHook(() => useInputProcessing(deps));
+
+			await act(async () => {
+				await result.current.processInput();
+			});
+
+			// Should have called setSessions to set isGeneratingName: true
+			expect(mockSetSessions).toHaveBeenCalled();
+
+			// Resolve the naming promise
+			await act(async () => {
+				resolveNaming!('Generated Name');
+			});
+		});
+
+		it('handles tab naming failure gracefully', async () => {
+			mockGenerateTabName.mockRejectedValue(new Error('Tab naming failed'));
+
+			const newTab = createMockTab({
+				agentSessionId: null,
+				name: null,
+			});
+			const session = createMockSession({
+				aiTabs: [newTab],
+				activeTabId: newTab.id,
+			});
+			const deps = createDeps({
+				activeSession: session,
+				sessionsRef: { current: [session] },
+				inputValue: 'Test message',
+				automaticTabNamingEnabled: true,
+			});
+			const { result } = renderHook(() => useInputProcessing(deps));
+
+			// Should not throw
+			await act(async () => {
+				await result.current.processInput();
+			});
+
+			// Tab naming was attempted
+			expect(mockGenerateTabName).toHaveBeenCalled();
+		});
+	});
 });

@@ -2660,10 +2660,18 @@ function MaestroConsoleInner() {
 					// 1. Tab was awaiting session ID (this is a new session, not a resume)
 					// 2. Tab doesn't already have a custom name
 					// 3. Tab has at least one user message in logs
+					console.log('[onSessionId] Checking tab naming conditions', {
+						hasTargetTab: !!targetTab,
+						awaitingSessionId: targetTab?.awaitingSessionId,
+						tabName: targetTab?.name,
+						logsCount: targetTab?.logs.length,
+					});
 					if (targetTab?.awaitingSessionId && !targetTab.name) {
 						const userMessages = targetTab.logs.filter((log) => log.source === 'user');
+						console.log('[onSessionId] User messages found:', userMessages.length);
 						if (userMessages.length > 0) {
 							const firstUserMessage = userMessages[0];
+							console.log('[onSessionId] First user message:', firstUserMessage.text?.substring(0, 50));
 							// Only use text messages for naming (skip image-only messages)
 							if (firstUserMessage.text?.trim()) {
 								tabNamingInfo = {
@@ -2673,6 +2681,7 @@ function MaestroConsoleInner() {
 									cwd: currentSession.cwd,
 									sessionSshRemoteConfig: currentSession.sessionSshRemoteConfig,
 								};
+								console.log('[onSessionId] Tab naming info prepared:', tabNamingInfo.tabId);
 							}
 						}
 					}
@@ -2745,6 +2754,10 @@ function MaestroConsoleInner() {
 				// Trigger automatic tab naming if conditions are met
 				// This runs after the state update so it happens in parallel with the main AI processing
 				// Use ref to access the latest setting value (useEffect has [] deps so we'd get stale value otherwise)
+				console.log('[onSessionId] Checking tab naming trigger', {
+					hasTabNamingInfo: !!tabNamingInfo,
+					automaticTabNamingEnabled: automaticTabNamingEnabledRef.current,
+				});
 				if (tabNamingInfo && automaticTabNamingEnabledRef.current) {
 					console.log('[onSessionId] Triggering automatic tab naming', {
 						tabId: tabNamingInfo.tabId,

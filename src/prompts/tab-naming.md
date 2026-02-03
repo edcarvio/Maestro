@@ -8,9 +8,9 @@ Rules:
 - If too vague, use format: YYYY-MM-DD Topic
 
 Examples:
-"add dark mode to React app" → Dark Mode Toggle
-"bug in auth login flow" → Auth Login Bug
-"refactor DB queries for pooling" → DB Connection Pooling
-"write tests for checkout" → Checkout Tests
-"fix TS errors in parser.ts" → Parser TS Errors
-"help with my code" → 2024-01-15 Code Help
+"add dark mode to React app" = Dark Mode Toggle
+"bug in auth login flow" = Auth Login Bug
+"refactor DB queries for pooling" = DB Connection Pooling
+"write tests for checkout" = Checkout Tests
+"fix TS errors in parser.ts" = Parser TS Errors
+"help with my code" = 2024-01-15 Code Help

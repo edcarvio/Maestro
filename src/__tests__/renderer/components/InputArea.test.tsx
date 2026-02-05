@@ -235,17 +235,18 @@ describe('InputArea', () => {
 			const props = createDefaultProps();
 			render(<InputArea {...props} />);
 
-			const button = screen.getByTitle('Switch to Meta+Enter to send');
+			const button = screen.getByTitle(/Switch to (Cmd|Ctrl)\+Enter to send/);
 			expect(button).toBeInTheDocument();
 			expect(button).toHaveTextContent('Enter');
 		});
 
-		it('renders Cmd+Enter when enterToSend is false', () => {
+		it('renders Cmd+Enter (or Ctrl+Enter on non-Mac) when enterToSend is false', () => {
 			const props = createDefaultProps({ enterToSend: false });
 			render(<InputArea {...props} />);
 
 			const button = screen.getByTitle('Switch to Enter to send');
-			expect(button).toHaveTextContent('⌘ + Enter');
+			// Test environment doesn't have Mac user agent, so it shows Ctrl + Enter
+			expect(button).toHaveTextContent(/⌘ \+ Enter|Ctrl \+ Enter/);
 		});
 	});
 
@@ -1505,7 +1506,7 @@ describe('InputArea', () => {
 			const props = createDefaultProps({ enterToSend: true, setEnterToSend });
 			render(<InputArea {...props} />);
 
-			fireEvent.click(screen.getByTitle('Switch to Meta+Enter to send'));
+			fireEvent.click(screen.getByTitle(/Switch to (Cmd|Ctrl)\+Enter to send/));
 
 			expect(setEnterToSend).toHaveBeenCalledWith(false);
 		});

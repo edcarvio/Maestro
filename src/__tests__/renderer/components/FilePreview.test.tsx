@@ -109,6 +109,7 @@ vi.mock('../../../renderer/utils/tokenCounter', () => ({
 // Mock shortcut formatter
 vi.mock('../../../renderer/utils/shortcutFormatter', () => ({
 	formatShortcutKeys: vi.fn((keys: string) => keys),
+	isMacOS: vi.fn(() => false),
 }));
 
 // Mock remarkFileLinks

@@ -185,8 +185,9 @@ describe('PromptComposerModal', () => {
 				/>
 			);
 
-			// When enterToSend is false, it shows "⌘ + Enter"
-			expect(screen.getByText('⌘ + Enter')).toBeInTheDocument();
+			// When enterToSend is false, it shows "⌘ + Enter" on Mac or "Ctrl + Enter" on other platforms
+			// Test environment doesn't have Mac user agent, so it shows Ctrl + Enter
+			expect(screen.getByText(/⌘ \+ Enter|Ctrl \+ Enter/)).toBeInTheDocument();
 		});
 
 		it('should render close button with X icon', () => {

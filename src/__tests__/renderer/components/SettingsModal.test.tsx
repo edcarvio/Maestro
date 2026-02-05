@@ -38,6 +38,7 @@ vi.mock('../../../renderer/contexts/LayerStackContext', () => ({
 // Mock formatShortcutKeys
 vi.mock('../../../renderer/utils/shortcutFormatter', () => ({
 	formatShortcutKeys: vi.fn((keys: string[]) => keys.join('+')),
+	isMacOS: vi.fn(() => false), // Test environment is not Mac
 }));
 
 // Mock AICommandsPanel
@@ -808,14 +809,15 @@ describe('SettingsModal', () => {
 			expect(setEnterToSendTerminal).toHaveBeenCalledWith(false);
 		});
 
-		it('should display Cmd+Enter when enter-to-send is false', async () => {
+		it('should display Cmd+Enter (or Ctrl+Enter on non-Mac) when enter-to-send is false', async () => {
 			render(<SettingsModal {...createDefaultProps({ enterToSendAI: false })} />);
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(100);
 			});
 
-			expect(screen.getByText('⌘ + Enter')).toBeInTheDocument();
+			// Test environment doesn't have Mac user agent, so it shows Ctrl + Enter
+			expect(screen.getByText(/⌘ \+ Enter|Ctrl \+ Enter/)).toBeInTheDocument();
 		});
 	});
 

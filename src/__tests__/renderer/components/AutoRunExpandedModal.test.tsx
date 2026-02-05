@@ -96,6 +96,7 @@ vi.mock('../../../renderer/components/AutoRun', () => ({
 // Mock shortcut formatter
 vi.mock('../../../renderer/utils/shortcutFormatter', () => ({
 	formatShortcutKeys: vi.fn((keys: string[]) => keys.join('+')),
+	isMacOS: vi.fn(() => false),
 }));
 
 // Create a mock theme for testing

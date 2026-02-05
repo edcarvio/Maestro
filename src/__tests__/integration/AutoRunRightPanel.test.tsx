@@ -119,6 +119,7 @@ vi.mock('../../renderer/components/TemplateAutocompleteDropdown', () => ({
 
 vi.mock('../../renderer/utils/shortcutFormatter', () => ({
 	formatShortcutKeys: vi.fn((keys) => keys?.join('+') || ''),
+	isMacOS: vi.fn(() => false),
 }));
 
 // Create a mock theme for testing

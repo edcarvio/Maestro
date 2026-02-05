@@ -333,9 +333,10 @@ describe('WizardInputPanel', () => {
 			expect(screen.getByText('Enter')).toBeInTheDocument();
 		});
 
-		it('shows "⌘ + Enter" when enterToSend is false', () => {
+		it('shows "⌘ + Enter" (or "Ctrl + Enter" on non-Mac) when enterToSend is false', () => {
 			render(<WizardInputPanel {...defaultProps} enterToSend={false} />);
-			expect(screen.getByText('⌘ + Enter')).toBeInTheDocument();
+			// Test environment doesn't have Mac user agent, so it shows Ctrl + Enter
+			expect(screen.getByText(/⌘ \+ Enter|Ctrl \+ Enter/)).toBeInTheDocument();
 		});
 
 		it('calls setEnterToSend when clicked', () => {

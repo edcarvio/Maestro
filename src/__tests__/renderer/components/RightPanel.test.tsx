@@ -21,6 +21,7 @@ vi.mock('../../../renderer/components/AutoRun', () => ({
 
 vi.mock('../../../renderer/utils/shortcutFormatter', () => ({
 	formatShortcutKeys: vi.fn((keys) => keys.join('+')),
+	isMacOS: vi.fn(() => false),
 }));
 
 // Mock lucide-react

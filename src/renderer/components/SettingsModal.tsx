@@ -49,7 +49,7 @@ import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { AICommandsPanel } from './AICommandsPanel';
 import { SpecKitCommandsPanel } from './SpecKitCommandsPanel';
 import { OpenSpecCommandsPanel } from './OpenSpecCommandsPanel';
-import { formatShortcutKeys } from '../utils/shortcutFormatter';
+import { formatShortcutKeys, isMacOS } from '../utils/shortcutFormatter';
 import { ToggleButtonGroup } from './ToggleButtonGroup';
 import { SettingCheckbox } from './SettingCheckbox';
 import { FontConfigurationPanel } from './FontConfigurationPanel';
@@ -1302,8 +1302,8 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
 									Input Send Behavior
 								</label>
 								<p className="text-xs opacity-50 mb-3">
-									Configure how to send messages in each mode. Choose between Enter or Command+Enter
-									for each input type.
+									Configure how to send messages in each mode. Choose between Enter or{' '}
+									{isMacOS() ? 'Command' : 'Ctrl'}+Enter for each input type.
 								</p>
 
 								{/* AI Mode Setting */}
@@ -1324,13 +1324,13 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
 												border: `1px solid ${theme.colors.border}`,
 											}}
 										>
-											{props.enterToSendAI ? 'Enter' : '⌘ + Enter'}
+											{props.enterToSendAI ? 'Enter' : isMacOS() ? '⌘ + Enter' : 'Ctrl + Enter'}
 										</button>
 									</div>
 									<p className="text-xs opacity-50">
 										{props.enterToSendAI
 											? 'Press Enter to send. Use Shift+Enter for new line.'
-											: 'Press Command+Enter to send. Enter creates new line.'}
+											: `Press ${isMacOS() ? 'Command' : 'Ctrl'}+Enter to send. Enter creates new line.`}
 									</p>
 								</div>
 
@@ -1352,13 +1352,13 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
 												border: `1px solid ${theme.colors.border}`,
 											}}
 										>
-											{props.enterToSendTerminal ? 'Enter' : '⌘ + Enter'}
+											{props.enterToSendTerminal ? 'Enter' : isMacOS() ? '⌘ + Enter' : 'Ctrl + Enter'}
 										</button>
 									</div>
 									<p className="text-xs opacity-50">
 										{props.enterToSendTerminal
 											? 'Press Enter to send. Use Shift+Enter for new line.'
-											: 'Press Command+Enter to send. Enter creates new line.'}
+											: `Press ${isMacOS() ? 'Command' : 'Ctrl'}+Enter to send. Enter creates new line.`}
 									</p>
 								</div>
 							</div>

@@ -20,6 +20,44 @@ Settings are organized into tabs:
 | **AI Commands** | View and edit slash commands, [Spec-Kit](./speckit-commands), and [OpenSpec](./openspec-commands) prompts |
 | **SSH Hosts** | Configure remote hosts for [SSH agent execution](./ssh-remote-execution) |
 
+## Conductor Profile
+
+The **Conductor Profile** (Settings → General → **About Me**) is a short description of yourself that gets injected into every AI agent's system prompt. This helps agents understand your background, preferences, and communication style so they can tailor responses accordingly.
+
+**To configure:**
+1. Open **Settings** (`Cmd+,` / `Ctrl+,`) → **General** tab
+2. Find the **About Me** text area at the top
+3. Write a brief profile describing yourself
+
+### What to Include
+
+A good conductor profile is concise (a few sentences to a short paragraph) and covers:
+
+- **Your role/background**: Developer, researcher, team lead, etc.
+- **Technical context**: Languages you work with, tools you prefer, platforms you use
+- **Communication preferences**: Direct vs. detailed, level of explanation needed
+- **Work style**: Preferences for how agents should approach tasks
+
+### Example Profile
+
+```
+Security researcher. macOS desktop. TypeScript and Python for tools.
+Direct communication, no fluff. Action over process. Push back on bad ideas.
+Generate markdown for Obsidian. CST timezone.
+```
+
+### How Agents Use It
+
+When you start a session, Maestro includes your conductor profile in the system prompt sent to the AI agent. This means:
+
+- Agents adapt their response style to match your preferences
+- Technical context helps agents make appropriate assumptions
+- Communication preferences reduce back-and-forth clarification
+
+### Using in Custom Commands
+
+You can reference your conductor profile in [slash commands](./slash-commands) using the `{{CONDUCTOR_PROFILE}}` template variable. This is useful for commands that need to remind agents of your preferences mid-conversation.
+
 ## Checking for Updates
 
 Maestro checks for updates automatically on startup (configurable in Settings → General → **Check for updates on startup**).
@@ -112,7 +150,6 @@ In-app toast notifications appear in the corner when events occur. Configure how
 Notifications are sent when:
 - An AI task completes (OS notification + optional custom notification)
 - A long-running command finishes (OS notification)
-- The LLM analysis generates a feedback synopsis (custom notification only, if configured)
 
 ## Sleep Prevention
 

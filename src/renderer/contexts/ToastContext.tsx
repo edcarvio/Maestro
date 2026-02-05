@@ -98,7 +98,16 @@ export function ToastProvider({
 		// Capture audio feedback state for logging
 		const { enabled: audioEnabled, command: audioCommand } = audioFeedbackRef.current;
 
+		// Determine if we have content to send for custom notification
+		// Also skip if there's no content to send
+		const hasContent = toast.message && toast.message.trim().length > 0;
+
+		// Determine if custom notification will actually be triggered
+		const willTriggerCustomNotification =
+			audioEnabled && audioCommand && !toast.skipCustomNotification && hasContent;
+
 		// Log toast to system logs (include audio notification info)
+		// Only log enabled: true when we will actually trigger the notification
 		window.maestro.logger.toast(toast.title, {
 			type: toast.type,
 			message: toast.message,
@@ -107,23 +116,29 @@ export function ToastProvider({
 			taskDuration: toast.taskDuration,
 			agentSessionId: toast.agentSessionId,
 			tabName: toast.tabName,
-			// Audio/TTS notification info
-			audioNotification:
-				audioEnabled && audioCommand
-					? {
-							enabled: true,
-							command: audioCommand,
-						}
-					: {
-							enabled: false,
-						},
+			// Audio/TTS notification info - reflects whether notification WILL be triggered
+			audioNotification: willTriggerCustomNotification
+				? {
+						enabled: true,
+						command: audioCommand,
+					}
+				: {
+						enabled: false,
+						reason: !audioEnabled
+							? 'disabled'
+							: !audioCommand
+								? 'no-command'
+								: toast.skipCustomNotification
+									? 'opted-out'
+									: !hasContent
+										? 'no-content'
+										: 'unknown',
+					},
 		});
 
 		// Run custom notification command if enabled and configured
 		// Skip for toasts that explicitly opt out (e.g., synopsis messages)
-		// Also skip if there's no content to send
-		const hasContent = toast.message && toast.message.trim().length > 0;
-		if (audioEnabled && audioCommand && !toast.skipCustomNotification && hasContent) {
+		if (willTriggerCustomNotification) {
 			console.log(
 				'[ToastContext] Running custom notification with message:',
 				toast.message,

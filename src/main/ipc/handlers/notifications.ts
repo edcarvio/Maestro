@@ -364,7 +364,10 @@ export function registerNotificationsHandlers(): void {
 		async (_event, text: string, command?: string): Promise<NotificationCommandResponse> => {
 			// Skip if there's no content to send
 			if (!text || text.trim().length === 0) {
-				logger.debug('Notification skipped - no content to send', 'Notification');
+				logger.info('Notification skipped - empty or whitespace-only content', 'Notification', {
+				textLength: text?.length ?? 0,
+				hasText: !!text,
+			});
 				return { success: true }; // Return success since there's nothing to do
 			}
 

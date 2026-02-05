@@ -126,6 +126,7 @@ vi.mock('../../renderer/components/TemplateAutocompleteDropdown', () => ({
 
 vi.mock('../../renderer/utils/shortcutFormatter', () => ({
 	formatShortcutKeys: vi.fn((keys) => keys?.join('+') || ''),
+	isMacOS: vi.fn(() => false),
 }));
 
 vi.mock('../../renderer/hooks/useGitStatusPolling', () => ({

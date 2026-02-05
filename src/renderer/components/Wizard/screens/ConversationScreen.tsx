@@ -34,6 +34,7 @@ import type { WizardError } from '../services/wizardErrorDetection';
 import { AUTO_RUN_FOLDER_NAME, wizardDebugLogger } from '../services/phaseGenerator';
 import { getNextFillerPhrase } from '../services/fillerPhrases';
 import { ScreenReaderAnnouncement } from '../ScreenReaderAnnouncement';
+import { isMacOS } from '../../../utils/shortcutFormatter';
 
 interface ConversationScreenProps {
 	theme: Theme;
@@ -1613,7 +1614,7 @@ export function ConversationScreen({
 							className="px-1.5 py-0.5 rounded text-xs"
 							style={{ backgroundColor: theme.colors.border }}
 						>
-							⌘+Enter
+							{isMacOS() ? '⌘' : 'Ctrl'}+Enter
 						</kbd>
 						Send
 					</span>

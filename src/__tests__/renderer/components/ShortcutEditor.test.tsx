@@ -14,6 +14,7 @@ import type { Theme, Shortcut } from '../../../renderer/types';
 // Mock the shortcutFormatter module
 vi.mock('../../../renderer/utils/shortcutFormatter', () => ({
 	formatShortcutKeys: vi.fn((keys: string[]) => keys.join('+')),
+	isMacOS: vi.fn(() => false),
 }));
 
 // Import after mock to get the mocked version

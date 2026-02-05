@@ -148,6 +148,7 @@ vi.mock('../../../renderer/utils/tabHelpers', () => ({
 // Mock shortcut formatter
 vi.mock('../../../renderer/utils/shortcutFormatter', () => ({
 	formatShortcutKeys: vi.fn((keys: string[]) => keys?.join('+') || ''),
+	isMacOS: vi.fn(() => false),
 }));
 
 // Configurable git status data for tests - can be modified in individual tests

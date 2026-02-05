@@ -126,6 +126,10 @@ export interface UseSettingsReturn {
 	// Loading state
 	settingsLoaded: boolean;
 
+	// Conductor Profile (About Me)
+	conductorProfile: string;
+	setConductorProfile: (value: string) => void;
+
 	// LLM settings
 	llmProvider: LLMProvider;
 	modelSlug: string;
@@ -360,6 +364,9 @@ export function useSettings(): UseSettingsReturn {
 	// Loading state
 	const [settingsLoaded, setSettingsLoaded] = useState(false);
 
+	// Conductor Profile (About Me) - optional, up to 1000 characters
+	const [conductorProfile, setConductorProfileState] = useState('');
+
 	// LLM Config
 	const [llmProvider, setLlmProviderState] = useState<LLMProvider>('openrouter');
 	const [modelSlug, setModelSlugState] = useState('anthropic/claude-3.5-sonnet');
@@ -517,6 +524,15 @@ export function useSettings(): UseSettingsReturn {
 
 	// Wrapper functions that persist to electron-store
 	// PERF: All wrapped in useCallback to prevent re-renders
+
+	// Conductor Profile (About Me)
+	const setConductorProfile = useCallback((value: string) => {
+		// Enforce 1000 character limit
+		const trimmed = value.slice(0, 1000);
+		setConductorProfileState(trimmed);
+		window.maestro.settings.set('conductorProfile', trimmed);
+	}, []);
+
 	const setLlmProvider = useCallback((value: LLMProvider) => {
 		setLlmProviderState(value);
 		window.maestro.settings.set('llmProvider', value);
@@ -1344,6 +1360,7 @@ export function useSettings(): UseSettingsReturn {
 				const allSettings = (await window.maestro.settings.getAll()) as Record<string, unknown>;
 
 				// Extract settings from the batch response
+				const savedConductorProfile = allSettings['conductorProfile'];
 				const savedEnterToSendAI = allSettings['enterToSendAI'];
 				const savedEnterToSendTerminal = allSettings['enterToSendTerminal'];
 				const savedDefaultSaveToHistory = allSettings['defaultSaveToHistory'];
@@ -1410,6 +1427,9 @@ export function useSettings(): UseSettingsReturn {
 				const savedAutomaticTabNamingEnabled = allSettings['automaticTabNamingEnabled'];
 				const savedFileTabAutoRefreshEnabled = allSettings['fileTabAutoRefreshEnabled'];
 				const savedSuppressWindowsWarning = allSettings['suppressWindowsWarning'];
+
+				// Conductor Profile (About Me)
+				if (savedConductorProfile !== undefined) setConductorProfileState(savedConductorProfile as string);
 
 				if (savedEnterToSendAI !== undefined) setEnterToSendAIState(savedEnterToSendAI as boolean);
 				if (savedEnterToSendTerminal !== undefined)
@@ -1814,6 +1834,8 @@ export function useSettings(): UseSettingsReturn {
 	return useMemo(
 		() => ({
 			settingsLoaded,
+			conductorProfile,
+			setConductorProfile,
 			llmProvider,
 			modelSlug,
 			apiKey,
@@ -1963,6 +1985,7 @@ export function useSettings(): UseSettingsReturn {
 		[
 			// State values
 			settingsLoaded,
+			conductorProfile,
 			llmProvider,
 			modelSlug,
 			apiKey,
@@ -2008,6 +2031,7 @@ export function useSettings(): UseSettingsReturn {
 			firstAutoRunCompleted,
 			onboardingStats,
 			// Setter functions (stable via useCallback)
+			setConductorProfile,
 			setLlmProvider,
 			setModelSlug,
 			setApiKey,

@@ -31,6 +31,7 @@ import {
 	Monitor,
 	PartyPopper,
 	Tag,
+	User,
 } from 'lucide-react';
 import { useSettings } from '../hooks';
 import type {
@@ -283,6 +284,9 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
 
 	// Context management settings from useSettings hook
 	const {
+		// Conductor Profile (About Me)
+		conductorProfile,
+		setConductorProfile,
 		contextManagementSettings,
 		updateContextManagementSettings,
 		// Document Graph settings
@@ -951,6 +955,44 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
 				<div className="flex-1 p-6 overflow-y-auto scrollbar-thin">
 					{activeTab === 'general' && (
 						<div className="space-y-5">
+							{/* About Me (Conductor Profile) */}
+							<div>
+								<label className="block text-xs font-bold opacity-70 uppercase mb-1 flex items-center gap-2">
+									<User className="w-3 h-3" />
+									About Me
+								</label>
+								<p className="text-xs opacity-50 mb-2">
+									Tell us a little about yourself so that agents created under Maestro know how to
+									work and communicate with you. As the conductor, you orchestrate the symphony of AI
+									agents. (Optional, max 1000 characters)
+								</p>
+								<div className="relative">
+									<textarea
+										value={conductorProfile}
+										onChange={(e) => setConductorProfile(e.target.value)}
+										placeholder="e.g., I'm a senior developer working on a React/TypeScript project. I prefer concise explanations and clean code patterns..."
+										className="w-full p-3 rounded border bg-transparent outline-none text-sm resize-none"
+										style={{
+											borderColor: theme.colors.border,
+											color: theme.colors.textMain,
+											minHeight: '100px',
+										}}
+										maxLength={1000}
+									/>
+									<div
+										className="absolute bottom-2 right-2 text-xs"
+										style={{
+											color:
+												conductorProfile.length > 900
+													? theme.colors.warning
+													: theme.colors.textDim,
+										}}
+									>
+										{conductorProfile.length}/1000
+									</div>
+								</div>
+							</div>
+
 							{/* Default Shell */}
 							<div>
 								<label className="block text-xs font-bold opacity-70 uppercase mb-1 flex items-center gap-2">

@@ -96,6 +96,8 @@ export interface InlineWizardConversationConfig {
 		remoteId: string | null;
 		workingDirOverride?: string;
 	};
+	/** Conductor profile (user's About Me from settings) */
+	conductorProfile?: string;
 }
 
 /**
@@ -223,6 +225,7 @@ export function generateInlineWizardPrompt(config: InlineWizardConversationConfi
 			autoRunFolderPath: autoRunFolderPath,
 		},
 		autoRunFolder: autoRunFolderPath,
+		conductorProfile: config.conductorProfile,
 	};
 
 	// Substitute any remaining template variables

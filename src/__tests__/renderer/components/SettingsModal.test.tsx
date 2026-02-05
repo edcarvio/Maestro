@@ -68,6 +68,10 @@ vi.mock('../../../renderer/components/CustomThemeBuilder', () => ({
 // Mock useSettings hook (used for context management settings and SSH remote ignore settings)
 vi.mock('../../../renderer/hooks/settings/useSettings', () => ({
 	useSettings: () => ({
+		// Conductor profile settings
+		conductorProfile: '',
+		setConductorProfile: vi.fn(),
+		// Context management settings
 		contextManagementSettings: {
 			autoGroomContexts: true,
 			maxContextTokens: 100000,

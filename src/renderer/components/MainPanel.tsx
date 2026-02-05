@@ -977,7 +977,7 @@ export const MainPanel = React.memo(
 															<GitBranch className="w-3 h-3 shrink-0" />
 															{/* Hide branch name text at narrow widths, show on hover via title */}
 															{!useIconOnlyGitBranch && (
-																<span className="truncate max-w-[120px]">
+																<span className="truncate">
 																	{gitInfo?.branch || 'GIT'}
 																</span>
 															)}

@@ -149,6 +149,8 @@ export interface InlineWizardState {
 		remoteId: string | null;
 		workingDirOverride?: string;
 	};
+	/** Conductor profile (user's About Me from settings) */
+	conductorProfile?: string;
 }
 
 /**
@@ -206,6 +208,7 @@ export interface UseInlineWizardReturn {
 	 * @param sessionId - The session ID for playbook creation
 	 * @param autoRunFolderPath - User-configured Auto Run folder path (if set, overrides default projectPath/Auto Run Docs)
 	 * @param sessionSshRemoteConfig - SSH remote configuration (for remote execution)
+	 * @param conductorProfile - Conductor profile (user's About Me from settings)
 	 */
 	startWizard: (
 		naturalLanguageInput?: string,
@@ -220,7 +223,8 @@ export interface UseInlineWizardReturn {
 			enabled: boolean;
 			remoteId: string | null;
 			workingDirOverride?: string;
-		}
+		},
+		conductorProfile?: string
 	) => Promise<void>;
 	/** End the wizard and restore previous UI state */
 	endWizard: () => Promise<PreviousUIState | null>;
@@ -467,7 +471,8 @@ export function useInlineWizard(): UseInlineWizardReturn {
 				enabled: boolean;
 				remoteId: string | null;
 				workingDirOverride?: string;
-			}
+			},
+			conductorProfile?: string
 		): Promise<void> => {
 			// Tab ID is required for per-tab wizard management
 			const effectiveTabId = tabId || 'default';
@@ -524,6 +529,7 @@ export function useInlineWizard(): UseInlineWizardReturn {
 				subfolderPath: null,
 				autoRunFolderPath: effectiveAutoRunFolderPath,
 				sessionSshRemoteConfig,
+				conductorProfile,
 			}));
 
 			try {
@@ -600,6 +606,7 @@ export function useInlineWizard(): UseInlineWizardReturn {
 						existingDocs: docsWithContent.length > 0 ? docsWithContent : undefined,
 						autoRunFolderPath: effectiveAutoRunFolderPath,
 						sessionSshRemoteConfig,
+						conductorProfile,
 					});
 
 					// Store conversation session per-tab
@@ -756,6 +763,7 @@ export function useInlineWizard(): UseInlineWizardReturn {
 						existingDocs: undefined,
 						autoRunFolderPath: effectiveAutoRunFolderPath,
 						sessionSshRemoteConfig: currentState.sessionSshRemoteConfig,
+						conductorProfile: currentState.conductorProfile,
 					});
 					conversationSessionsMap.current.set(tabId, session);
 					// Update mode to 'new' since we're proceeding with a new plan
@@ -937,6 +945,7 @@ export function useInlineWizard(): UseInlineWizardReturn {
 						existingDocs: undefined, // Will be loaded separately if needed
 						autoRunFolderPath: effectiveAutoRunFolderPath,
 						sessionSshRemoteConfig: currentState.sessionSshRemoteConfig,
+						conductorProfile: currentState.conductorProfile,
 					});
 
 					conversationSessionsMap.current.set(tabId, session);
@@ -1191,6 +1200,7 @@ export function useInlineWizard(): UseInlineWizardReturn {
 					autoRunFolderPath: effectiveAutoRunFolderPath,
 					sessionId: currentState.sessionId || undefined,
 					sessionSshRemoteConfig: currentState.sessionSshRemoteConfig,
+					conductorProfile: currentState.conductorProfile,
 					callbacks: {
 						onStart: () => {
 							console.log('[useInlineWizard] Document generation started');

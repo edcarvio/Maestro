@@ -453,6 +453,7 @@ function MaestroConsoleInner() {
 	const settings = useSettings();
 	const {
 		settingsLoaded,
+		conductorProfile,
 		llmProvider,
 		setLlmProvider,
 		modelSlug,
@@ -4551,6 +4552,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 						const substitutedSystemPrompt = substituteTemplateVariables(maestroSystemPrompt, {
 							session: targetSession,
 							gitBranch,
+							conductorProfile,
 						});
 						effectivePrompt = `${substitutedSystemPrompt}\n\n---\n\n# User Request\n\n${effectivePrompt}`;
 					}
@@ -7497,7 +7499,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 				activeTab.id, // Tab ID for per-tab isolation
 				activeSession.id, // Session ID for playbook creation
 				activeSession.autoRunFolderPath, // User-configured Auto Run folder path (if set)
-				activeSession.sessionSshRemoteConfig // SSH remote config for remote execution
+				activeSession.sessionSshRemoteConfig, // SSH remote config for remote execution
+				conductorProfile // Conductor profile (user's About Me from settings)
 			);
 
 			// Rename the tab to "Wizard" immediately when wizard starts
@@ -7526,7 +7529,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 			};
 			addLogToActiveTab(activeSession.id, wizardLog);
 		},
-		[activeSession, startInlineWizard, addLogToActiveTab]
+		[activeSession, startInlineWizard, addLogToActiveTab, conductorProfile]
 	);
 
 	// Launch wizard in a new tab - triggered from Auto Run panel button
@@ -7580,7 +7583,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 				newTab.id,
 				activeSession.id,
 				activeSession.autoRunFolderPath, // User-configured Auto Run folder path (if set)
-				activeSession.sessionSshRemoteConfig // SSH remote config for remote execution
+				activeSession.sessionSshRemoteConfig, // SSH remote config for remote execution
+				conductorProfile // Conductor profile (user's About Me from settings)
 			);
 
 			// Show a system log entry
@@ -7597,6 +7601,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		defaultShowThinking,
 		startInlineWizard,
 		addLogToTab,
+		conductorProfile,
 	]);
 
 	// Determine if wizard is active for the current tab
@@ -7634,6 +7639,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		isWizardActive: isWizardActiveForCurrentTab,
 		onSkillsCommand: handleSkillsCommand,
 		automaticTabNamingEnabled,
+		conductorProfile,
 	});
 
 	// Auto-send context when a tab with autoSendOnActivate becomes active
@@ -10113,6 +10119,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 					promptToSend = substituteTemplateVariables(matchingCommand.prompt, {
 						session,
 						gitBranch,
+						conductorProfile,
 					});
 					commandMetadata = {
 						command: matchingCommand.command,
@@ -10411,6 +10418,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 					const substitutedSystemPrompt = substituteTemplateVariables(maestroSystemPrompt, {
 						session,
 						gitBranch,
+						conductorProfile,
 					});
 
 					// Prepend system prompt to user's message
@@ -10482,6 +10490,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 					const substitutedPrompt = substituteTemplateVariables(promptWithArgs, {
 						session,
 						gitBranch,
+						conductorProfile,
 					});
 
 					// For NEW sessions (no agentSessionId), prepend Maestro system prompt
@@ -10494,6 +10503,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 						const substitutedSystemPrompt = substituteTemplateVariables(maestroSystemPrompt, {
 							session,
 							gitBranch,
+							conductorProfile,
 						});
 
 						// Prepend system prompt to command's prompt (for agent only)

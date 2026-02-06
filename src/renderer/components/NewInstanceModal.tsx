@@ -785,7 +785,9 @@ export function NewInstanceModal({
 													)}
 													<span className="font-medium">{agent.name}</span>
 													{/* "Beta" badge for Codex, OpenCode, and Factory Droid */}
-													{(agent.id === 'codex' || agent.id === 'opencode' || agent.id === 'factory-droid') && (
+													{(agent.id === 'codex' ||
+														agent.id === 'opencode' ||
+														agent.id === 'factory-droid') && (
 														<span
 															className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase"
 															style={{
@@ -1748,6 +1750,7 @@ export function EditAgentModal({
 								onRefreshAgent={handleRefreshAgent}
 								refreshingAgent={refreshingAgent}
 								showBuiltInEnvVars
+								isSshEnabled={isSshEnabled}
 							/>
 						</div>
 					)}

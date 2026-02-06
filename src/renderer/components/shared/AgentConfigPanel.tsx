@@ -258,6 +258,8 @@ export interface AgentConfigPanelProps {
 	compact?: boolean;
 	// Show built-in environment variables section
 	showBuiltInEnvVars?: boolean;
+	// SSH remote execution enabled for this session
+	isSshEnabled?: boolean;
 }
 
 export function AgentConfigPanel({
@@ -287,6 +289,7 @@ export function AgentConfigPanel({
 	refreshingAgent = false,
 	compact = false,
 	showBuiltInEnvVars = false,
+	isSshEnabled = false,
 }: AgentConfigPanelProps): JSX.Element {
 	const padding = compact ? 'p-2' : 'p-3';
 	const spacing = compact ? 'space-y-2' : 'space-y-3';
@@ -350,6 +353,7 @@ export function AgentConfigPanel({
 	return (
 		<div className={spacing}>
 			{/* Path input - pre-filled with detected path, editable to override */}
+			{/* When SSH is enabled and no custom path is set, show the remote binary name instead of local path */}
 			<div
 				className={`${padding} rounded border`}
 				style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgMain }}
@@ -358,8 +362,8 @@ export function AgentConfigPanel({
 					className="block text-xs font-medium mb-2 flex items-center justify-between"
 					style={{ color: theme.colors.textDim }}
 				>
-					<span>Path</span>
-					{onRefreshAgent && (
+					<span>{isSshEnabled ? 'Remote Command' : 'Path'}</span>
+					{onRefreshAgent && !isSshEnabled && (
 						<button
 							onClick={onRefreshAgent}
 							className="p-1 rounded hover:bg-white/10 transition-colors flex items-center gap-1"
@@ -374,7 +378,7 @@ export function AgentConfigPanel({
 				<div className="flex gap-2">
 					<input
 						type="text"
-						value={customPath || agent.path || ''}
+						value={customPath || (isSshEnabled ? agent.binaryName : agent.path) || ''}
 						onChange={(e) => onCustomPathChange(e.target.value)}
 						onBlur={onCustomPathBlur}
 						onClick={(e) => e.stopPropagation()}
@@ -382,7 +386,7 @@ export function AgentConfigPanel({
 						className="flex-1 p-2 rounded border bg-transparent outline-none text-xs font-mono"
 						style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
 					/>
-					{customPath && customPath !== agent.path && (
+					{customPath && customPath !== (isSshEnabled ? agent.binaryName : agent.path) && (
 						<button
 							onClick={(e) => {
 								e.stopPropagation();
@@ -390,14 +394,16 @@ export function AgentConfigPanel({
 							}}
 							className="px-2 py-1.5 rounded text-xs"
 							style={{ backgroundColor: theme.colors.bgActivity, color: theme.colors.textDim }}
-							title="Reset to detected path"
+							title={isSshEnabled ? 'Reset to remote binary name' : 'Reset to detected path'}
 						>
 							Reset
 						</button>
 					)}
 				</div>
 				<p className="text-xs opacity-50 mt-2">
-					Path to the {agent.binaryName} binary. Edit to override the auto-detected path.
+					{isSshEnabled
+						? `Remote command/binary for ${agent.binaryName}. Leave empty to use default.`
+						: `Path to the ${agent.binaryName} binary. Edit to override the auto-detected path.`}
 				</p>
 			</div>
 

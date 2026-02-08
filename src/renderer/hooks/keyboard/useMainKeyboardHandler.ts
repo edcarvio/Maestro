@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Session, AITab, ThinkingMode } from '../../types';
 import { getInitialRenameValue } from '../../utils/tabHelpers';
+import { useModalStore } from '../../stores/modalStore';
 
 /**
  * Context object passed to the main keyboard handler via ref.
@@ -498,14 +499,13 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 					} else if (closeResult.type === 'ai' && closeResult.tabId) {
 						// AI tab - need to handle wizard confirmation
 						if (closeResult.isWizardTab) {
-							ctx.setConfirmModalMessage(
-								'Close this wizard? Your progress will be lost and cannot be restored.'
-							);
-							ctx.setConfirmModalOnConfirm(() => () => {
-								ctx.performTabClose(closeResult.tabId);
-								trackShortcut('closeTab');
+							useModalStore.getState().openModal('confirm', {
+								message: 'Close this wizard? Your progress will be lost and cannot be restored.',
+								onConfirm: () => {
+									ctx.performTabClose(closeResult.tabId);
+									trackShortcut('closeTab');
+								},
 							});
-							ctx.setConfirmModalOpen(true);
 						} else {
 							// Regular AI tab - close it using performTabClose
 							// This ensures the tab is added to unifiedClosedTabHistory for Cmd+Shift+T

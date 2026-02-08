@@ -286,6 +286,8 @@ export interface AppConfirmModalsProps {
 	confirmModalOpen: boolean;
 	confirmModalMessage: string;
 	confirmModalOnConfirm: (() => void) | null;
+	confirmModalTitle?: string;
+	confirmModalDestructive?: boolean;
 	onCloseConfirmModal: () => void;
 
 	// Quit Confirm Modal
@@ -309,6 +311,8 @@ export function AppConfirmModals({
 	confirmModalOpen,
 	confirmModalMessage,
 	confirmModalOnConfirm,
+	confirmModalTitle,
+	confirmModalDestructive,
 	onCloseConfirmModal,
 	// Quit Confirm Modal
 	quitConfirmModalOpen,
@@ -327,6 +331,8 @@ export function AppConfirmModals({
 			{confirmModalOpen && (
 				<ConfirmModal
 					theme={theme}
+					title={confirmModalTitle}
+					destructive={confirmModalDestructive}
 					message={confirmModalMessage}
 					onConfirm={confirmModalOnConfirm}
 					onClose={onCloseConfirmModal}
@@ -1742,6 +1748,8 @@ export interface AppModalsProps {
 	confirmModalOpen: boolean;
 	confirmModalMessage: string;
 	confirmModalOnConfirm: (() => void) | null;
+	confirmModalTitle?: string;
+	confirmModalDestructive?: boolean;
 	onCloseConfirmModal: () => void;
 	quitConfirmModalOpen: boolean;
 	onConfirmQuit: () => void;
@@ -2098,6 +2106,8 @@ export function AppModals(props: AppModalsProps) {
 		confirmModalOpen,
 		confirmModalMessage,
 		confirmModalOnConfirm,
+		confirmModalTitle,
+		confirmModalDestructive,
 		onCloseConfirmModal,
 		quitConfirmModalOpen,
 		onConfirmQuit,
@@ -2371,6 +2381,8 @@ export function AppModals(props: AppModalsProps) {
 				confirmModalOpen={confirmModalOpen}
 				confirmModalMessage={confirmModalMessage}
 				confirmModalOnConfirm={confirmModalOnConfirm}
+				confirmModalTitle={confirmModalTitle}
+				confirmModalDestructive={confirmModalDestructive}
 				onCloseConfirmModal={onCloseConfirmModal}
 				quitConfirmModalOpen={quitConfirmModalOpen}
 				onConfirmQuit={onConfirmQuit}

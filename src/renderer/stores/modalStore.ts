@@ -70,6 +70,8 @@ export interface QuickActionModalData {
 export interface ConfirmModalData {
 	message: string;
 	onConfirm: () => void;
+	title?: string;
+	destructive?: boolean;
 }
 
 /** Rename instance modal data */
@@ -878,6 +880,8 @@ export function useModalActions() {
 		confirmModalOpen,
 		confirmModalMessage: confirmData?.message ?? '',
 		confirmModalOnConfirm: confirmData?.onConfirm ?? null,
+		confirmModalTitle: confirmData?.title,
+		confirmModalDestructive: confirmData?.destructive,
 
 		// Quit Confirmation Modal
 		quitConfirmModalOpen,

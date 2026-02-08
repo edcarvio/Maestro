@@ -1098,23 +1098,17 @@ export function DocumentsPanel({
 												</span>
 											)}
 
-											{/* Remove Button (invisible placeholder when not applicable) */}
-											{doc.isDuplicate || documents.length > 1 || doc.isMissing ? (
-												<button
-													onClick={() => handleRemoveDocument(doc.id)}
-													className="p-1 rounded hover:bg-white/10 transition-colors shrink-0"
-													style={{
-														color: doc.isMissing ? theme.colors.error : theme.colors.textDim,
-													}}
-													title={doc.isMissing ? 'Remove missing document' : 'Remove document'}
-												>
-													<X className="w-3.5 h-3.5" />
-												</button>
-											) : (
-												<span className="p-1 shrink-0 invisible">
-													<X className="w-3.5 h-3.5" />
-												</span>
-											)}
+											{/* Remove Button */}
+											<button
+												onClick={() => handleRemoveDocument(doc.id)}
+												className="p-1 rounded hover:bg-white/10 transition-colors shrink-0"
+												style={{
+													color: doc.isMissing ? theme.colors.error : theme.colors.textDim,
+												}}
+												title={doc.isMissing ? 'Remove missing document' : 'Remove document'}
+											>
+												<X className="w-3.5 h-3.5" />
+											</button>
 										</div>
 
 										{/* Drop Indicator Line - After (only for last item) */}

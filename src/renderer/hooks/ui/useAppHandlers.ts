@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session, FocusArea } from '../../types';
 import { shouldOpenExternally, getAllFolderPaths } from '../../utils/fileExplorer';
+import { useModalStore } from '../../stores/modalStore';
 
 /** Loading state for file preview (shown while fetching remote files) */
 export interface FilePreviewLoading {
@@ -196,13 +197,13 @@ export function useAppHandlers(deps: UseAppHandlersDeps): UseAppHandlersReturn {
 
 				// Check if file should be opened externally (only for local files)
 				if (!sshRemoteId && shouldOpenExternally(node.name)) {
-					// Show confirmation modal before opening externally
-					setConfirmModalMessage(`Open "${node.name}" in external application?`);
-					setConfirmModalOnConfirm(() => async () => {
-						await window.maestro.shell.openExternal(`file://${fullPath}`);
-						setConfirmModalOpen(false);
+					// Show confirmation modal before opening externally (use openModal atomically)
+					useModalStore.getState().openModal('confirm', {
+						message: `Open "${node.name}" in external application?`,
+						onConfirm: async () => {
+							await window.maestro.shell.openExternal(`file://${fullPath}`);
+						},
 					});
-					setConfirmModalOpen(true);
 					return;
 				}
 

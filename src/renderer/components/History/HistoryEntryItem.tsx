@@ -83,6 +83,8 @@ export const HistoryEntryItem = memo(function HistoryEntryItem({
 	const colors = getPillColor(entry.type, theme);
 	const Icon = getEntryIcon(entry.type);
 
+	const agentName = showAgentName ? (entry as HistoryEntry & { agentName?: string }).agentName : undefined;
+
 	return (
 		<div
 			onClick={() => onOpenDetailModal(entry, index)}
@@ -94,9 +96,42 @@ export const HistoryEntryItem = memo(function HistoryEntryItem({
 				outlineOffset: '1px',
 			}}
 		>
-			{/* Header Row */}
+			{/* Header Row - agent name, session pill, type pill left-justified; timestamp right-justified */}
 			<div className="flex items-center justify-between mb-2 gap-2">
 				<div className="flex items-center gap-2 min-w-0 flex-1">
+					{/* Agent Name - shown in unified history view */}
+					{agentName && (
+						<h3
+							className="text-sm font-bold truncate flex-shrink-0"
+							style={{ color: theme.colors.textMain, maxWidth: '40%' }}
+							title={agentName}
+						>
+							{agentName}
+						</h3>
+					)}
+
+					{/* Session Name or ID Octet (clickable) */}
+					{entry.agentSessionId && (
+						<button
+							onClick={(e) => {
+								e.stopPropagation();
+								onOpenSessionAsTab?.(entry.agentSessionId!);
+							}}
+							className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors hover:opacity-80 min-w-0 max-w-[200px] flex-shrink-0 ${entry.sessionName ? '' : 'font-mono uppercase'}`}
+							style={{
+								backgroundColor: theme.colors.accent + '20',
+								color: theme.colors.accent,
+								border: `1px solid ${theme.colors.accent}40`,
+							}}
+							title={entry.sessionName || entry.agentSessionId}
+						>
+							<span className="truncate">
+								{entry.sessionName || entry.agentSessionId.split('-')[0].toUpperCase()}
+							</span>
+							<ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
+						</button>
+					)}
+
 					{/* Success/Failure Indicator for AUTO entries */}
 					{entry.type === 'AUTO' && entry.success !== undefined && (
 						<span
@@ -147,43 +182,6 @@ export const HistoryEntryItem = memo(function HistoryEntryItem({
 						<Icon className="w-2.5 h-2.5" />
 						{entry.type}
 					</span>
-
-					{/* Agent Name - shown in unified history view */}
-					{showAgentName && (entry as HistoryEntry & { agentName?: string }).agentName && (
-						<span
-							className="px-2 py-0.5 rounded-full text-[10px] font-bold truncate max-w-[120px]"
-							style={{
-								backgroundColor: theme.colors.bgActivity,
-								color: theme.colors.textMain,
-								border: `1px solid ${theme.colors.border}`,
-							}}
-							title={(entry as HistoryEntry & { agentName?: string }).agentName}
-						>
-							{(entry as HistoryEntry & { agentName?: string }).agentName}
-						</span>
-					)}
-
-					{/* Session Name or ID Octet (clickable) - opens session as new tab */}
-					{entry.agentSessionId && (
-						<button
-							onClick={(e) => {
-								e.stopPropagation();
-								onOpenSessionAsTab?.(entry.agentSessionId!);
-							}}
-							className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors hover:opacity-80 min-w-0 max-w-[200px] ${entry.sessionName ? '' : 'font-mono uppercase'}`}
-							style={{
-								backgroundColor: theme.colors.accent + '20',
-								color: theme.colors.accent,
-								border: `1px solid ${theme.colors.accent}40`,
-							}}
-							title={entry.sessionName || entry.agentSessionId}
-						>
-							<span className="truncate">
-								{entry.sessionName || entry.agentSessionId.split('-')[0].toUpperCase()}
-							</span>
-							<ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
-						</button>
-					)}
 				</div>
 
 				{/* Timestamp */}

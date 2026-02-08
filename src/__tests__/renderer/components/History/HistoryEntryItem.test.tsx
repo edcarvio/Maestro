@@ -195,7 +195,7 @@ describe('HistoryEntryItem', () => {
 		expect(onOpenDetailModal).toHaveBeenCalledWith(entry, 3);
 	});
 
-	it('shows agent name when showAgentName prop is true', () => {
+	it('shows agent name as a heading when showAgentName prop is true', () => {
 		const entryWithAgent = {
 			...createMockEntry(),
 			agentName: 'TestAgent',
@@ -210,7 +210,10 @@ describe('HistoryEntryItem', () => {
 				showAgentName
 			/>
 		);
-		expect(screen.getByText('TestAgent')).toBeInTheDocument();
+		const heading = screen.getByTitle('TestAgent');
+		expect(heading).toBeInTheDocument();
+		expect(heading.tagName).toBe('H3');
+		expect(heading).toHaveClass('text-sm', 'font-bold');
 	});
 
 	it('does not show agent name when showAgentName is false', () => {

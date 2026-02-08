@@ -184,6 +184,9 @@ export function HistoryDetailModal({
 	const colors = getPillColor();
 	const Icon = entry.type === 'AUTO' ? Bot : User;
 
+	// Access agentName from unified history entries (Director's Notes)
+	const agentName = (entry as HistoryEntry & { agentName?: string }).agentName;
+
 	// For AUTO entries:
 	//   - summary = short 1-2 sentence synopsis (shown in list view and toast)
 	//   - fullResponse = complete synopsis with details (shown in detail view)
@@ -220,11 +223,22 @@ export function HistoryDetailModal({
 					</button>
 
 					<div className="flex flex-col gap-3 pr-8">
-						{/* Session Name - prominent header when available */}
-						{entry.sessionName && (
+						{/* Agent Name - shown as prominent header when available (from Director's Notes) */}
+						{agentName && (
 							<h2
 								className="text-lg font-bold truncate"
 								style={{ color: theme.colors.textMain }}
+								title={agentName}
+							>
+								{agentName}
+							</h2>
+						)}
+
+						{/* Session Name - shown as header if no agent name, or as subheading if agent name is present */}
+						{entry.sessionName && (
+							<h2
+								className={`truncate ${agentName ? 'text-sm font-medium' : 'text-lg font-bold'}`}
+								style={{ color: agentName ? theme.colors.textDim : theme.colors.textMain }}
 								title={entry.sessionName}
 							>
 								{entry.sessionName}
@@ -282,6 +296,21 @@ export function HistoryDetailModal({
 								<Icon className="w-2.5 h-2.5" />
 								{entry.type}
 							</span>
+
+							{/* Agent Name Pill - shown inline when agentName exists but isn't already in the header */}
+							{agentName && !entry.sessionName && (
+								<span
+									className="px-2 py-0.5 rounded-full text-[10px] font-bold truncate max-w-[200px]"
+									style={{
+										backgroundColor: theme.colors.bgActivity,
+										color: theme.colors.textMain,
+										border: `1px solid ${theme.colors.border}`,
+									}}
+									title={agentName}
+								>
+									{agentName}
+								</span>
+							)}
 
 							{/* Session ID Octet - copyable */}
 							{entry.agentSessionId && (

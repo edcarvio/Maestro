@@ -1421,6 +1421,76 @@ describe('HistoryDetailModal', () => {
 			// Should render without error
 			expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
 		});
+
+		it('should display agentName as prominent header when present', () => {
+			const entryWithAgent = {
+				...createMockEntry({ summary: 'Did some work' }),
+				agentName: 'My Project Session',
+			} as HistoryEntry;
+
+			render(
+				<HistoryDetailModal
+					theme={mockTheme}
+					entry={entryWithAgent}
+					onClose={mockOnClose}
+				/>
+			);
+
+			// Both the h2 header and the inline pill share the same title
+			const elements = screen.getAllByTitle('My Project Session');
+			const agentHeader = elements.find(el => el.tagName === 'H2');
+			expect(agentHeader).toBeDefined();
+			expect(agentHeader).toBeInTheDocument();
+			expect(agentHeader).toHaveClass('text-lg', 'font-bold');
+		});
+
+		it('should show sessionName as subheading when both agentName and sessionName exist', () => {
+			const entryWithBoth = {
+				...createMockEntry({ sessionName: 'Tab Name' }),
+				agentName: 'Session Name',
+			} as HistoryEntry;
+
+			render(
+				<HistoryDetailModal
+					theme={mockTheme}
+					entry={entryWithBoth}
+					onClose={mockOnClose}
+				/>
+			);
+
+			// agentName is the prominent header
+			const agentHeader = screen.getByTitle('Session Name');
+			expect(agentHeader).toHaveClass('text-lg', 'font-bold');
+
+			// sessionName is the smaller subheading
+			const sessionHeader = screen.getByTitle('Tab Name');
+			expect(sessionHeader).toHaveClass('text-sm', 'font-medium');
+		});
+
+		it('should show agentName pill inline when agentName exists but sessionName does not', () => {
+			const entryWithAgentOnly = {
+				...createMockEntry({ summary: 'Work done' }),
+				agentName: 'Pill Agent',
+			} as HistoryEntry;
+			// Ensure no sessionName
+			delete (entryWithAgentOnly as any).sessionName;
+
+			render(
+				<HistoryDetailModal
+					theme={mockTheme}
+					entry={entryWithAgentOnly}
+					onClose={mockOnClose}
+				/>
+			);
+
+			// Agent name pill should be in the metadata row
+			const pills = screen.getAllByTitle('Pill Agent');
+			// One is the header h2, the other is the pill in metadata row
+			expect(pills.length).toBe(2);
+			const pillElement = pills.find(el => el.tagName === 'SPAN');
+			expect(pillElement).toBeDefined();
+			expect(pillElement).toHaveClass('rounded-full', 'text-[10px]', 'font-bold');
+		});
 	});
 
 	describe('Theme Styling', () => {

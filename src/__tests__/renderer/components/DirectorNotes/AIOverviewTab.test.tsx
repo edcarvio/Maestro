@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { AIOverviewTab } from '../../../../renderer/components/DirectorNotes/AIOverviewTab';
+import { AIOverviewTab, _resetCacheForTesting } from '../../../../renderer/components/DirectorNotes/AIOverviewTab';
 import type { Theme } from '../../../../renderer/types';
 
 // Mock useSettings hook
@@ -70,6 +70,9 @@ const mockEstimateTokens = vi.fn();
 const mockGenerateSynopsis = vi.fn();
 
 beforeEach(() => {
+	// Reset module-level synopsis cache so each test starts fresh
+	_resetCacheForTesting();
+
 	(window as any).maestro = {
 		directorNotes: {
 			getUnifiedHistory: mockGetUnifiedHistory,
@@ -144,10 +147,10 @@ describe('AIOverviewTab', () => {
 			filter: null,
 		});
 		expect(mockEstimateTokens).toHaveBeenCalledWith(mockEntries);
-		expect(mockGenerateSynopsis).toHaveBeenCalledWith({
+		expect(mockGenerateSynopsis).toHaveBeenCalledWith(expect.objectContaining({
 			lookbackDays: 7,
 			provider: 'claude-code',
-		});
+		}));
 	});
 
 	it('calls onSynopsisReady when synopsis is generated', async () => {

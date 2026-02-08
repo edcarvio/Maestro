@@ -21,12 +21,14 @@ interface UnifiedHistoryTabProps {
 	theme: Theme;
 	fileTree?: FileNode[];
 	onFileClick?: (path: string) => void;
+	searchFilter?: string;
 }
 
 export function UnifiedHistoryTab({
 	theme,
 	fileTree,
 	onFileClick,
+	searchFilter = '',
 }: UnifiedHistoryTabProps) {
 	const { directorNotesSettings } = useSettings();
 	const [entries, setEntries] = useState<UnifiedHistoryEntry[]>([]);
@@ -34,7 +36,6 @@ export function UnifiedHistoryTab({
 	const [activeFilters, setActiveFilters] = useState<Set<HistoryEntryType>>(new Set(['AUTO', 'USER']));
 	const [lookbackDays, setLookbackDays] = useState(directorNotesSettings.defaultLookbackDays);
 	const [detailModalEntry, setDetailModalEntry] = useState<HistoryEntry | null>(null);
-	const [searchFilter, setSearchFilter] = useState('');
 
 	const listRef = useRef<HTMLDivElement>(null);
 
@@ -128,11 +129,6 @@ export function UnifiedHistoryTab({
 	}, [selectedIndex, virtualizer]);
 
 	const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-		if (e.key === 'f' && (e.metaKey || e.ctrlKey)) {
-			e.preventDefault();
-			// Search not yet implemented for unified history
-			return;
-		}
 		listNavKeyDown(e);
 	}, [listNavKeyDown]);
 
@@ -148,9 +144,6 @@ export function UnifiedHistoryTab({
 
 	// Convert lookbackDays to lookbackHours for ActivityGraph compatibility
 	const lookbackHours = lookbackDays * 24;
-
-	// Suppress unused variable warning for searchFilter setter
-	void setSearchFilter;
 
 	return (
 		<div className="flex flex-col h-full p-4">

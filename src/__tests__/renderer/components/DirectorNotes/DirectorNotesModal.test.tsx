@@ -24,8 +24,11 @@ vi.mock('../../../../renderer/constants/modalPriorities', () => ({
 
 // Mock lazy-loaded child components
 vi.mock('../../../../renderer/components/DirectorNotes/UnifiedHistoryTab', () => ({
-	UnifiedHistoryTab: ({ theme }: { theme: Theme }) => (
-		<div data-testid="unified-history-tab">Unified History Content</div>
+	UnifiedHistoryTab: ({ theme, searchFilter }: { theme: Theme; searchFilter?: string }) => (
+		<div data-testid="unified-history-tab" data-search-filter={searchFilter || ''}>
+			Unified History Content
+			{searchFilter && <span data-testid="search-active">Filtering: {searchFilter}</span>}
+		</div>
 	),
 }));
 
@@ -37,6 +40,12 @@ vi.mock('../../../../renderer/components/DirectorNotes/AIOverviewTab', () => ({
 				Trigger Ready
 			</button>
 		</div>
+	),
+}));
+
+vi.mock('../../../../renderer/components/DirectorNotes/OverviewTab', () => ({
+	OverviewTab: ({ theme }: { theme: Theme }) => (
+		<div data-testid="overview-tab">Overview Content</div>
 	),
 }));
 
@@ -88,12 +97,15 @@ describe('DirectorNotesModal', () => {
 	};
 
 	describe('Rendering', () => {
-		it('renders with two tabs', async () => {
+		it('renders with three tabs and title', async () => {
 			renderModal();
 
 			await waitFor(() => {
 				expect(screen.getByText('Unified History')).toBeInTheDocument();
 				expect(screen.getByText('AI Overview')).toBeInTheDocument();
+				expect(screen.getByText('Help')).toBeInTheDocument();
+				// Title row with "Director's Notes" heading
+				expect(screen.getByText("Director's Notes")).toBeInTheDocument();
 			});
 		});
 
@@ -109,6 +121,18 @@ describe('DirectorNotesModal', () => {
 			expect(historyContainer).not.toHaveClass('hidden');
 		});
 
+		it('renders Overview tab content (hidden by default)', async () => {
+			renderModal();
+
+			await waitFor(() => {
+				expect(screen.getByTestId('overview-tab')).toBeInTheDocument();
+			});
+
+			// Overview tab should be hidden since history is default
+			const overviewContainer = screen.getByTestId('overview-tab').closest('.h-full');
+			expect(overviewContainer).toHaveClass('hidden');
+		});
+
 		it('renders AI Overview tab content (hidden initially)', async () => {
 			renderModal();
 
@@ -117,8 +141,8 @@ describe('DirectorNotesModal', () => {
 			});
 
 			// AI Overview tab should be hidden
-			const overviewContainer = screen.getByTestId('ai-overview-tab').closest('.h-full');
-			expect(overviewContainer).toHaveClass('hidden');
+			const aiOverviewContainer = screen.getByTestId('ai-overview-tab').closest('.h-full');
+			expect(aiOverviewContainer).toHaveClass('hidden');
 		});
 
 		it('renders close button', async () => {
@@ -127,8 +151,8 @@ describe('DirectorNotesModal', () => {
 			await waitFor(() => {
 				// The close button contains an X icon (mocked as svg)
 				const buttons = screen.getAllByRole('button');
-				// Should have: history tab, overview tab, close button
-				expect(buttons.length).toBeGreaterThanOrEqual(3);
+				// Should have: 3 tab buttons + close button = at least 4
+				expect(buttons.length).toBeGreaterThanOrEqual(4);
 			});
 		});
 
@@ -197,8 +221,8 @@ describe('DirectorNotesModal', () => {
 			fireEvent.click(overviewTabButton!);
 
 			// AI Overview should now be visible
-			const overviewContainer = screen.getByTestId('ai-overview-tab').closest('.h-full');
-			expect(overviewContainer).not.toHaveClass('hidden');
+			const aiOverviewContainer = screen.getByTestId('ai-overview-tab').closest('.h-full');
+			expect(aiOverviewContainer).not.toHaveClass('hidden');
 
 			// History should be hidden
 			const historyContainer = screen.getByTestId('unified-history-tab').closest('.h-full');
@@ -221,30 +245,40 @@ describe('DirectorNotesModal', () => {
 			expect(historyContainer).not.toHaveClass('hidden');
 		});
 
-		it('can switch back to History from AI Overview', async () => {
+		it('can switch to Help tab', async () => {
 			renderModal();
 
 			await waitFor(() => {
-				expect(screen.getByTestId('ai-overview-tab')).toBeInTheDocument();
+				expect(screen.getByText('Help')).toBeInTheDocument();
 			});
 
-			// Enable overview
-			await act(async () => {
-				fireEvent.click(screen.getByTestId('trigger-synopsis-ready'));
+			const helpTabButton = screen.getByText('Help').closest('button');
+			fireEvent.click(helpTabButton!);
+
+			const overviewContainer = screen.getByTestId('overview-tab').closest('.h-full');
+			expect(overviewContainer).not.toHaveClass('hidden');
+
+			const historyContainer = screen.getByTestId('unified-history-tab').closest('.h-full');
+			expect(historyContainer).toHaveClass('hidden');
+		});
+
+		it('can switch back to History from Help tab', async () => {
+			renderModal();
+
+			await waitFor(() => {
+				expect(screen.getByTestId('overview-tab')).toBeInTheDocument();
 			});
 
-			// Switch to overview
-			const overviewTabButton = screen.getByText('AI Overview').closest('button');
-			fireEvent.click(overviewTabButton!);
+			// Switch to Help
+			fireEvent.click(screen.getByText('Help').closest('button')!);
 
 			// Switch back to history
-			const historyTabButton = screen.getByText('Unified History').closest('button');
-			fireEvent.click(historyTabButton!);
+			fireEvent.click(screen.getByText('Unified History').closest('button')!);
 
 			const historyContainer = screen.getByTestId('unified-history-tab').closest('.h-full');
 			expect(historyContainer).not.toHaveClass('hidden');
 
-			const overviewContainer = screen.getByTestId('ai-overview-tab').closest('.h-full');
+			const overviewContainer = screen.getByTestId('overview-tab').closest('.h-full');
 			expect(overviewContainer).toHaveClass('hidden');
 		});
 
@@ -266,6 +300,205 @@ describe('DirectorNotesModal', () => {
 			expect(overviewTabButton).toHaveStyle({
 				color: mockTheme.colors.textDim,
 			});
+		});
+	});
+
+	describe('Keyboard Tab Navigation', () => {
+		it('switches to next tab with Cmd+Shift+]', async () => {
+			renderModal();
+
+			await waitFor(() => {
+				expect(screen.getByTestId('unified-history-tab')).toBeInTheDocument();
+			});
+
+			// Enable AI Overview first
+			await act(async () => {
+				fireEvent.click(screen.getByTestId('trigger-synopsis-ready'));
+			});
+
+			// Starting on history (index 0), Cmd+Shift+] should go to ai-overview (index 1)
+			await act(async () => {
+				window.dispatchEvent(new KeyboardEvent('keydown', {
+					key: ']',
+					metaKey: true,
+					shiftKey: true,
+					bubbles: true,
+				}));
+			});
+
+			const aiOverviewContainer = screen.getByTestId('ai-overview-tab').closest('.h-full');
+			expect(aiOverviewContainer).not.toHaveClass('hidden');
+		});
+
+		it('switches to previous tab with Cmd+Shift+[', async () => {
+			renderModal();
+
+			await waitFor(() => {
+				expect(screen.getByTestId('unified-history-tab')).toBeInTheDocument();
+			});
+
+			// Starting on history (index 0), Cmd+Shift+[ should wrap to help (index 2)
+			await act(async () => {
+				window.dispatchEvent(new KeyboardEvent('keydown', {
+					key: '[',
+					metaKey: true,
+					shiftKey: true,
+					bubbles: true,
+				}));
+			});
+
+			const overviewContainer = screen.getByTestId('overview-tab').closest('.h-full');
+			expect(overviewContainer).not.toHaveClass('hidden');
+		});
+
+		it('skips disabled tabs when navigating', async () => {
+			renderModal();
+
+			await waitFor(() => {
+				expect(screen.getByTestId('unified-history-tab')).toBeInTheDocument();
+			});
+
+			// AI Overview is disabled (not ready). From history (index 0), Cmd+Shift+] should skip to help (index 2)
+			await act(async () => {
+				window.dispatchEvent(new KeyboardEvent('keydown', {
+					key: ']',
+					metaKey: true,
+					shiftKey: true,
+					bubbles: true,
+				}));
+			});
+
+			const overviewContainer = screen.getByTestId('overview-tab').closest('.h-full');
+			expect(overviewContainer).not.toHaveClass('hidden');
+		});
+	});
+
+	describe('Search', () => {
+		it('shows search bar on Cmd+F', async () => {
+			renderModal();
+
+			await waitFor(() => {
+				expect(screen.getByTestId('unified-history-tab')).toBeInTheDocument();
+			});
+
+			// Trigger Cmd+F
+			await act(async () => {
+				window.dispatchEvent(new KeyboardEvent('keydown', {
+					key: 'f',
+					metaKey: true,
+					bubbles: true,
+				}));
+			});
+
+			expect(screen.getByPlaceholderText('Filter entries by summary or agent name...')).toBeInTheDocument();
+		});
+
+		it('passes search query to UnifiedHistoryTab', async () => {
+			renderModal();
+
+			await waitFor(() => {
+				expect(screen.getByTestId('unified-history-tab')).toBeInTheDocument();
+			});
+
+			// Open search
+			await act(async () => {
+				window.dispatchEvent(new KeyboardEvent('keydown', {
+					key: 'f',
+					metaKey: true,
+					bubbles: true,
+				}));
+			});
+
+			const input = screen.getByPlaceholderText('Filter entries by summary or agent name...');
+			fireEvent.change(input, { target: { value: 'test query' } });
+
+			// The UnifiedHistoryTab mock should receive the searchFilter prop
+			const historyTab = screen.getByTestId('unified-history-tab');
+			expect(historyTab).toHaveAttribute('data-search-filter', 'test query');
+		});
+
+		it('closes search bar on Escape', async () => {
+			renderModal();
+
+			await waitFor(() => {
+				expect(screen.getByTestId('unified-history-tab')).toBeInTheDocument();
+			});
+
+			// Open search
+			await act(async () => {
+				window.dispatchEvent(new KeyboardEvent('keydown', {
+					key: 'f',
+					metaKey: true,
+					bubbles: true,
+				}));
+			});
+
+			expect(screen.getByPlaceholderText('Filter entries by summary or agent name...')).toBeInTheDocument();
+
+			// Press Escape on the search input
+			const input = screen.getByPlaceholderText('Filter entries by summary or agent name...');
+			fireEvent.keyDown(input, { key: 'Escape' });
+
+			expect(screen.queryByPlaceholderText('Filter entries by summary or agent name...')).not.toBeInTheDocument();
+		});
+
+		it('closes search bar on X button click', async () => {
+			renderModal();
+
+			await waitFor(() => {
+				expect(screen.getByTestId('unified-history-tab')).toBeInTheDocument();
+			});
+
+			// Open search
+			await act(async () => {
+				window.dispatchEvent(new KeyboardEvent('keydown', {
+					key: 'f',
+					metaKey: true,
+					bubbles: true,
+				}));
+			});
+
+			// Find the close button for the search bar (has title "Close search (Esc)")
+			const closeSearchButton = screen.getByTitle('Close search (Esc)');
+			fireEvent.click(closeSearchButton);
+
+			expect(screen.queryByPlaceholderText('Filter entries by summary or agent name...')).not.toBeInTheDocument();
+		});
+
+		it('clears search query when search is closed', async () => {
+			renderModal();
+
+			await waitFor(() => {
+				expect(screen.getByTestId('unified-history-tab')).toBeInTheDocument();
+			});
+
+			// Open search and type
+			await act(async () => {
+				window.dispatchEvent(new KeyboardEvent('keydown', {
+					key: 'f',
+					metaKey: true,
+					bubbles: true,
+				}));
+			});
+
+			const input = screen.getByPlaceholderText('Filter entries by summary or agent name...');
+			fireEvent.change(input, { target: { value: 'some search' } });
+
+			// Close search
+			fireEvent.keyDown(input, { key: 'Escape' });
+
+			// Reopen search
+			await act(async () => {
+				window.dispatchEvent(new KeyboardEvent('keydown', {
+					key: 'f',
+					metaKey: true,
+					bubbles: true,
+				}));
+			});
+
+			// Input should be empty
+			const newInput = screen.getByPlaceholderText('Filter entries by summary or agent name...');
+			expect(newInput).toHaveValue('');
 		});
 	});
 

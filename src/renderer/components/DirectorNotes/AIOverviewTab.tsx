@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, Save, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { RefreshCw, Save, Loader2, Clock } from 'lucide-react';
 import type { Theme } from '../../types';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 import { SaveMarkdownModal } from '../SaveMarkdownModal';
@@ -11,17 +11,37 @@ interface AIOverviewTabProps {
 	onSynopsisReady?: () => void;
 }
 
+// Module-level cache so synopsis survives tab switches (unmount/remount)
+let cachedSynopsis: { content: string; generatedAt: number; lookbackDays: number } | null = null;
+
+// Exported for testing only – allows resetting the module-level cache between test runs
+export function _resetCacheForTesting() { cachedSynopsis = null; }
+
 export function AIOverviewTab({ theme, onSynopsisReady }: AIOverviewTabProps) {
 	const { directorNotesSettings } = useSettings();
 	const [lookbackDays, setLookbackDays] = useState(directorNotesSettings.defaultLookbackDays);
-	const [synopsis, setSynopsis] = useState<string>('');
+	const [synopsis, setSynopsis] = useState<string>(cachedSynopsis?.content ?? '');
+	const [generatedAt, setGeneratedAt] = useState<number | null>(cachedSynopsis?.generatedAt ?? null);
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [progress, setProgress] = useState({ phase: 'idle', message: '', percent: 0 });
 	const [showSaveModal, setShowSaveModal] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const mountedRef = useRef(true);
 
 	// Generate prose styles for markdown rendering
 	const proseStyles = generateTerminalProseStyles(theme, '.director-notes-content');
+
+	// Format the generation timestamp
+	const formatGeneratedAt = (timestamp: number): string => {
+		const date = new Date(timestamp);
+		return date.toLocaleString(undefined, {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit',
+		});
+	};
 
 	// Generate synopsis
 	const generateSynopsis = useCallback(async () => {
@@ -37,7 +57,11 @@ export function AIOverviewTab({ theme, onSynopsisReady }: AIOverviewTabProps) {
 			});
 
 			if (entries.length === 0) {
-				setSynopsis('# Director\'s Notes\n\nNo history entries found for the selected time period.');
+				const now = Date.now();
+				const emptyMsg = '# Director\'s Notes\n\nNo history entries found for the selected time period.';
+				setSynopsis(emptyMsg);
+				setGeneratedAt(now);
+				cachedSynopsis = { content: emptyMsg, generatedAt: now, lookbackDays };
 				onSynopsisReady?.();
 				setIsGenerating(false);
 				return;
@@ -60,10 +84,16 @@ export function AIOverviewTab({ theme, onSynopsisReady }: AIOverviewTabProps) {
 			const result = await window.maestro.directorNotes.generateSynopsis({
 				lookbackDays,
 				provider: directorNotesSettings.provider,
+				customPath: directorNotesSettings.customPath,
+				customArgs: directorNotesSettings.customArgs,
+				customEnvVars: directorNotesSettings.customEnvVars,
 			});
 
 			if (result.success) {
+				const ts = result.generatedAt ?? Date.now();
 				setSynopsis(result.synopsis);
+				setGeneratedAt(ts);
+				cachedSynopsis = { content: result.synopsis, generatedAt: ts, lookbackDays };
 				setProgress({ phase: 'complete', message: 'Synopsis complete', percent: 100 });
 				onSynopsisReady?.();
 			} else {
@@ -74,12 +104,20 @@ export function AIOverviewTab({ theme, onSynopsisReady }: AIOverviewTabProps) {
 		} finally {
 			setIsGenerating(false);
 		}
-	}, [lookbackDays, directorNotesSettings.provider, onSynopsisReady]);
+	}, [lookbackDays, directorNotesSettings, onSynopsisReady]);
 
-	// Generate on mount
+	// On mount: use cache if available and lookback matches, otherwise generate fresh
 	useEffect(() => {
-		generateSynopsis();
-	}, []); // Only on mount - use Refresh button for manual regeneration
+		mountedRef.current = true;
+		if (cachedSynopsis && cachedSynopsis.lookbackDays === lookbackDays) {
+			setSynopsis(cachedSynopsis.content);
+			setGeneratedAt(cachedSynopsis.generatedAt);
+			onSynopsisReady?.();
+		} else {
+			generateSynopsis();
+		}
+		return () => { mountedRef.current = false; };
+	}, []); // Only on mount
 
 	return (
 		<div className="flex flex-col h-full">
@@ -103,6 +141,16 @@ export function AIOverviewTab({ theme, onSynopsisReady }: AIOverviewTabProps) {
 						disabled={isGenerating}
 					/>
 				</div>
+
+				{/* Generated at timestamp */}
+				{generatedAt && !isGenerating && (
+					<div className="flex items-center gap-1.5" style={{ color: theme.colors.textDim }}>
+						<Clock className="w-3 h-3" />
+						<span className="text-xs">
+							{formatGeneratedAt(generatedAt)}
+						</span>
+					</div>
+				)}
 
 				{/* Refresh button */}
 				<button

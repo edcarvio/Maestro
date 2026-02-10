@@ -160,7 +160,42 @@ describe('agentStore', () => {
 			expect(mockDetect).toHaveBeenCalledWith('remote-1');
 		});
 
-		it('getAgentConfig returns cached agent by ID', async () => {
+		it('refreshAgents overwrites previous agents', async () => {
+			const oldAgents = [createMockAgentConfig({ id: 'old-agent' })];
+			const newAgents = [createMockAgentConfig({ id: 'new-agent' })];
+
+			mockDetect.mockResolvedValueOnce(oldAgents);
+			await useAgentStore.getState().refreshAgents();
+			expect(useAgentStore.getState().availableAgents).toEqual(oldAgents);
+
+			mockDetect.mockResolvedValueOnce(newAgents);
+			await useAgentStore.getState().refreshAgents();
+			expect(useAgentStore.getState().availableAgents).toEqual(newAgents);
+			expect(useAgentStore.getState().availableAgents).not.toContainEqual(
+				expect.objectContaining({ id: 'old-agent' })
+			);
+		});
+
+		it('refreshAgents handles IPC rejection gracefully', async () => {
+			mockDetect.mockRejectedValueOnce(new Error('IPC failed'));
+
+			await expect(useAgentStore.getState().refreshAgents()).rejects.toThrow('IPC failed');
+
+			// State unchanged on failure
+			expect(useAgentStore.getState().availableAgents).toEqual([]);
+			expect(useAgentStore.getState().agentsDetected).toBe(false);
+		});
+
+		it('refreshAgents with empty result sets agentsDetected true', async () => {
+			mockDetect.mockResolvedValueOnce([]);
+
+			await useAgentStore.getState().refreshAgents();
+
+			expect(useAgentStore.getState().availableAgents).toEqual([]);
+			expect(useAgentStore.getState().agentsDetected).toBe(true);
+		});
+
+		it('getAgentConfig returns cached agent by ID', () => {
 			const agents = [
 				createMockAgentConfig({ id: 'claude-code' }),
 				createMockAgentConfig({ id: 'codex' }),
@@ -173,6 +208,22 @@ describe('agentStore', () => {
 
 		it('getAgentConfig returns undefined for unknown agent', () => {
 			expect(useAgentStore.getState().getAgentConfig('nonexistent')).toBeUndefined();
+		});
+
+		it('getAgentConfig returns undefined when cache is empty', () => {
+			expect(useAgentStore.getState().getAgentConfig('claude-code')).toBeUndefined();
+		});
+
+		it('getAgentConfig reflects newly refreshed agents', async () => {
+			expect(useAgentStore.getState().getAgentConfig('claude-code')).toBeUndefined();
+
+			const agents = [createMockAgentConfig({ id: 'claude-code', name: 'Claude' })];
+			mockDetect.mockResolvedValueOnce(agents);
+			await useAgentStore.getState().refreshAgents();
+
+			const config = useAgentStore.getState().getAgentConfig('claude-code');
+			expect(config).toBeDefined();
+			expect(config?.name).toBe('Claude');
 		});
 	});
 
@@ -278,6 +329,128 @@ describe('agentStore', () => {
 			expect(sessions[0].state).toBe('idle');
 			expect(sessions[1].state).toBe('busy'); // Unchanged
 		});
+
+		it('no-ops on nonexistent session but still calls IPC', () => {
+			const session = createMockSession({ id: 'session-1', state: 'error' });
+			useSessionStore.getState().setSessions([session]);
+
+			useAgentStore.getState().clearAgentError('nonexistent');
+
+			// Session-1 untouched
+			expect(useSessionStore.getState().sessions[0].state).toBe('error');
+			// IPC still called (fire-and-forget)
+			expect(mockClearError).toHaveBeenCalledWith('nonexistent');
+		});
+
+		it('leaves aiTabs untouched when no agentErrorTabId and no tabId', () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+				agentErrorTabId: undefined,
+				aiTabs: [
+					{
+						id: 'tab-1',
+						agentSessionId: null,
+						name: 'Tab 1',
+						starred: false,
+						logs: [{ type: 'user', content: 'test' }],
+						inputValue: 'some input',
+						stagedImages: [],
+						createdAt: Date.now(),
+						state: 'idle',
+					},
+				],
+				activeTabId: 'tab-1',
+			});
+
+			useSessionStore.getState().setSessions([session]);
+
+			useAgentStore.getState().clearAgentError('session-1');
+
+			const updated = useSessionStore.getState().sessions[0];
+			expect(updated.state).toBe('idle');
+			// Tab data preserved
+			expect(updated.aiTabs[0].name).toBe('Tab 1');
+			expect(updated.aiTabs[0].inputValue).toBe('some input');
+		});
+
+		it('only clears error on target tab in multi-tab session', () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+				agentErrorTabId: 'tab-2',
+				aiTabs: [
+					{
+						id: 'tab-1',
+						agentSessionId: null,
+						name: null,
+						starred: false,
+						logs: [],
+						inputValue: '',
+						stagedImages: [],
+						createdAt: Date.now(),
+						state: 'idle',
+						agentError: { type: 'rate_limited', message: 'limit' } as any,
+					},
+					{
+						id: 'tab-2',
+						agentSessionId: null,
+						name: null,
+						starred: false,
+						logs: [],
+						inputValue: '',
+						stagedImages: [],
+						createdAt: Date.now(),
+						state: 'idle',
+						agentError: { type: 'agent_crashed', message: 'crash' } as any,
+					},
+				],
+				activeTabId: 'tab-2',
+			});
+
+			useSessionStore.getState().setSessions([session]);
+
+			// Clear error on tab-2 (via agentErrorTabId default)
+			useAgentStore.getState().clearAgentError('session-1');
+
+			const updated = useSessionStore.getState().sessions[0];
+			// tab-1 error untouched
+			expect(updated.aiTabs[0].agentError).toBeDefined();
+			// tab-2 error cleared
+			expect(updated.aiTabs[1].agentError).toBeUndefined();
+		});
+
+		it('handles IPC clearError rejection without throwing', () => {
+			mockClearError.mockRejectedValueOnce(new Error('IPC down'));
+			const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+			const session = createMockSession({ id: 'session-1', state: 'error' });
+			useSessionStore.getState().setSessions([session]);
+
+			// Should not throw
+			useAgentStore.getState().clearAgentError('session-1');
+
+			// Session still cleared
+			expect(useSessionStore.getState().sessions[0].state).toBe('idle');
+
+			consoleSpy.mockRestore();
+		});
+
+		it('is idempotent on already-idle session', () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'idle',
+				agentError: undefined,
+			});
+
+			useSessionStore.getState().setSessions([session]);
+
+			useAgentStore.getState().clearAgentError('session-1');
+
+			const updated = useSessionStore.getState().sessions[0];
+			expect(updated.state).toBe('idle');
+			expect(updated.agentError).toBeUndefined();
+		});
 	});
 
 	describe('startNewSessionAfterError', () => {
@@ -324,6 +497,82 @@ describe('agentStore', () => {
 			// No crash
 			expect(mockClearError).not.toHaveBeenCalled();
 		});
+
+		it('new tab becomes the active tab', () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+				activeTabId: 'default-tab',
+			});
+
+			useSessionStore.getState().setSessions([session]);
+
+			useAgentStore.getState().startNewSessionAfterError('session-1');
+
+			const updated = useSessionStore.getState().sessions[0];
+			const newTab = updated.aiTabs[updated.aiTabs.length - 1];
+			expect(updated.activeTabId).toBe(newTab.id);
+		});
+
+		it('calls IPC clearError via clearAgentError delegation', () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+			});
+
+			useSessionStore.getState().setSessions([session]);
+
+			useAgentStore.getState().startNewSessionAfterError('session-1');
+
+			expect(mockClearError).toHaveBeenCalledWith('session-1');
+		});
+
+		it('works with default options (no options argument)', () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+			});
+
+			useSessionStore.getState().setSessions([session]);
+
+			useAgentStore.getState().startNewSessionAfterError('session-1');
+
+			const updated = useSessionStore.getState().sessions[0];
+			expect(updated.aiTabs.length).toBeGreaterThanOrEqual(2);
+			expect(updated.state).toBe('idle');
+		});
+
+		it('preserves existing tabs when adding new tab', () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+				aiTabs: [
+					{
+						id: 'existing-tab',
+						agentSessionId: 'conv-123',
+						name: 'Important Work',
+						starred: true,
+						logs: [{ type: 'user', content: 'hello' }],
+						inputValue: '',
+						stagedImages: [],
+						createdAt: Date.now(),
+						state: 'idle',
+					},
+				],
+				activeTabId: 'existing-tab',
+			});
+
+			useSessionStore.getState().setSessions([session]);
+
+			useAgentStore.getState().startNewSessionAfterError('session-1');
+
+			const updated = useSessionStore.getState().sessions[0];
+			expect(updated.aiTabs.length).toBe(2);
+			// Existing tab preserved
+			expect(updated.aiTabs[0].id).toBe('existing-tab');
+			expect(updated.aiTabs[0].name).toBe('Important Work');
+			expect(updated.aiTabs[0].starred).toBe(true);
+		});
 	});
 
 	describe('retryAfterError', () => {
@@ -341,6 +590,42 @@ describe('agentStore', () => {
 			const updated = useSessionStore.getState().sessions[0];
 			expect(updated.state).toBe('idle');
 			expect(updated.agentError).toBeUndefined();
+		});
+
+		it('calls IPC clearError via delegation', () => {
+			const session = createMockSession({ id: 'session-1', state: 'error' });
+			useSessionStore.getState().setSessions([session]);
+
+			useAgentStore.getState().retryAfterError('session-1');
+
+			expect(mockClearError).toHaveBeenCalledWith('session-1');
+		});
+
+		it('clears agentErrorPaused flag', () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+				agentErrorPaused: true,
+			});
+
+			useSessionStore.getState().setSessions([session]);
+
+			useAgentStore.getState().retryAfterError('session-1');
+
+			expect(useSessionStore.getState().sessions[0].agentErrorPaused).toBe(false);
+		});
+
+		it('does not create new tabs (unlike startNewSessionAfterError)', () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+			});
+
+			useSessionStore.getState().setSessions([session]);
+
+			useAgentStore.getState().retryAfterError('session-1');
+
+			expect(useSessionStore.getState().sessions[0].aiTabs.length).toBe(1);
 		});
 	});
 
@@ -387,6 +672,49 @@ describe('agentStore', () => {
 			const updated = useSessionStore.getState().sessions[0];
 			expect(updated.state).toBe('idle');
 		});
+
+		it('clears error before killing process (state is idle during kill)', async () => {
+			let stateAtKillTime: string | undefined;
+			mockKill.mockImplementationOnce(async () => {
+				stateAtKillTime = useSessionStore.getState().sessions[0]?.state;
+			});
+
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+			});
+			useSessionStore.getState().setSessions([session]);
+
+			await useAgentStore.getState().restartAgentAfterError('session-1');
+
+			// Error was cleared BEFORE kill was called
+			expect(stateAtKillTime).toBe('idle');
+		});
+
+		it('calls IPC clearError and process kill', async () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+			});
+			useSessionStore.getState().setSessions([session]);
+
+			await useAgentStore.getState().restartAgentAfterError('session-1');
+
+			expect(mockClearError).toHaveBeenCalledWith('session-1');
+			expect(mockKill).toHaveBeenCalledWith('session-1-ai');
+		});
+
+		it('does not create new tabs', async () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+			});
+			useSessionStore.getState().setSessions([session]);
+
+			await useAgentStore.getState().restartAgentAfterError('session-1');
+
+			expect(useSessionStore.getState().sessions[0].aiTabs.length).toBe(1);
+		});
 	});
 
 	describe('authenticateAfterError', () => {
@@ -414,6 +742,77 @@ describe('agentStore', () => {
 			// No crash, no IPC calls
 			expect(mockClearError).not.toHaveBeenCalled();
 		});
+
+		it('is idempotent when session is already in terminal mode', () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+				inputMode: 'terminal',
+			});
+
+			useSessionStore.getState().setSessions([session]);
+
+			useAgentStore.getState().authenticateAfterError('session-1');
+
+			const updated = useSessionStore.getState().sessions[0];
+			expect(updated.state).toBe('idle');
+			expect(updated.inputMode).toBe('terminal');
+		});
+
+		it('switches active session even if it was already active', () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+				inputMode: 'ai',
+			});
+
+			useSessionStore.getState().setSessions([session]);
+			useSessionStore.getState().setActiveSessionId('session-1');
+
+			useAgentStore.getState().authenticateAfterError('session-1');
+
+			expect(useSessionStore.getState().activeSessionId).toBe('session-1');
+			expect(useSessionStore.getState().sessions[0].inputMode).toBe('terminal');
+		});
+
+		it('calls IPC clearError via delegation', () => {
+			const session = createMockSession({ id: 'session-1', state: 'error' });
+			useSessionStore.getState().setSessions([session]);
+
+			useAgentStore.getState().authenticateAfterError('session-1');
+
+			expect(mockClearError).toHaveBeenCalledWith('session-1');
+		});
+
+		it('does not create new tabs or modify existing tabs', () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+				aiTabs: [
+					{
+						id: 'tab-1',
+						agentSessionId: 'conv-1',
+						name: 'My Work',
+						starred: false,
+						logs: [{ type: 'user', content: 'hello' }],
+						inputValue: 'pending input',
+						stagedImages: [],
+						createdAt: Date.now(),
+						state: 'idle',
+					},
+				],
+				activeTabId: 'tab-1',
+			});
+
+			useSessionStore.getState().setSessions([session]);
+
+			useAgentStore.getState().authenticateAfterError('session-1');
+
+			const updated = useSessionStore.getState().sessions[0];
+			expect(updated.aiTabs.length).toBe(1);
+			expect(updated.aiTabs[0].name).toBe('My Work');
+			expect(updated.aiTabs[0].inputValue).toBe('pending input');
+		});
 	});
 
 	describe('killAgent', () => {
@@ -432,6 +831,26 @@ describe('agentStore', () => {
 
 			// Should not throw
 			await useAgentStore.getState().killAgent('session-1');
+		});
+
+		it('does not modify sessionStore state', async () => {
+			const session = createMockSession({ id: 'session-1', state: 'busy' });
+			useSessionStore.getState().setSessions([session]);
+
+			await useAgentStore.getState().killAgent('session-1');
+
+			// killAgent is a low-level action — state management is caller's responsibility
+			expect(useSessionStore.getState().sessions[0].state).toBe('busy');
+		});
+
+		it('constructs correct target with various suffixes', async () => {
+			await useAgentStore.getState().killAgent('session-abc', 'ai');
+			expect(mockKill).toHaveBeenCalledWith('session-abc-ai');
+
+			mockKill.mockClear();
+
+			await useAgentStore.getState().killAgent('session-abc', 'background');
+			expect(mockKill).toHaveBeenCalledWith('session-abc-background');
 		});
 	});
 
@@ -476,7 +895,15 @@ describe('agentStore', () => {
 			expect(state.agentsDetected).toBe(true);
 		});
 
-		it('getAgentActions returns all action functions', () => {
+		it('getAgentState reflects latest mutations', () => {
+			expect(getAgentState().agentsDetected).toBe(false);
+
+			useAgentStore.setState({ agentsDetected: true });
+
+			expect(getAgentState().agentsDetected).toBe(true);
+		});
+
+		it('getAgentActions returns all 9 action functions', () => {
 			const actions = getAgentActions();
 
 			expect(typeof actions.refreshAgents).toBe('function');
@@ -488,6 +915,31 @@ describe('agentStore', () => {
 			expect(typeof actions.authenticateAfterError).toBe('function');
 			expect(typeof actions.killAgent).toBe('function');
 			expect(typeof actions.interruptAgent).toBe('function');
+
+			// Verify exactly 9 actions (no extras, no missing)
+			expect(Object.keys(actions)).toHaveLength(9);
+		});
+
+		it('getAgentActions clearAgentError works end-to-end', () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+				agentError: { type: 'agent_crashed', message: 'crash' } as any,
+			});
+			useSessionStore.getState().setSessions([session]);
+
+			const { clearAgentError } = getAgentActions();
+			clearAgentError('session-1');
+
+			expect(useSessionStore.getState().sessions[0].state).toBe('idle');
+			expect(mockClearError).toHaveBeenCalledWith('session-1');
+		});
+
+		it('getAgentActions killAgent works end-to-end', async () => {
+			const { killAgent } = getAgentActions();
+			await killAgent('session-1', 'terminal');
+
+			expect(mockKill).toHaveBeenCalledWith('session-1-terminal');
 		});
 	});
 
@@ -525,16 +977,25 @@ describe('agentStore', () => {
 	});
 
 	describe('action stability', () => {
-		it('action references are stable across state changes', () => {
+		it('all action references are stable across state changes', () => {
 			const before = useAgentStore.getState();
 
 			// Mutate state
-			useAgentStore.setState({ agentsDetected: true });
+			useAgentStore.setState({
+				agentsDetected: true,
+				availableAgents: [createMockAgentConfig()],
+			});
 
 			const after = useAgentStore.getState();
 
-			expect(before.clearAgentError).toBe(after.clearAgentError);
+			// All 9 actions must be referentially stable
 			expect(before.refreshAgents).toBe(after.refreshAgents);
+			expect(before.getAgentConfig).toBe(after.getAgentConfig);
+			expect(before.clearAgentError).toBe(after.clearAgentError);
+			expect(before.startNewSessionAfterError).toBe(after.startNewSessionAfterError);
+			expect(before.retryAfterError).toBe(after.retryAfterError);
+			expect(before.restartAgentAfterError).toBe(after.restartAgentAfterError);
+			expect(before.authenticateAfterError).toBe(after.authenticateAfterError);
 			expect(before.killAgent).toBe(after.killAgent);
 			expect(before.interruptAgent).toBe(after.interruptAgent);
 		});
@@ -604,6 +1065,121 @@ describe('agentStore', () => {
 			expect(useSessionStore.getState().activeSessionId).toBe('session-2');
 			// session-2 is now in terminal mode
 			expect(useSessionStore.getState().sessions[1].inputMode).toBe('terminal');
+		});
+
+		it('double clear is idempotent', () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+				agentError: { type: 'agent_crashed', message: 'crash' } as any,
+			});
+			useSessionStore.getState().setSessions([session]);
+
+			useAgentStore.getState().clearAgentError('session-1');
+			useAgentStore.getState().clearAgentError('session-1');
+
+			const updated = useSessionStore.getState().sessions[0];
+			expect(updated.state).toBe('idle');
+			expect(mockClearError).toHaveBeenCalledTimes(2);
+		});
+
+		it('concurrent recovery on different sessions', () => {
+			const sessions = [
+				createMockSession({
+					id: 'session-1',
+					state: 'error',
+					agentError: { type: 'agent_crashed', message: 'crash' } as any,
+				}),
+				createMockSession({
+					id: 'session-2',
+					state: 'error',
+					agentError: { type: 'auth_expired', message: 'auth' } as any,
+					inputMode: 'ai',
+				}),
+			];
+
+			useSessionStore.getState().setSessions(sessions);
+
+			// Different recovery actions on different sessions simultaneously
+			useAgentStore.getState().retryAfterError('session-1');
+			useAgentStore.getState().authenticateAfterError('session-2');
+
+			const updated = useSessionStore.getState().sessions;
+			expect(updated[0].state).toBe('idle');
+			expect(updated[0].agentError).toBeUndefined();
+			expect(updated[1].state).toBe('idle');
+			expect(updated[1].inputMode).toBe('terminal');
+		});
+
+		it('recovery after restart then new session', async () => {
+			const session = createMockSession({
+				id: 'session-1',
+				state: 'error',
+				agentError: { type: 'agent_crashed', message: 'crash' } as any,
+			});
+			useSessionStore.getState().setSessions([session]);
+
+			// User restarts, then immediately starts new session
+			await useAgentStore.getState().restartAgentAfterError('session-1');
+			useAgentStore.getState().startNewSessionAfterError('session-1');
+
+			const updated = useSessionStore.getState().sessions[0];
+			expect(updated.state).toBe('idle');
+			expect(updated.aiTabs.length).toBeGreaterThanOrEqual(2);
+			expect(mockKill).toHaveBeenCalledWith('session-1-ai');
+		});
+	});
+
+	describe('store reset', () => {
+		it('resetStores clears agentStore state completely', async () => {
+			// Populate the store
+			const agents = [createMockAgentConfig({ id: 'claude-code' })];
+			mockDetect.mockResolvedValueOnce(agents);
+			await useAgentStore.getState().refreshAgents();
+
+			expect(useAgentStore.getState().availableAgents).toHaveLength(1);
+			expect(useAgentStore.getState().agentsDetected).toBe(true);
+
+			// Reset
+			resetStores();
+
+			expect(useAgentStore.getState().availableAgents).toEqual([]);
+			expect(useAgentStore.getState().agentsDetected).toBe(false);
+		});
+
+		it('agentStore actions work correctly after reset', () => {
+			// Use the store
+			const session = createMockSession({ id: 'session-1', state: 'error' });
+			useSessionStore.getState().setSessions([session]);
+			useAgentStore.getState().clearAgentError('session-1');
+
+			// Reset
+			resetStores();
+
+			// Set up again and use
+			const newSession = createMockSession({ id: 'session-2', state: 'error' });
+			useSessionStore.getState().setSessions([newSession]);
+			useAgentStore.getState().clearAgentError('session-2');
+
+			expect(useSessionStore.getState().sessions[0].state).toBe('idle');
+		});
+	});
+
+	describe('interruptAgent edge cases', () => {
+		it('does not modify sessionStore state', async () => {
+			const session = createMockSession({ id: 'session-1', state: 'busy' });
+			useSessionStore.getState().setSessions([session]);
+
+			await useAgentStore.getState().interruptAgent('session-1');
+
+			// interruptAgent is low-level — doesn't change session state
+			expect(useSessionStore.getState().sessions[0].state).toBe('busy');
+		});
+
+		it('sends interrupt to correct session ID', async () => {
+			await useAgentStore.getState().interruptAgent('session-abc-123');
+
+			expect(mockInterrupt).toHaveBeenCalledWith('session-abc-123');
 		});
 	});
 });

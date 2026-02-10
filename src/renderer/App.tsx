@@ -5471,6 +5471,41 @@ You are taking over this conversation. Based on the context above, provide a bri
 	}, []);
 
 	/**
+	 * Reload a file tab's content from disk. Called when the user clicks Reload in the file-changed banner.
+	 */
+	const handleReloadFileTab = useCallback(async (tabId: string) => {
+		const currentSession = sessionsRef.current.find((s) => s.id === activeSessionIdRef.current);
+		if (!currentSession) return;
+
+		const fileTab = currentSession.filePreviewTabs.find((tab) => tab.id === tabId);
+		if (!fileTab) return;
+
+		try {
+			const [content, stat] = await Promise.all([
+				window.maestro.fs.readFile(fileTab.path, fileTab.sshRemoteId),
+				window.maestro.fs.stat(fileTab.path, fileTab.sshRemoteId),
+			]);
+			const newMtime = stat?.modifiedAt ? new Date(stat.modifiedAt).getTime() : Date.now();
+
+			setSessions((prev) =>
+				prev.map((s) => {
+					if (s.id !== activeSessionIdRef.current) return s;
+					return {
+						...s,
+						filePreviewTabs: s.filePreviewTabs.map((tab) =>
+							tab.id === tabId
+								? { ...tab, content, lastModified: newMtime, editContent: undefined }
+								: tab
+						),
+					};
+				})
+			);
+		} catch (error) {
+			console.debug('[handleReloadFileTab] Failed to reload:', error);
+		}
+	}, []);
+
+	/**
 	 * Select a file preview tab. This sets the file tab as active.
 	 * activeTabId is preserved to track the last active AI tab for when the user switches back.
 	 * If fileTabAutoRefreshEnabled setting is true, checks if file has changed on disk and refreshes content.
@@ -13266,6 +13301,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		handleFileTabEditContentChange,
 		handleFileTabScrollPositionChange,
 		handleFileTabSearchQueryChange,
+		handleReloadFileTab,
 
 		handleScrollPositionChange,
 		handleAtBottomChange,

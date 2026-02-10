@@ -268,9 +268,9 @@ export const UnifiedHistoryTab = forwardRef<TabFocusHandle, UnifiedHistoryTabPro
 				onScroll={handleScroll}
 			>
 				{isLoading ? (
-					<div className="text-center py-8 text-xs opacity-50">Loading history...</div>
+					<div className="text-center py-8 text-xs opacity-70">Loading history...</div>
 				) : filteredEntries.length === 0 ? (
-					<div className="text-center py-8 text-xs opacity-50">
+					<div className="text-center py-8 text-xs opacity-70">
 						No history entries found.
 					</div>
 				) : (

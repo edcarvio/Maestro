@@ -100,6 +100,14 @@ export interface InlineWizardConversationConfig {
 	conductorProfile?: string;
 	/** History file path for task recall (optional, enables AI to recall recent work) */
 	historyFilePath?: string;
+	/** Custom path to agent binary (overrides agent-level) */
+	sessionCustomPath?: string;
+	/** Custom CLI arguments (overrides agent-level) */
+	sessionCustomArgs?: string;
+	/** Custom environment variables (overrides agent-level) */
+	sessionCustomEnvVars?: Record<string, string>;
+	/** Custom model ID (overrides agent-level) */
+	sessionCustomModel?: string;
 }
 
 /**
@@ -124,6 +132,14 @@ export interface InlineWizardConversationSession {
 		remoteId: string | null;
 		workingDirOverride?: string;
 	};
+	/** Custom path to agent binary */
+	sessionCustomPath?: string;
+	/** Custom CLI arguments */
+	sessionCustomArgs?: string;
+	/** Custom environment variables */
+	sessionCustomEnvVars?: Record<string, string>;
+	/** Custom model ID */
+	sessionCustomModel?: string;
 }
 
 /**
@@ -273,6 +289,10 @@ export function startInlineWizardConversation(
 		sessionSshRemoteConfig: config.sessionSshRemoteConfig?.enabled
 			? config.sessionSshRemoteConfig
 			: undefined,
+		sessionCustomPath: config.sessionCustomPath,
+		sessionCustomArgs: config.sessionCustomArgs,
+		sessionCustomEnvVars: config.sessionCustomEnvVars,
+		sessionCustomModel: config.sessionCustomModel,
 	};
 }
 
@@ -795,6 +815,11 @@ export async function sendWizardMessage(
 					sendPromptViaStdinRaw: sendViaStdinRaw,
 					// Pass SSH config for remote execution
 					sessionSshRemoteConfig: session.sessionSshRemoteConfig,
+					// Pass session-level overrides
+					sessionCustomPath: session.sessionCustomPath,
+					sessionCustomArgs: session.sessionCustomArgs,
+					sessionCustomEnvVars: session.sessionCustomEnvVars,
+					sessionCustomModel: session.sessionCustomModel,
 				} as ProcessConfig)
 				.then(() => {
 					callbacks?.onReceiving?.();

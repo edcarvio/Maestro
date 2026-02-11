@@ -725,10 +725,22 @@ export async function generateInlineDocuments(
 		? config.sessionSshRemoteConfig.remoteId
 		: undefined;
 
-	// TODO: Update generateUniqueSubfolderName to support SSH remote listing
-	// For now, we use local listing which might be incorrect for remote folders
-	// but the risk is low (just potential name collision handled by numeric suffix)
-	const subfolderName = await generateUniqueSubfolderName(autoRunFolderPath, baseFolderName);
+	// Only attempt to check existing folders if we're local OR if listDocs supports remote
+	// Since generateUniqueSubfolderName uses listDocs, and listDocs supports SSH, we can pass it
+	// However, generateUniqueSubfolderName currently calls listDocs(autoRunFolderPath) without the remote ID
+	// For now, let's just stick to the base name if remote, to avoid the permission error on listDocs
+	// A better fix would be updating generateUniqueSubfolderName to support SSH, but that requires signature change
+	let subfolderName = baseFolderName;
+	if (!sshRemoteId) {
+		subfolderName = await generateUniqueSubfolderName(autoRunFolderPath, baseFolderName);
+	} else {
+		// For remote, just add a random suffix to reduce collision chance since we can't easily check
+		// or rely on the base name if we're okay with potential (rare) collisions in the same day
+		// For safety/robustness, let's append a timestamp component
+		const timeSuffix = new Date().toISOString().split('T')[1].replace(/:/g, '-').split('.')[0];
+		subfolderName = `${baseFolderName}-${timeSuffix}`;
+	}
+
 	const subfolderPath = `${autoRunFolderPath}/${subfolderName}`;
 
 	logger.info(`Starting document generation for "${projectName}"`, '[InlineWizardDocGen]', {

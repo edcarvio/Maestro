@@ -4990,6 +4990,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		activeBatchSessionIds,
 		startBatchRun,
 		stopBatchRun,
+		killBatchRun,
 		// Error handling (Phase 5.10)
 		pauseBatchOnError,
 		skipCurrentDocument,
@@ -6672,6 +6673,16 @@ You are taking over this conversation. Based on the context above, provide a bri
 			});
 		},
 		[activeBatchSessionIds, activeSession, sessions, stopBatchRun]
+	);
+
+	// Handler to force kill a batch run (process killed immediately, no waiting)
+	// Confirmation is handled by the calling component's own modal
+	const handleKillBatchRun = useCallback(
+		(sessionId: string) => {
+			console.log('[App:handleKillBatchRun] Force killing sessionId:', sessionId);
+			killBatchRun(sessionId);
+		},
+		[killBatchRun]
 	);
 
 	// Error handling callbacks for Auto Run (Phase 5.10)
@@ -11438,6 +11449,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		// Batch processing handlers
 		handleOpenBatchRunner,
 		handleStopBatchRun,
+		handleKillBatchRun,
 		handleSkipCurrentDocument,
 		handleAbortBatchOnError,
 		handleResumeAfterError,

@@ -2595,7 +2595,7 @@ function MaestroConsoleInner() {
 		setSessions,
 	});
 
-	// Quit confirmation handler - shows modal when trying to quit with busy agents
+	// Quit confirmation handler - shows modal when trying to quit with busy agents or active auto-runs
 	useEffect(() => {
 		// Guard against window.maestro not being defined yet (production timing)
 		if (!window.maestro?.app?.onQuitConfirmationRequest) {
@@ -2607,8 +2607,14 @@ function MaestroConsoleInner() {
 				(s) => s.state === 'busy' && s.busySource === 'ai' && s.toolType !== 'terminal'
 			);
 
-			if (busyAgents.length === 0) {
-				// No busy agents, confirm quit immediately
+			// Check for active auto-runs (batch processor may be between tasks with agent idle)
+			const hasActiveAutoRuns = sessions.some((s) => {
+				const batchState = getBatchStateRef.current?.(s.id);
+				return batchState?.isRunning;
+			});
+
+			if (busyAgents.length === 0 && !hasActiveAutoRuns) {
+				// No busy agents and no active auto-runs, confirm quit immediately
 				window.maestro.app.confirmQuit();
 			} else {
 				// Show quit confirmation modal
@@ -11620,6 +11626,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 					quitConfirmModalOpen={quitConfirmModalOpen}
 					onConfirmQuit={handleConfirmQuit}
 					onCancelQuit={handleCancelQuit}
+					activeBatchSessionIds={activeBatchSessionIds}
 					// AppSessionModals props
 					newInstanceModalOpen={newInstanceModalOpen}
 					onCloseNewInstanceModal={handleCloseNewInstanceModal}

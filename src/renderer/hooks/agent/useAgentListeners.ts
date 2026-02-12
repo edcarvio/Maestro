@@ -24,7 +24,6 @@ import type {
 	BatchRunState,
 	AgentError,
 	GroupChatMessage,
-	GroupChatState,
 	UsageStats,
 	GlobalStats,
 } from '../../types';
@@ -51,7 +50,7 @@ import { formatRelativeTime } from '../../../shared/formatters';
 import { parseSynopsis } from '../../../shared/synopsis';
 import { autorunSynopsisPrompt } from '../../../prompts';
 import type { RightPanelHandle } from '../../components/RightPanel';
-import type { GroupChatErrorState } from '../../contexts/GroupChatContext';
+import { useGroupChatStore } from '../../stores/groupChatStore';
 
 // ============================================================================
 // Types
@@ -127,13 +126,6 @@ export interface UseAgentListenersDeps {
 	processQueuedItemRef: React.RefObject<
 		((sessionId: string, item: QueuedItem) => Promise<void>) | null
 	>;
-
-	// --- Group chat state setters (from useGroupChat context) ---
-
-	setGroupChatError: (error: GroupChatErrorState) => void;
-	setGroupChatMessages: React.Dispatch<React.SetStateAction<GroupChatMessage[]>>;
-	setGroupChatState: React.Dispatch<React.SetStateAction<GroupChatState>>;
-	setGroupChatStates: React.Dispatch<React.SetStateAction<Map<string, GroupChatState>>>;
 
 	// --- Settings ---
 
@@ -1161,7 +1153,8 @@ export function useAgentListeners(deps: UseAgentListenersDeps): void {
 						return;
 					}
 
-					deps.setGroupChatError({
+					const gcStore = useGroupChatStore.getState();
+					gcStore.setGroupChatError({
 						groupChatId,
 						error: agentError,
 						participantName: isModeratorError ? 'Moderator' : participantOrModerator,
@@ -1174,10 +1167,10 @@ export function useAgentListeners(deps: UseAgentListenersDeps): void {
 							isModeratorError ? 'Moderator' : participantOrModerator
 						} error: ${agentError.message}`,
 					};
-					deps.setGroupChatMessages((prev) => [...prev, errorMessage]);
+					gcStore.setGroupChatMessages((prev) => [...prev, errorMessage]);
 
-					deps.setGroupChatState('idle');
-					deps.setGroupChatStates((prev) => {
+					gcStore.setGroupChatState('idle');
+					gcStore.setGroupChatStates((prev) => {
 						const next = new Map(prev);
 						next.set(groupChatId, 'idle');
 						return next;

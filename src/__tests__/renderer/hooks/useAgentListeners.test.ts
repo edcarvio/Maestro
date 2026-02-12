@@ -16,6 +16,7 @@ import {
 } from '../../../renderer/hooks/agent/useAgentListeners';
 import { useSessionStore } from '../../../renderer/stores/sessionStore';
 import { useModalStore } from '../../../renderer/stores/modalStore';
+import { useGroupChatStore } from '../../../renderer/stores/groupChatStore';
 import type { Session, AITab, AgentError } from '../../../renderer/types';
 
 // ============================================================================
@@ -183,10 +184,6 @@ function createMockDeps(overrides: Partial<UseAgentListenersDeps> = {}): UseAgen
 		updateGlobalStatsRef: { current: null },
 		rightPanelRef: { current: null },
 		processQueuedItemRef: { current: null },
-		setGroupChatError: vi.fn(),
-		setGroupChatMessages: vi.fn(),
-		setGroupChatState: vi.fn(),
-		setGroupChatStates: vi.fn(),
 		contextWarningYellowThreshold: 80,
 		...overrides,
 	};
@@ -754,7 +751,9 @@ describe('useAgentListeners', () => {
 			expect(pauseBatchOnError).toHaveBeenCalledWith('sess-1', baseError, 2, 'Processing doc3.md');
 		});
 
-		it('delegates group chat errors to setGroupChatError', () => {
+		it('delegates group chat errors to groupChatStore', () => {
+			useGroupChatStore.setState({ groupChatError: null });
+
 			const deps = createMockDeps();
 			const session = createMockSession({
 				id: 'sess-1',
@@ -773,8 +772,8 @@ describe('useAgentListeners', () => {
 				'group-chat-12345678-1234-1234-1234-123456789012-claude-1700000000000';
 			onAgentErrorHandler?.(groupChatSessionId, baseError);
 
-			// Should call setGroupChatError for group chat sessions
-			expect(deps.setGroupChatError).toHaveBeenCalled();
+			// Should set error in groupChatStore directly
+			expect(useGroupChatStore.getState().groupChatError).not.toBeNull();
 		});
 	});
 

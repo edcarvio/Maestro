@@ -127,7 +127,8 @@ import { useToast } from './contexts/ToastContext';
 import { useModalActions, useModalStore } from './stores/modalStore';
 import { GitStatusProvider } from './contexts/GitStatusContext';
 import { InputProvider, useInputContext } from './contexts/InputContext';
-import { GroupChatProvider, useGroupChat } from './contexts/GroupChatContext';
+import { useGroupChatStore } from './stores/groupChatStore';
+import type { GroupChatMessagesHandle } from './components/GroupChatMessages';
 import { AutoRunProvider, useAutoRun } from './contexts/AutoRunContext';
 // All session state is read directly from useSessionStore in MaestroConsoleInner.
 import { useSessionStore, selectActiveSession } from './stores/sessionStore';
@@ -146,7 +147,7 @@ import { parseSynopsis } from '../shared/synopsis';
 import { formatRelativeTime } from '../shared/formatters';
 
 // Import types and constants
-// Note: GroupChat, GroupChatState are now imported via GroupChatContext
+// Note: GroupChat, GroupChatState are imported from types (re-exported from shared)
 import type {
 	ToolType,
 	SessionState,
@@ -711,42 +712,51 @@ function MaestroConsoleInner() {
 	const { setSelectedFileIndex, setFileTreeFilter, setFileTreeFilterOpen, setFlatFileList } =
 		useFileExplorerStore.getState();
 
-	// --- GROUP CHAT STATE (Phase 4: extracted to GroupChatContext) ---
+	// --- GROUP CHAT STATE (now in groupChatStore) ---
 
-	// Use GroupChatContext for all group chat states
+	// Reactive reads from groupChatStore (granular subscriptions)
+	const groupChats = useGroupChatStore((s) => s.groupChats);
+	const activeGroupChatId = useGroupChatStore((s) => s.activeGroupChatId);
+	const groupChatMessages = useGroupChatStore((s) => s.groupChatMessages);
+	const groupChatState = useGroupChatStore((s) => s.groupChatState);
+	const groupChatStagedImages = useGroupChatStore((s) => s.groupChatStagedImages);
+	const groupChatReadOnlyMode = useGroupChatStore((s) => s.groupChatReadOnlyMode);
+	const groupChatExecutionQueue = useGroupChatStore((s) => s.groupChatExecutionQueue);
+	const groupChatRightTab = useGroupChatStore((s) => s.groupChatRightTab);
+	const groupChatParticipantColors = useGroupChatStore((s) => s.groupChatParticipantColors);
+	const moderatorUsage = useGroupChatStore((s) => s.moderatorUsage);
+	const participantStates = useGroupChatStore((s) => s.participantStates);
+	const groupChatStates = useGroupChatStore((s) => s.groupChatStates);
+	const allGroupChatParticipantStates = useGroupChatStore((s) => s.allGroupChatParticipantStates);
+	const groupChatError = useGroupChatStore((s) => s.groupChatError);
+
+	// Stable actions from groupChatStore (non-reactive)
 	const {
-		groupChats,
 		setGroupChats,
-		activeGroupChatId,
 		setActiveGroupChatId,
-		groupChatMessages,
 		setGroupChatMessages,
-		groupChatState,
 		setGroupChatState,
-		groupChatStagedImages,
 		setGroupChatStagedImages,
-		groupChatReadOnlyMode,
 		setGroupChatReadOnlyMode,
-		groupChatExecutionQueue,
 		setGroupChatExecutionQueue,
-		groupChatRightTab,
 		setGroupChatRightTab,
-		groupChatParticipantColors,
 		setGroupChatParticipantColors,
-		moderatorUsage,
 		setModeratorUsage,
-		participantStates,
 		setParticipantStates,
-		groupChatStates,
 		setGroupChatStates,
-		allGroupChatParticipantStates,
 		setAllGroupChatParticipantStates,
-		groupChatError,
 		setGroupChatError,
-		groupChatInputRef,
-		groupChatMessagesRef,
-		clearGroupChatError: handleClearGroupChatErrorBase,
-	} = useGroupChat();
+	} = useGroupChatStore.getState();
+
+	// Refs for focus management (previously in GroupChatContext)
+	const groupChatInputRef = useRef<HTMLTextAreaElement>(null);
+	const groupChatMessagesRef = useRef<GroupChatMessagesHandle>(null);
+
+	// clearGroupChatError: store clears error, we handle the focus side-effect
+	const handleClearGroupChatErrorBase = useCallback(() => {
+		useGroupChatStore.getState().clearGroupChatError();
+		setTimeout(() => groupChatInputRef.current?.focus(), 0);
+	}, []);
 
 	// SSH Remote configs for looking up SSH remote names (used for participant cards in group chat)
 	const [sshRemoteConfigs, setSshRemoteConfigs] = useState<Array<{ id: string; name: string }>>([]);
@@ -2030,7 +2040,7 @@ function MaestroConsoleInner() {
 		}
 	}, [groupChatState, groupChatExecutionQueue, activeGroupChatId]);
 
-	// Refs (groupChatInputRef and groupChatMessagesRef are now in GroupChatContext)
+	// Refs (groupChatInputRef and groupChatMessagesRef are now declared above with groupChatStore state)
 	const logsEndRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const terminalOutputRef = useRef<HTMLDivElement>(null);
@@ -3563,10 +3573,6 @@ You are taking over this conversation. Based on the context above, provide a bri
 		updateGlobalStatsRef,
 		rightPanelRef,
 		processQueuedItemRef,
-		setGroupChatError,
-		setGroupChatMessages,
-		setGroupChatState,
-		setGroupChatStates,
 		contextWarningYellowThreshold: contextManagementSettings.contextWarningYellowThreshold,
 	});
 
@@ -12628,7 +12634,7 @@ You are taking over this conversation. Based on the context above, provide a bri
  *
  * Wraps MaestroConsoleInner with context providers for centralized state management.
  * Phase 3: InputProvider - centralized input state management
- * Phase 4: GroupChatProvider - centralized group chat state management
+ * Phase 4: Group chat state now lives in groupChatStore (Zustand) — no context wrapper needed
  * Phase 5: AutoRunProvider - centralized Auto Run and batch processing state management
  * Phase 6: Session state now lives in sessionStore (Zustand) — no context wrapper needed
  * Phase 7: InlineWizardProvider - inline /wizard command state management
@@ -12637,13 +12643,11 @@ You are taking over this conversation. Based on the context above, provide a bri
 export default function MaestroConsole() {
 	return (
 		<AutoRunProvider>
-			<GroupChatProvider>
-				<InlineWizardProvider>
-					<InputProvider>
-						<MaestroConsoleInner />
-					</InputProvider>
-				</InlineWizardProvider>
-			</GroupChatProvider>
+			<InlineWizardProvider>
+				<InputProvider>
+					<MaestroConsoleInner />
+				</InputProvider>
+			</InlineWizardProvider>
 		</AutoRunProvider>
 	);
 }

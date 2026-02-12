@@ -464,11 +464,11 @@ export function HistoryDetailModal({
 									<div className="flex items-center gap-3 text-xs font-mono">
 										<span style={{ color: theme.colors.accent }}>
 											<span style={{ color: theme.colors.textDim }}>In:</span>{' '}
-											{entry.usageStats.inputTokens.toLocaleString('en-US')}
+											{(entry.usageStats.inputTokens ?? 0).toLocaleString('en-US')}
 										</span>
 										<span style={{ color: theme.colors.success }}>
 											<span style={{ color: theme.colors.textDim }}>Out:</span>{' '}
-											{entry.usageStats.outputTokens.toLocaleString('en-US')}
+											{(entry.usageStats.outputTokens ?? 0).toLocaleString('en-US')}
 										</span>
 									</div>
 								</div>

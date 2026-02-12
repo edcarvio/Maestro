@@ -311,8 +311,8 @@ export const SummarizeProgressOverlay = memo(function SummarizeProgressOverlay({
 						{isComplete && result && result.success && (
 							<div className="mt-2 text-xs" style={{ color: theme.colors.success }}>
 								Reduced context by {result.reductionPercent}% (~
-								{result.originalTokens.toLocaleString()} → ~
-								{result.compactedTokens.toLocaleString()} tokens)
+								{(result.originalTokens ?? 0).toLocaleString()} → ~
+								{(result.compactedTokens ?? 0).toLocaleString()} tokens)
 							</div>
 						)}
 					</div>

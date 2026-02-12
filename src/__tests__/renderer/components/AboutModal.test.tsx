@@ -988,6 +988,26 @@ describe('AboutModal', () => {
 			const costElement = screen.getByText('$25.50');
 			expect(costElement).not.toHaveClass('animate-pulse');
 		});
+
+		it('should handle undefined totalCostUsd without crashing', async () => {
+			vi.mocked(window.maestro.agentSessions.getGlobalStats).mockResolvedValue(
+				createGlobalStats({ totalCostUsd: undefined as any, hasCostData: true })
+			);
+
+			render(
+				<AboutModal
+					theme={theme}
+					handsOnTimeMs={0}
+					autoRunStats={createAutoRunStats()}
+					onClose={onClose}
+				/>
+			);
+
+			await waitFor(() => {
+				// Should render $0.00 instead of crashing
+				expect(screen.getByText('$0.00')).toBeInTheDocument();
+			});
+		});
 	});
 
 	describe('AchievementCard integration', () => {

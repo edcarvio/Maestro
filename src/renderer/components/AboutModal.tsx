@@ -308,7 +308,7 @@ export function AboutModal({
 												style={{ color: theme.colors.success }}
 											>
 												$
-												{globalStats.totalCostUsd.toLocaleString('en-US', {
+												{(globalStats.totalCostUsd ?? 0).toLocaleString('en-US', {
 													minimumFractionDigits: 2,
 													maximumFractionDigits: 2,
 												})}

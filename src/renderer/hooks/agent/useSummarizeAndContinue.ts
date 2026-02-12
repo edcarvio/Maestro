@@ -150,7 +150,7 @@ export function useSummarizeAndContinue(session: Session | null): UseSummarizeAn
 		(message: string, result?: SummarizeResult): LogEntry => {
 			let text = message;
 			if (result && result.success) {
-				text = `${message}\n\nToken reduction: ${result.reductionPercent}% (~${result.originalTokens.toLocaleString()} → ~${result.compactedTokens.toLocaleString()} tokens)`;
+				text = `${message}\n\nToken reduction: ${result.reductionPercent}% (~${(result.originalTokens ?? 0).toLocaleString()} → ~${(result.compactedTokens ?? 0).toLocaleString()} tokens)`;
 			}
 			return {
 				id: `system-summarize-${Date.now()}`,

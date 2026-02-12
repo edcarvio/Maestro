@@ -191,13 +191,13 @@ function TokenReductionStats({ result, theme }: { result: SummarizeResult; theme
 				<div>
 					<span className="text-[10px] uppercase">Before</span>
 					<div className="font-mono" style={{ color: theme.colors.textMain }}>
-						~{result.originalTokens.toLocaleString()} tokens
+						~{(result.originalTokens ?? 0).toLocaleString()} tokens
 					</div>
 				</div>
 				<div>
 					<span className="text-[10px] uppercase">After</span>
 					<div className="font-mono" style={{ color: theme.colors.textMain }}>
-						~{result.compactedTokens.toLocaleString()} tokens
+						~{(result.compactedTokens ?? 0).toLocaleString()} tokens
 					</div>
 				</div>
 			</div>

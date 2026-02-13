@@ -47,6 +47,8 @@ import {
 	listGroupChats,
 	deleteGroupChat,
 	updateGroupChat,
+	addParticipantToChat,
+	updateParticipant,
 	getGroupChatsDir,
 } from '../../../main/group-chat/group-chat-storage';
 
@@ -393,6 +395,115 @@ describe('group-chat-storage', () => {
 			expect(updated.participants[0].name).toBe('Agent1');
 
 			// Clean up
+			await deleteGroupChat(chat.id);
+		});
+	});
+
+	// ===========================================================================
+	// Test 2.7: Concurrent write serialization (race condition fix)
+	// ===========================================================================
+	describe('concurrent write serialization', () => {
+		it('serializes concurrent updateGroupChat calls without data loss', async () => {
+			const chat = await createGroupChat('Concurrent Test', 'claude-code');
+
+			// Fire 10 concurrent updates — without serialization these would race
+			const promises = Array.from({ length: 10 }, (_, i) =>
+				updateGroupChat(chat.id, { name: `Update-${i}` })
+			);
+			await Promise.all(promises);
+
+			// The final persisted state should be one of the updates (last queued wins)
+			const loaded = await loadGroupChat(chat.id);
+			expect(loaded).not.toBeNull();
+			// File must be valid JSON (not corrupted)
+			expect(loaded!.name).toMatch(/^Update-\d$/);
+
+			await deleteGroupChat(chat.id);
+		});
+
+		it('serializes concurrent updateParticipant calls preserving all updates', async () => {
+			const chat = await createGroupChat('Participant Race', 'claude-code');
+
+			// Add two participants
+			await addParticipantToChat(chat.id, {
+				name: 'Alice',
+				agentId: 'claude-code',
+				sessionId: 'ses-alice',
+				addedAt: Date.now(),
+			});
+			await addParticipantToChat(chat.id, {
+				name: 'Bob',
+				agentId: 'opencode',
+				sessionId: 'ses-bob',
+				addedAt: Date.now(),
+			});
+
+			// Simulate concurrent usage events for both participants
+			const promises = [
+				updateParticipant(chat.id, 'Alice', { tokenCount: 1000, totalCost: 0.05 }),
+				updateParticipant(chat.id, 'Bob', { tokenCount: 2000, totalCost: 0.10 }),
+				updateParticipant(chat.id, 'Alice', { contextUsage: 45 }),
+				updateParticipant(chat.id, 'Bob', { contextUsage: 60 }),
+			];
+			await Promise.all(promises);
+
+			// Both participants must exist with their last-written stats
+			const loaded = await loadGroupChat(chat.id);
+			expect(loaded).not.toBeNull();
+			expect(loaded!.participants).toHaveLength(2);
+
+			const alice = loaded!.participants.find((p) => p.name === 'Alice');
+			const bob = loaded!.participants.find((p) => p.name === 'Bob');
+			expect(alice).toBeDefined();
+			expect(bob).toBeDefined();
+			// Serialized writes: later update overwrites earlier for same participant
+			expect(alice!.contextUsage).toBe(45);
+			expect(bob!.contextUsage).toBe(60);
+
+			await deleteGroupChat(chat.id);
+		});
+
+		it('produces valid JSON even with interleaved updateGroupChat and updateParticipant', async () => {
+			const chat = await createGroupChat('Interleaved Race', 'claude-code');
+			await addParticipantToChat(chat.id, {
+				name: 'Agent1',
+				agentId: 'claude-code',
+				sessionId: 'ses-1',
+				addedAt: Date.now(),
+			});
+
+			// Mix top-level updates with participant updates
+			const promises = [
+				updateGroupChat(chat.id, { moderatorAgentSessionId: 'mod-session-1' }),
+				updateParticipant(chat.id, 'Agent1', { tokenCount: 500 }),
+				updateGroupChat(chat.id, { moderatorSessionId: 'routing-prefix' }),
+				updateParticipant(chat.id, 'Agent1', { agentSessionId: 'agent-ses-1' }),
+			];
+			await Promise.all(promises);
+
+			// File must be valid JSON with all fields intact
+			const loaded = await loadGroupChat(chat.id);
+			expect(loaded).not.toBeNull();
+			expect(loaded!.participants).toHaveLength(1);
+			expect(loaded!.moderatorSessionId).toBe('routing-prefix');
+
+			await deleteGroupChat(chat.id);
+		});
+
+		it('uses atomic writes (temp file then rename)', async () => {
+			const chat = await createGroupChat('Atomic Test', 'claude-code');
+
+			await updateGroupChat(chat.id, { name: 'After Atomic' });
+
+			// Verify the .tmp file does not linger
+			const chatDir = path.dirname(chat.logPath);
+			const files = await fs.readdir(chatDir);
+			expect(files).not.toContain('metadata.json.tmp');
+
+			// Verify the actual file is valid
+			const loaded = await loadGroupChat(chat.id);
+			expect(loaded!.name).toBe('After Atomic');
+
 			await deleteGroupChat(chat.id);
 		});
 	});

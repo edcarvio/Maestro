@@ -41,6 +41,7 @@ import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { useClickOutside } from '../hooks/ui/useClickOutside';
 import { Modal, ModalFooter } from './ui/Modal';
 import { MermaidRenderer } from './MermaidRenderer';
+import { CsvTableRenderer } from './CsvTableRenderer';
 import { getEncoder, formatTokenCount } from '../utils/tokenCounter';
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
 import { remarkFileLinks, buildFileTreeIndices } from '../utils/remarkFileLinks';
@@ -175,6 +176,8 @@ const getLanguageFromFilename = (filename: string): string => {
 		yml: 'yaml',
 		toml: 'toml',
 		xml: 'xml',
+		csv: 'csv',
+		tsv: 'csv',
 	};
 	return languageMap[ext || ''] || 'text';
 };
@@ -764,6 +767,8 @@ export const FilePreview = React.memo(
 		// Compute derived values - must be before any early returns but after hooks
 		const language = file ? getLanguageFromFilename(file.name) : '';
 		const isMarkdown = language === 'markdown';
+		const isCsv = language === 'csv';
+		const csvDelimiter = file?.name.toLowerCase().endsWith('.tsv') ? '\t' : ',';
 		const isImage = file ? isImageFile(file.name) : false;
 
 		// Check for binary files - either by extension or by content analysis
@@ -1241,7 +1246,7 @@ export const FilePreview = React.memo(
 
 		// Highlight search matches in syntax-highlighted code
 		useEffect(() => {
-			if (!searchQuery.trim() || !codeContainerRef.current || isMarkdown || isImage) {
+			if (!searchQuery.trim() || !codeContainerRef.current || isMarkdown || isImage || isCsv) {
 				setTotalMatches(0);
 				setCurrentMatchIndex(0);
 				matchElementsRef.current = [];
@@ -1325,7 +1330,7 @@ export const FilePreview = React.memo(
 				});
 				matchElementsRef.current = [];
 			};
-		}, [searchQuery, file?.content, isMarkdown, isImage, theme.colors.accent]);
+		}, [searchQuery, file?.content, isMarkdown, isImage, isCsv, theme.colors.accent]);
 
 		// Search matches in markdown preview mode - use CSS Custom Highlight API
 		useEffect(() => {
@@ -2312,6 +2317,17 @@ export const FilePreview = React.memo(
 									// Scroll to show the cursor
 									textarea.scrollTop += textarea.clientHeight;
 								}
+							}}
+						/>
+					) : isCsv && !markdownEditMode ? (
+						<CsvTableRenderer
+							content={file.content}
+							theme={theme}
+							delimiter={csvDelimiter}
+							searchQuery={searchQuery}
+							onMatchCount={(count) => {
+								setTotalMatches(count);
+								setCurrentMatchIndex(count > 0 ? 0 : -1);
 							}}
 						/>
 					) : isMarkdown ? (

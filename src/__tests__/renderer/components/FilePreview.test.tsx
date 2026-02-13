@@ -106,6 +106,15 @@ vi.mock('../../../renderer/components/MermaidRenderer', () => ({
 	MermaidRenderer: () => <div data-testid="mermaid-renderer">Mermaid</div>,
 }));
 
+// Mock CsvTableRenderer
+vi.mock('../../../renderer/components/CsvTableRenderer', () => ({
+	CsvTableRenderer: ({ content, searchQuery, delimiter }: { content: string; searchQuery?: string; delimiter?: string }) => (
+		<div data-testid="csv-table-renderer" data-search={searchQuery ?? ''} data-delimiter={delimiter ?? ','}>
+			{content.substring(0, 50)}
+		</div>
+	),
+}));
+
 // Mock token counter - getEncoder must return a Promise
 vi.mock('../../../renderer/utils/tokenCounter', () => ({
 	getEncoder: vi.fn(() => Promise.resolve({ encode: () => [1, 2, 3] })),
@@ -1311,6 +1320,71 @@ print("world")
 			expect(onScrollPositionChange).not.toHaveBeenCalled();
 
 			vi.useRealTimers();
+		});
+	});
+
+	describe('CSV file rendering', () => {
+		it('renders CsvTableRenderer for .csv files with comma delimiter', () => {
+			render(
+				<FilePreview
+					{...defaultProps}
+					file={{ name: 'data.csv', content: 'Name,Age\nAlice,30', path: '/test/data.csv' }}
+				/>
+			);
+
+			const renderer = screen.getByTestId('csv-table-renderer');
+			expect(renderer).toBeInTheDocument();
+			expect(renderer).toHaveAttribute('data-delimiter', ',');
+		});
+
+		it('renders CsvTableRenderer for .tsv files with tab delimiter', () => {
+			render(
+				<FilePreview
+					{...defaultProps}
+					file={{ name: 'data.tsv', content: 'Name\tAge\nAlice\t30', path: '/test/data.tsv' }}
+				/>
+			);
+
+			const renderer = screen.getByTestId('csv-table-renderer');
+			expect(renderer).toBeInTheDocument();
+			expect(renderer).toHaveAttribute('data-delimiter', '\t');
+		});
+
+		it('shows edit button for CSV files', () => {
+			render(
+				<FilePreview
+					{...defaultProps}
+					file={{ name: 'data.csv', content: 'Name,Age\nAlice,30', path: '/test/data.csv' }}
+				/>
+			);
+
+			expect(screen.getByTestId('edit-icon')).toBeInTheDocument();
+		});
+
+		it('shows textarea when in edit mode for CSV files', () => {
+			render(
+				<FilePreview
+					{...defaultProps}
+					file={{ name: 'data.csv', content: 'Name,Age\nAlice,30', path: '/test/data.csv' }}
+					markdownEditMode={true}
+				/>
+			);
+
+			const textarea = screen.getByRole('textbox');
+			expect(textarea).toBeInTheDocument();
+			expect(textarea).toHaveValue('Name,Age\nAlice,30');
+		});
+
+		it('does not render CsvTableRenderer when in edit mode', () => {
+			render(
+				<FilePreview
+					{...defaultProps}
+					file={{ name: 'data.csv', content: 'Name,Age\nAlice,30', path: '/test/data.csv' }}
+					markdownEditMode={true}
+				/>
+			);
+
+			expect(screen.queryByTestId('csv-table-renderer')).not.toBeInTheDocument();
 		});
 	});
 });

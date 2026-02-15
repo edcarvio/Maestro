@@ -258,7 +258,7 @@ describe('AIOverviewTab', () => {
 		expect(screen.getByText('42')).toBeInTheDocument();
 		expect(screen.getByText('history entries')).toBeInTheDocument();
 		expect(screen.getByText('3')).toBeInTheDocument();
-		expect(screen.getByText('agents')).toBeInTheDocument();
+		expect(screen.getByText(/agents/)).toBeInTheDocument();
 		expect(screen.getByText('1m 35s')).toBeInTheDocument();
 	});
 
@@ -275,8 +275,8 @@ describe('AIOverviewTab', () => {
 			expect(screen.getByTestId('markdown-renderer')).toBeInTheDocument();
 		});
 
-		expect(screen.getByText('history entry')).toBeInTheDocument();
-		expect(screen.getByText('agent')).toBeInTheDocument();
+		expect(screen.getByText(/history entry\b/)).toBeInTheDocument();
+		expect(screen.getByText(/\bagent\b/)).toBeInTheDocument();
 	});
 
 	it('does not update state after unmount but caches result', async () => {

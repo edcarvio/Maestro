@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QuickActionsModal } from '../../../renderer/components/QuickActionsModal';
+import { formatShortcutKeys } from '../../../renderer/utils/shortcutFormatter';
 import type { Session, Group, Theme, Shortcut } from '../../../renderer/types';
 import { useUIStore } from '../../../renderer/stores/uiStore';
 import { useFileExplorerStore } from '../../../renderer/stores/fileExplorerStore';
@@ -284,7 +285,7 @@ describe('QuickActionsModal', () => {
 			render(<QuickActionsModal {...props} />);
 
 			expect(screen.getByText('Toggle Sidebar')).toBeInTheDocument();
-			expect(screen.getByText('Cmd+B')).toBeInTheDocument();
+			expect(screen.getByText(formatShortcutKeys(mockShortcuts.toggleSidebar.keys))).toBeInTheDocument();
 		});
 
 		it('renders Settings action', () => {
@@ -1512,7 +1513,7 @@ describe('QuickActionsModal', () => {
 			});
 			render(<QuickActionsModal {...props} />);
 
-			expect(screen.getByText('Cmd+Shift+D')).toBeInTheDocument();
+			expect(screen.getByText(formatShortcutKeys(['Cmd', 'Shift', 'D']))).toBeInTheDocument();
 		});
 	});
 

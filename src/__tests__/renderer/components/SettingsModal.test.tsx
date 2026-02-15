@@ -18,6 +18,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { SettingsModal } from '../../../renderer/components/SettingsModal';
+import { formatEnterToSend } from '../../../renderer/utils/shortcutFormatter';
 import type {
 	Theme,
 	Shortcut,
@@ -39,6 +40,9 @@ vi.mock('../../../renderer/contexts/LayerStackContext', () => ({
 vi.mock('../../../renderer/utils/shortcutFormatter', () => ({
 	formatShortcutKeys: vi.fn((keys: string[]) => keys.join('+')),
 	isMacOS: vi.fn(() => false), // Test environment is not Mac
+	formatMetaKey: vi.fn(() => 'Ctrl'),
+	formatEnterToSend: vi.fn((enterToSend: boolean) => enterToSend ? 'Enter' : 'Ctrl + Enter'),
+	formatEnterToSendTooltip: vi.fn((enterToSend: boolean) => enterToSend ? 'Switch to Ctrl+Enter to send' : 'Switch to Enter to send'),
 }));
 
 // Mock AICommandsPanel
@@ -838,8 +842,7 @@ describe('SettingsModal', () => {
 				await vi.advanceTimersByTimeAsync(100);
 			});
 
-			// Test environment doesn't have Mac user agent, so it shows Ctrl + Enter
-			expect(screen.getByText(/⌘ \+ Enter|Ctrl \+ Enter/)).toBeInTheDocument();
+			expect(screen.getByText(formatEnterToSend(false))).toBeInTheDocument();
 		});
 	});
 

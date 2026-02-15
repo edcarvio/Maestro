@@ -2159,7 +2159,7 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
 								color: theme.colors.accentForeground,
 								border: `1px solid ${theme.colors.accent}`,
 							}}
-							title="Save changes (⌘S)"
+							title={`Save changes (${formatShortcutKeys(['Meta', 's'])})`}
 						>
 							{isCompact ? <Save className="w-3.5 h-3.5" /> : 'Save'}
 							{/* Keyboard shortcut overlay on hover - only show in non-compact mode */}
@@ -2172,7 +2172,7 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
 										border: `1px solid ${theme.colors.border}`,
 									}}
 								>
-									⌘S
+									{formatShortcutKeys(['Meta', 's'])}
 								</span>
 							)}
 						</button>

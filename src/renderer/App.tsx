@@ -8342,7 +8342,11 @@ You are taking over this conversation. Based on the context above, provide a bri
 				? activeSession.shellCwd || activeSession.cwd
 				: activeSession.cwd;
 		const sshRemoteId =
-			activeSession.sshRemoteId || activeSession.sessionSshRemoteConfig?.remoteId || undefined;
+			activeSession.sshRemoteId ||
+			(activeSession.sessionSshRemoteConfig?.enabled
+				? activeSession.sessionSshRemoteConfig.remoteId
+				: undefined) ||
+			undefined;
 		const diff = await gitService.getDiff(cwd, undefined, sshRemoteId);
 
 		if (diff.diff) {

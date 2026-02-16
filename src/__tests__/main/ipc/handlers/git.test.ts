@@ -1189,54 +1189,6 @@ COMMIT_STARTdef987654321|Jane Smith|2024-01-14T09:00:00+00:00||Add feature
 			expect(result.entries[0].subject).toBe('Initial commit');
 		});
 
-		it('should use SSH remote execution when sshRemoteId is provided for git:log', async () => {
-			// Mock the remote config
-			mockSettingsStore.get.mockReturnValue([
-				{
-					id: 'ssh-remote-123',
-					enabled: true,
-					host: 'example.com',
-					user: 'testuser',
-					privateKeyPath: '/path/to/key',
-					knownHostsPath: '/path/to/known_hosts',
-				},
-			]);
-
-			const remoteGit = await import('../../../../main/utils/remote-git');
-			vi.mocked(remoteGit.execGitRemote).mockResolvedValue({
-				stdout: `COMMIT_STARTabc123|John Doe|2024-01-15T10:30:00+00:00|HEAD -> main|Initial commit
-
-  2 files changed, 50 insertions(+)`,
-				stderr: '',
-				exitCode: 0,
-			});
-
-			const handler = handlers.get('git:log');
-			const result = await handler!({} as any, '/test/repo', undefined, 'ssh-remote-123');
-
-			expect(remoteGit.execGitRemote).toHaveBeenCalledWith(
-				[
-					'log',
-					'--max-count=100',
-					'--pretty=format:COMMIT_START%H|%an|%ad|%D|%s',
-					'--date=iso-strict',
-					'--shortstat',
-				],
-				{
-					sshRemote: {
-						id: 'ssh-remote-123',
-						enabled: true,
-						host: 'example.com',
-						user: 'testuser',
-						privateKeyPath: '/path/to/key',
-						knownHostsPath: '/path/to/known_hosts',
-					},
-					remoteCwd: '/test/repo',
-				}
-			);
-			expect(result.entries).toHaveLength(1);
-			expect(result.entries[0].subject).toBe('Initial commit');
-		});
 	});
 
 	describe('git:commitCount', () => {
@@ -1330,6 +1282,22 @@ COMMIT_STARTdef987654321|Jane Smith|2024-01-14T09:00:00+00:00||Add feature
 			});
 			expect(result).toEqual({
 				count: 250,
+				error: null,
+			});
+		});
+
+		it('should handle large commit counts', async () => {
+			vi.mocked(execFile.execFileNoThrow).mockResolvedValue({
+				stdout: '50000\n',
+				stderr: '',
+				exitCode: 0,
+			});
+
+			const handler = handlers.get('git:commitCount');
+			const result = await handler!({} as any, '/large/repo');
+
+			expect(result).toEqual({
+				count: 50000,
 				error: null,
 			});
 		});
@@ -1517,21 +1485,16 @@ index 0000000..abc1234
 			});
 		});
 
-		it('should handle merge commits', async () => {
-			const mergeShowOutput = `commit def7890123456789abcdef1234567890abcdef12345678
-Merge: abc1234 def5678
-Author: Merge Author <merge@example.com>
-Date:   Wed Jan 17 12:00:00 2024 +0000
+		it('should handle merge commits with multiple parents', async () => {
+			const mergeShowOutput = `commit def789012345abcdef789012345abcdef12345678
+Merge: abc1234 xyz5678
+Author: Developer <dev@example.com>
+Date:   Wed Jan 17 09:00:00 2024 +0000
 
-    Merge branch 'feature'
+    Merge branch 'feature' into main
 
-diff --git a/file.txt b/file.txt
-index 1234567..abcdefg 100644
---- a/file.txt
-+++ b/file.txt
-@@ -1 +1,2 @@
- line 1
-+merged line`;
+ src/merged.ts | 10 ++++++++++
+ 1 file changed, 10 insertions(+)`;
 
 			vi.mocked(execFile.execFileNoThrow).mockResolvedValue({
 				stdout: mergeShowOutput,

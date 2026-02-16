@@ -757,9 +757,16 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
 	},
 
 	setPreventSleepEnabled: async (value) => {
+		const prev = get().preventSleepEnabled;
 		set({ preventSleepEnabled: value });
-		await window.maestro.settings.set('preventSleepEnabled', value);
-		await window.maestro.power.setEnabled(value);
+		try {
+			await window.maestro.settings.set('preventSleepEnabled', value);
+			await window.maestro.power.setEnabled(value);
+		} catch (error) {
+			// Rollback on failure so UI stays in sync with actual power state
+			set({ preventSleepEnabled: prev });
+			throw error; // Let Sentry capture
+		}
 	},
 
 	// ============================================================================

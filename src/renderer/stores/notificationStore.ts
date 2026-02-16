@@ -107,9 +107,22 @@ export const useNotificationStore = create<NotificationStore>()((set) => ({
 	// --- Toast CRUD ---
 	addToast: (toast) => set((s) => ({ toasts: [...s.toasts, toast] })),
 
-	removeToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+	removeToast: (id) => {
+		const timerId = autoDismissTimers.get(id);
+		if (timerId) {
+			clearTimeout(timerId);
+			autoDismissTimers.delete(id);
+		}
+		set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
+	},
 
-	clearToasts: () => set({ toasts: [] }),
+	clearToasts: () => {
+		for (const timerId of autoDismissTimers.values()) {
+			clearTimeout(timerId);
+		}
+		autoDismissTimers.clear();
+		set({ toasts: [] });
+	},
 
 	// --- Configuration ---
 	setDefaultDuration: (duration) =>
@@ -129,6 +142,9 @@ export const useNotificationStore = create<NotificationStore>()((set) => ({
 // ============================================================================
 
 let toastIdCounter = 0;
+
+/** Active auto-dismiss timers keyed by toast ID. Cleared on manual removal. */
+const autoDismissTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /** Reset the toast ID counter (for tests). */
 export function resetToastIdCounter(): void {
@@ -255,11 +271,13 @@ export function notifyToast(toast: Omit<Toast, 'id' | 'timestamp'>): string {
 		}
 	}
 
-	// Auto-dismiss timer
+	// Auto-dismiss timer (tracked so manual removal can cancel it)
 	if (!toastsDisabled && durationMs > 0) {
-		setTimeout(() => {
+		const timerId = setTimeout(() => {
+			autoDismissTimers.delete(id);
 			useNotificationStore.getState().removeToast(id);
 		}, durationMs);
+		autoDismissTimers.set(id, timerId);
 	}
 
 	return id;

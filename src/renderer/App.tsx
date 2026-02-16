@@ -6989,13 +6989,19 @@ You are taking over this conversation. Based on the context above, provide a bri
 				setShowNewGroupChatModal(false);
 				handleOpenGroupChat(chat.id);
 			} catch (err) {
-				// Fixes MAESTRO-83/84: Invalid agent IDs (e.g. "zai", "kimi")
-				// produce an unhandled rejection. Surface the error to the user.
+				setShowNewGroupChatModal(false);
+				const message = err instanceof Error ? err.message : '';
+				const isValidationError = message.includes('Invalid moderator agent ID');
 				addToast({
 					type: 'error',
 					title: 'Group Chat',
-					message: err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': /, '') : 'Failed to create group chat',
+					message: isValidationError
+						? message.replace(/^Error invoking remote method '[^']+': /, '')
+						: 'Failed to create group chat',
 				});
+				if (!isValidationError) {
+					throw err; // Unexpected — let Sentry capture via unhandledrejection
+				}
 			}
 		},
 		[handleOpenGroupChat, addToast]

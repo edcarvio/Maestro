@@ -341,14 +341,14 @@ export function MermaidRenderer({ chart, theme }: MermaidRendererProps) {
 			}
 
 			try {
-				// Pre-validate the chart syntax before attempting render.
-				// This avoids mermaid inserting error elements into the DOM
-				// even with suppressErrorRendering (belt-and-suspenders).
+				// Pre-validate chart syntax before render to prevent DOM pollution.
 				const trimmed = chart.trim();
-				const parseResult = await mermaid.parse(trimmed, { suppressErrors: true });
-				if (!parseResult) {
+				try {
+					await mermaid.parse(trimmed);
+				} catch (parseErr) {
 					if (cancelled) return;
-					setError('Invalid mermaid syntax');
+					const detail = parseErr instanceof Error ? parseErr.message : 'Invalid mermaid syntax';
+					setError(detail);
 					return;
 				}
 

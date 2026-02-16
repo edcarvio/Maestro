@@ -203,10 +203,13 @@ export function registerSystemHandlers(deps: SystemHandlerDependencies): void {
 		try {
 			await shell.openExternal(url);
 		} catch (err) {
-			// Fixes MAESTRO-3Q: Launch Services may not have an app for the URL
-			// (e.g., file:// URLs with no associated app, or unsupported schemes).
-			// This is recoverable — the user simply has no handler for this URL type.
-			console.warn(`Failed to open external URL "${url}":`, err instanceof Error ? err.message : err);
+			const message = err instanceof Error ? err.message : String(err);
+			if (message.includes('Launch Services') || message.includes('No application')) {
+				// Fixes MAESTRO-3Q: macOS has no handler for this URL scheme/file type.
+				logger.warn(`No application found to open "${url}"`, 'Shell', { error: message });
+				return;
+			}
+			throw err;
 		}
 	});
 

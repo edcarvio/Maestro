@@ -520,8 +520,17 @@ describe('system IPC handlers', () => {
 			);
 
 			const handler = handlers.get('shell:openExternal');
-			// Should not throw - error is caught and logged
+			// Should not throw - known recoverable error is caught and logged
 			await expect(handler!({} as any, 'file:///some/path.xyz')).resolves.toBeUndefined();
+		});
+
+		it('should re-throw unexpected openExternal errors', async () => {
+			vi.mocked(shell.openExternal).mockRejectedValue(
+				new Error('Unexpected Electron internal failure')
+			);
+
+			const handler = handlers.get('shell:openExternal');
+			await expect(handler!({} as any, 'https://example.com')).rejects.toThrow('Unexpected Electron internal failure');
 		});
 	});
 

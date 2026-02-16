@@ -200,7 +200,14 @@ export function registerSystemHandlers(deps: SystemHandlerDependencies): void {
 		} catch {
 			throw new Error(`Invalid URL: ${url}`);
 		}
-		await shell.openExternal(url);
+		try {
+			await shell.openExternal(url);
+		} catch (err) {
+			// Fixes MAESTRO-3Q: Launch Services may not have an app for the URL
+			// (e.g., file:// URLs with no associated app, or unsupported schemes).
+			// This is recoverable — the user simply has no handler for this URL type.
+			console.warn(`Failed to open external URL "${url}":`, err instanceof Error ? err.message : err);
+		}
 	});
 
 	// Shell operations - move item to system trash

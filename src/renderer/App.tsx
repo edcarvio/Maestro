@@ -6983,12 +6983,22 @@ You are taking over this conversation. Based on the context above, provide a bri
 				customModel?: string;
 			}
 		) => {
-			const chat = await window.maestro.groupChat.create(name, moderatorAgentId, moderatorConfig);
-			setGroupChats((prev) => [chat, ...prev]);
-			setShowNewGroupChatModal(false);
-			handleOpenGroupChat(chat.id);
+			try {
+				const chat = await window.maestro.groupChat.create(name, moderatorAgentId, moderatorConfig);
+				setGroupChats((prev) => [chat, ...prev]);
+				setShowNewGroupChatModal(false);
+				handleOpenGroupChat(chat.id);
+			} catch (err) {
+				// Fixes MAESTRO-83/84: Invalid agent IDs (e.g. "zai", "kimi")
+				// produce an unhandled rejection. Surface the error to the user.
+				addToast({
+					type: 'error',
+					title: 'Group Chat',
+					message: err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': /, '') : 'Failed to create group chat',
+				});
+			}
 		},
-		[handleOpenGroupChat]
+		[handleOpenGroupChat, addToast]
 	);
 
 	const handleDeleteGroupChat = useCallback(

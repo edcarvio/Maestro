@@ -513,6 +513,16 @@ describe('system IPC handlers', () => {
 
 			expect(shell.openExternal).toHaveBeenCalledWith('mailto:test@example.com');
 		});
+
+		it('should gracefully handle Launch Services errors', async () => {
+			vi.mocked(shell.openExternal).mockRejectedValue(
+				new Error('No application in the Launch Services database matches the input criteria.')
+			);
+
+			const handler = handlers.get('shell:openExternal');
+			// Should not throw - error is caught and logged
+			await expect(handler!({} as any, 'file:///some/path.xyz')).resolves.toBeUndefined();
+		});
 	});
 
 	describe('shell:showItemInFolder', () => {

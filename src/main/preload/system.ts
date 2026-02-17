@@ -73,6 +73,8 @@ export function createShellApi() {
 		openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
 		trashItem: (itemPath: string) => ipcRenderer.invoke('shell:trashItem', itemPath),
 		showItemInFolder: (itemPath: string) => ipcRenderer.invoke('shell:showItemInFolder', itemPath),
+		openInCodeEditor: (directoryPath: string): Promise<{ success: boolean; editor?: string; error?: string }> =>
+			ipcRenderer.invoke('shell:openInCodeEditor', directoryPath),
 	};
 }
 

@@ -15,6 +15,7 @@
  */
 
 import { ipcMain, dialog, shell, BrowserWindow, App } from 'electron';
+import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fsSync from 'fs';
 import Store from 'electron-store';
@@ -237,6 +238,42 @@ export function registerSystemHandlers(deps: SystemHandlerDependencies): void {
 			throw new Error(`Path does not exist: ${absolutePath}`);
 		}
 		shell.showItemInFolder(absolutePath);
+	});
+
+	// Shell operations - open project directory in a code editor
+	ipcMain.handle('shell:openInCodeEditor', async (_event, directoryPath: string) => {
+		if (!directoryPath || typeof directoryPath !== 'string') {
+			return { success: false, error: 'Invalid directory path' };
+		}
+
+		const customEditor = settingsStore.get(
+			'codeEditorCommand' as keyof MaestroSettings,
+			''
+		) as string;
+		let editorCommand = customEditor;
+
+		if (!editorCommand) {
+			// Auto-detect: try common editors in order of preference
+			const whichCmd = process.platform === 'win32' ? 'where' : 'which';
+			for (const candidate of ['cursor', 'code', 'codium', 'zed']) {
+				const result = await execFileNoThrow(whichCmd, [candidate]);
+				if (result.exitCode === 0 && result.stdout.trim()) {
+					editorCommand = candidate;
+					break;
+				}
+			}
+		}
+
+		if (!editorCommand) {
+			return { success: false, error: 'No code editor found. Configure one in Settings.' };
+		}
+
+		spawn(editorCommand, [directoryPath], {
+			detached: true,
+			stdio: 'ignore',
+		}).unref();
+
+		return { success: true, editor: editorCommand };
 	});
 
 	// ============ Tunnel Handlers (Cloudflare) ============

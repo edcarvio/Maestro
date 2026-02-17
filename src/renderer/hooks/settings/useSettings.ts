@@ -64,6 +64,10 @@ export interface UseSettingsReturn {
 	ghPath: string;
 	setGhPath: (value: string) => void;
 
+	// Code editor settings
+	codeEditorCommand: string;
+	setCodeEditorCommand: (value: string) => void;
+
 	// Font settings
 	fontFamily: string;
 	fontSize: number;

@@ -42,4 +42,9 @@ export function setupForwardingListeners(
 	processManager.on('command-exit', (sessionId: string, code: number) => {
 		safeSend('process:command-exit', sessionId, code);
 	});
+
+	// Forward raw PTY data for embedded terminal (bypasses stripControlSequences)
+	processManager.on('raw-pty-data', (sessionId: string, data: string) => {
+		safeSend('process:raw-pty-data', sessionId, data);
+	});
 }

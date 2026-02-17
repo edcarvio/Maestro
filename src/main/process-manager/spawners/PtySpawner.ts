@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import * as fs from 'fs';
 import * as pty from 'node-pty';
 import { stripControlSequences } from '../../utils/terminalFilter';
 import { logger } from '../../utils/logger';
@@ -23,7 +24,8 @@ export class PtySpawner {
 	spawn(config: ProcessConfig): SpawnResult {
 		const { sessionId, toolType, cwd, command, args, shell, shellArgs, shellEnvVars } = config;
 
-		const isTerminal = toolType === 'terminal';
+		const isTerminal = toolType === 'terminal' || toolType === 'embedded-terminal';
+		const isEmbeddedTerminal = toolType === 'embedded-terminal';
 		const isWindows = process.platform === 'win32';
 
 		try {
@@ -36,6 +38,26 @@ export class PtySpawner {
 					ptyCommand = shell;
 				} else {
 					ptyCommand = isWindows ? 'powershell.exe' : 'bash';
+				}
+
+				// Resolve shell name to absolute path (posix_spawnp may fail with bare names in Electron)
+				if (!isWindows && ptyCommand && !ptyCommand.startsWith('/')) {
+					
+					const shellPaths = [
+						`/bin/${ptyCommand}`,
+						`/usr/bin/${ptyCommand}`,
+						`/usr/local/bin/${ptyCommand}`,
+						`/opt/homebrew/bin/${ptyCommand}`,
+					];
+					for (const p of shellPaths) {
+						try {
+							fs.accessSync(p, fs.constants.X_OK);
+							ptyCommand = p;
+							break;
+						} catch {
+							// Continue searching
+						}
+					}
 				}
 
 				// Use -l (login) AND -i (interactive) flags for fully configured shell
@@ -68,12 +90,26 @@ export class PtySpawner {
 
 			// Build environment for PTY process
 			let ptyEnv: NodeJS.ProcessEnv;
-			if (isTerminal) {
+			if (isEmbeddedTerminal) {
+				// Embedded terminal uses full env — real shells need HOME, TERM, etc.
+				// Login shell (-l) will source user's profile to set up PATH and other vars
+				ptyEnv = { ...process.env, TERM: 'xterm-256color' };
+			} else if (isTerminal) {
 				ptyEnv = buildPtyTerminalEnv(shellEnvVars);
 			} else {
 				// For AI agents in PTY mode: pass full env (they need NODE_PATH, etc.)
 				ptyEnv = process.env;
 			}
+
+			logger.debug('[ProcessManager] PTY spawn attempt', 'ProcessManager', {
+				sessionId,
+				toolType,
+				ptyCommand,
+				ptyArgs,
+				cwd,
+				shell: config.shell,
+				pathEnv: (ptyEnv as Record<string, string>)?.PATH?.substring(0, 200),
+			});
 
 			const ptyProcess = pty.spawn(ptyCommand, ptyArgs, {
 				name: 'xterm-256color',
@@ -99,6 +135,11 @@ export class PtySpawner {
 
 			// Handle output
 			ptyProcess.onData((data) => {
+				if (isEmbeddedTerminal) {
+					// Raw data for xterm.js — no filtering, no buffering
+					this.emitter.emit('raw-pty-data', sessionId, data);
+					return;
+				}
 				const managedProc = this.processes.get(sessionId);
 				const cleanedData = stripControlSequences(data, managedProc?.lastCommand, isTerminal);
 				logger.debug('[ProcessManager] PTY onData', 'ProcessManager', {
@@ -140,7 +181,7 @@ export class PtySpawner {
 			logger.error('[ProcessManager] Failed to spawn PTY process', 'ProcessManager', {
 				error: String(error),
 			});
-			return { pid: -1, success: false };
+			return { pid: -1, success: false, error: String(error) };
 		}
 	}
 }

@@ -27,6 +27,7 @@ export interface ProcessSessionIdHandler {
 export interface ProcessSpawnResult {
 	pid: number;
 	success: boolean;
+	error?: string;
 	sshRemote?: {
 		id: string;
 		name: string;
@@ -90,6 +91,13 @@ export const processService = {
 	 */
 	onData(handler: ProcessDataHandler): () => void {
 		return window.maestro.process.onData(handler);
+	},
+
+	/**
+	 * Register handler for raw PTY data (embedded terminal)
+	 */
+	onRawPtyData(handler: ProcessDataHandler): () => void {
+		return window.maestro.process.onRawPtyData(handler);
 	},
 
 	/**

@@ -97,6 +97,7 @@ export interface UsageStats {
 export interface SpawnResult {
 	pid: number;
 	success: boolean;
+	error?: string;
 }
 
 export interface CommandResult {
@@ -118,6 +119,7 @@ export interface ProcessManagerEvents {
 	'tool-execution': (sessionId: string, tool: ToolExecution) => void;
 	'slash-commands': (sessionId: string, commands: unknown[]) => void;
 	'query-complete': (sessionId: string, data: QueryCompleteData) => void;
+	'raw-pty-data': (sessionId: string, data: string) => void;
 }
 
 export interface ToolExecution {

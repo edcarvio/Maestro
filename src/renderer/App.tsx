@@ -141,6 +141,7 @@ import { ToastContainer } from './components/Toast';
 
 // Import services
 import { gitService } from './services/git';
+import { processService } from './services/process';
 import { getSpeckitCommands } from './services/speckit';
 import { getOpenSpecCommands } from './services/openspec';
 
@@ -160,6 +161,7 @@ import type {
 	AITab,
 	FilePreviewTab,
 	UnifiedTabRef,
+	UnifiedTab,
 	QueuedItem,
 	BatchRunConfig,
 	AgentError,
@@ -191,6 +193,8 @@ import {
 	navigateToPrevUnifiedTab,
 	getInitialRenameValue,
 	hasActiveWizard,
+	createTerminalTab,
+	closeTerminalTab,
 } from './utils/tabHelpers';
 import { shouldOpenExternally, flattenTree } from './utils/fileExplorer';
 import type { FileNode } from './types/fileTree';
@@ -1215,6 +1219,8 @@ function MaestroConsoleInner() {
 					activeFileTabId: null,
 					unifiedTabOrder: [{ type: 'ai' as const, id: defaultTabId }],
 					unifiedClosedTabHistory: [],
+				terminalTabs: [],
+				activeTerminalTabId: null,
 				};
 			}
 
@@ -1344,9 +1350,13 @@ function MaestroConsoleInner() {
 					// File preview tabs - initialize from persisted data or empty
 					filePreviewTabs: correctedSession.filePreviewTabs || [],
 					activeFileTabId: correctedSession.activeFileTabId ?? null,
-					unifiedTabOrder:
+					unifiedTabOrder: (
 						correctedSession.unifiedTabOrder ||
-						resetAiTabs.map((tab) => ({ type: 'ai' as const, id: tab.id })),
+						resetAiTabs.map((tab) => ({ type: 'ai' as const, id: tab.id }))
+					).filter((ref) => ref.type !== 'terminal'), // Filter out terminal refs — PTY dies on quit
+					// Terminal tabs are NOT persisted — PTY processes die on app quit
+					terminalTabs: [],
+					activeTerminalTabId: null,
 				};
 			} else {
 				// Process spawn failed
@@ -1803,6 +1813,8 @@ function MaestroConsoleInner() {
 							activeFileTabId: null,
 							unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 							unifiedClosedTabHistory: [],
+				terminalTabs: [],
+				activeTerminalTabId: null,
 							customPath: parentSession.customPath,
 							customArgs: parentSession.customArgs,
 							customEnvVars: parentSession.customEnvVars,
@@ -3300,32 +3312,36 @@ You are taking over this conversation. Based on the context above, provide a bri
 		[activeSession?.aiTabs, activeSession?.activeTabId]
 	);
 
-	// UNIFIED TAB SYSTEM: Combine aiTabs and filePreviewTabs according to unifiedTabOrder
-	// This produces a single list for rendering tabs in the correct order (AI and file tabs interspersed)
+	// UNIFIED TAB SYSTEM: Combine aiTabs, filePreviewTabs, and terminalTabs according to unifiedTabOrder
+	// This produces a single list for rendering tabs in the correct order (AI, file, and terminal tabs interspersed)
 	// The type discriminator allows components to render the appropriate content for each tab type
-	type UnifiedTab =
-		| { type: 'ai'; id: string; data: AITab }
-		| { type: 'file'; id: string; data: FilePreviewTab };
+	// Uses the imported UnifiedTab type from types/index.ts (includes 'terminal' variant)
 
 	const unifiedTabs = useMemo((): UnifiedTab[] => {
 		if (!activeSession) return [];
 
-		const { aiTabs, filePreviewTabs, unifiedTabOrder } = activeSession;
+		const { aiTabs, filePreviewTabs, terminalTabs, unifiedTabOrder } = activeSession;
 		const aiTabMap = new Map(aiTabs.map((tab) => [tab.id, tab]));
 		const fileTabMap = new Map(filePreviewTabs.map((tab) => [tab.id, tab]));
+		const termTabMap = new Map((terminalTabs || []).map((tab) => [tab.id, tab]));
 
 		return unifiedTabOrder
 			.map((ref): UnifiedTab | null => {
 				if (ref.type === 'ai') {
 					const tab = aiTabMap.get(ref.id);
 					return tab ? { type: 'ai', id: ref.id, data: tab } : null;
-				} else {
+				} else if (ref.type === 'file') {
 					const tab = fileTabMap.get(ref.id);
 					return tab ? { type: 'file', id: ref.id, data: tab } : null;
+				} else {
+					const tab = termTabMap.get(ref.id);
+					if (!tab) return null;
+					const result: UnifiedTab = { type: 'terminal', id: ref.id, data: tab };
+					return result;
 				}
 			})
 			.filter((tab): tab is UnifiedTab => tab !== null);
-	}, [activeSession?.aiTabs, activeSession?.filePreviewTabs, activeSession?.unifiedTabOrder]);
+	}, [activeSession?.aiTabs, activeSession?.filePreviewTabs, activeSession?.terminalTabs, activeSession?.unifiedTabOrder]);
 
 	// Get the active file preview tab (if a file tab is active)
 	const activeFileTab = useMemo((): FilePreviewTab | null => {
@@ -6415,6 +6431,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 				activeFileTabId: null,
 				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 				unifiedClosedTabHistory: [],
+				terminalTabs: [],
+				activeTerminalTabId: null,
 				customPath: parentSession.customPath,
 				customArgs: parentSession.customArgs,
 				customEnvVars: parentSession.customEnvVars,
@@ -6600,6 +6618,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 								activeFileTabId: null,
 								unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 								unifiedClosedTabHistory: [],
+				terminalTabs: [],
+				activeTerminalTabId: null,
 								customPath: session.customPath,
 								customArgs: session.customArgs,
 								customEnvVars: session.customEnvVars,
@@ -7985,6 +8005,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 				activeFileTabId: null,
 				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 				unifiedClosedTabHistory: [],
+				terminalTabs: [],
+				activeTerminalTabId: null,
 				// Nudge message - appended to every interactive user message
 				nudgeMessage,
 				// Per-agent config (path, args, env vars, model)
@@ -8157,6 +8179,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 				activeFileTabId: null,
 				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 				unifiedClosedTabHistory: [],
+				terminalTabs: [],
+				activeTerminalTabId: null,
 				// Auto Run configuration from wizard
 				autoRunFolderPath,
 				autoRunSelectedFile,
@@ -9849,6 +9873,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 							activeFileTabId: null,
 							unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 							unifiedClosedTabHistory: [],
+				terminalTabs: [],
+				activeTerminalTabId: null,
 							customPath: activeSession.customPath,
 							customArgs: activeSession.customArgs,
 							customEnvVars: activeSession.customEnvVars,
@@ -10028,6 +10054,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 					activeFileTabId: null,
 					unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 					unifiedClosedTabHistory: [],
+				terminalTabs: [],
+				activeTerminalTabId: null,
 					customPath: activeSession.customPath,
 					customArgs: activeSession.customArgs,
 					customEnvVars: activeSession.customEnvVars,
@@ -10185,6 +10213,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 				activeFileTabId: null,
 				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 				unifiedClosedTabHistory: [],
+				terminalTabs: [],
+				activeTerminalTabId: null,
 				customPath: createWorktreeSession.customPath,
 				customArgs: createWorktreeSession.customArgs,
 				customEnvVars: createWorktreeSession.customEnvVars,
@@ -10371,6 +10401,64 @@ You are taking over this conversation. Based on the context above, provide a bri
 		},
 		[activeSession]
 	);
+	// === Terminal Tab Handlers ===
+	const handleNewTerminalTab = useCallback(() => {
+		if (!activeSession) return;
+		const result = createTerminalTab(activeSession);
+		if (result) {
+			setSessions((prev) =>
+				prev.map((s) => (s.id === activeSession.id ? result.session : s))
+			);
+		}
+	}, [activeSession]);
+
+	const handleTerminalTabSelect = useCallback(
+		(tabId: string) => {
+			if (!activeSession) return;
+			setSessions((prev) =>
+				prev.map((s) =>
+					s.id === activeSession.id
+						? { ...s, activeTerminalTabId: tabId, activeFileTabId: null }
+						: s
+				)
+			);
+		},
+		[activeSession]
+	);
+
+	const handleTerminalTabClose = useCallback(
+		(tabId: string) => {
+			if (!activeSession) return;
+			const result = closeTerminalTab(activeSession, tabId);
+			if (result) {
+				setSessions((prev) =>
+					prev.map((s) => (s.id === activeSession.id ? result.session : s))
+				);
+				// Kill the PTY process
+				processService.kill(tabId);
+			}
+		},
+		[activeSession]
+	);
+
+	const handleTerminalTabExit = useCallback(
+		(tabId: string, exitCode: number) => {
+			if (!activeSession) return;
+			setSessions((prev) =>
+				prev.map((s) => {
+					if (s.id !== activeSession.id) return s;
+					return {
+						...s,
+						terminalTabs: s.terminalTabs.map((t) =>
+							t.id === tabId ? { ...t, processRunning: false, exitCode } : t
+						),
+					};
+				})
+			);
+		},
+		[activeSession]
+	);
+
 	const handleNamedSessionSelect = useCallback(
 		(agentSessionId: string, _projectPath: string, sessionName: string, starred?: boolean) => {
 			// Open a closed named session as a new tab - use handleResumeSession to properly load messages
@@ -10845,6 +10933,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 		// Auto-scroll AI mode toggle
 		autoScrollAiMode,
 		setAutoScrollAiMode,
+
+		// Terminal tab handler
+		handleNewTerminalTab,
 	};
 
 	// Update flat file list when active session's tree, expanded folders, filter, or hidden files setting changes
@@ -11379,6 +11470,12 @@ You are taking over this conversation. Based on the context above, provide a bri
 		handleFileTabScrollPositionChange,
 		handleFileTabSearchQueryChange,
 		handleReloadFileTab,
+
+		// Terminal tab handlers
+		handleNewTerminalTab,
+		handleTerminalTabSelect,
+		handleTerminalTabClose,
+		handleTerminalTabExit,
 
 		handleScrollPositionChange,
 		handleAtBottomChange,
@@ -12250,6 +12347,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 									activeFileTabId: null,
 									unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 									unifiedClosedTabHistory: [],
+				terminalTabs: [],
+				activeTerminalTabId: null,
 									// Custom agent config
 									customPath: data.customPath,
 									customArgs: data.customArgs,

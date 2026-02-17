@@ -496,6 +496,11 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 						trackShortcut('newTab');
 					}
 				}
+				if (ctx.isTabShortcut(e, 'newTerminalTab')) {
+					e.preventDefault();
+					ctx.handleNewTerminalTab?.();
+					trackShortcut('newTerminalTab');
+				}
 				if (ctx.isTabShortcut(e, 'closeTab')) {
 					e.preventDefault();
 					// Use handleCloseCurrentTab to close the active tab (file or AI)

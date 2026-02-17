@@ -479,28 +479,44 @@ export interface FilePreviewTab {
 }
 
 /**
+ * Embedded terminal tab for in-agent terminal sessions.
+ * Each terminal tab owns its own PTY process and xterm.js instance.
+ * The tab id doubles as the processManager session key.
+ */
+export interface TerminalTab {
+	id: string;              // UUID — also used as processManager session key
+	name: string | null;     // User name (null = "Terminal")
+	createdAt: number;
+	cwd: string;             // Working directory at spawn time
+	processRunning?: boolean; // Runtime only — whether PTY is alive
+	exitCode?: number;        // Runtime only — set when process exits
+}
+
+/**
  * Reference to any tab in the unified tab system.
  * Used for unified tab ordering across different tab types.
  */
-export type UnifiedTabRef = { type: 'ai' | 'file'; id: string };
+export type UnifiedTabRef = { type: 'ai' | 'file' | 'terminal'; id: string };
 
 /**
  * Unified tab entry for rendering in TabBar.
  * Discriminated union that includes the full tab data for each type.
- * Used by TabBar to render both AI and file tabs in a single list.
+ * Used by TabBar to render both AI, file, and terminal tabs in a single list.
  */
 export type UnifiedTab =
 	| { type: 'ai'; id: string; data: AITab }
-	| { type: 'file'; id: string; data: FilePreviewTab };
+	| { type: 'file'; id: string; data: FilePreviewTab }
+	| { type: 'terminal'; id: string; data: TerminalTab };
 
 /**
  * Unified closed tab entry for undo functionality (Cmd+Shift+T).
- * Can hold either an AITab or FilePreviewTab with type discrimination.
+ * Can hold an AITab, FilePreviewTab, or TerminalTab with type discrimination.
  * Uses unifiedIndex for restoring position in the unified tab order.
  */
 export type ClosedTabEntry =
 	| { type: 'ai'; tab: AITab; unifiedIndex: number; closedAt: number }
-	| { type: 'file'; tab: FilePreviewTab; unifiedIndex: number; closedAt: number };
+	| { type: 'file'; tab: FilePreviewTab; unifiedIndex: number; closedAt: number }
+	| { type: 'terminal'; tab: TerminalTab; unifiedIndex: number; closedAt: number };
 
 export interface Session {
 	id: string;
@@ -625,11 +641,19 @@ export interface Session {
 	filePreviewTabs: FilePreviewTab[];
 	// Currently active file tab ID (null if an AI tab is active)
 	activeFileTabId: string | null;
-	// Unified tab ordering - determines visual order of all tabs (AI and file)
+	// Unified tab ordering - determines visual order of all tabs (AI, file, and terminal)
 	unifiedTabOrder: UnifiedTabRef[];
-	// Stack of recently closed tabs (both AI and file) for undo (max 25, runtime-only, not persisted)
+	// Stack of recently closed tabs (AI, file, and terminal) for undo (max 25, runtime-only, not persisted)
 	// Used by Cmd+Shift+T to restore any recently closed tab
 	unifiedClosedTabHistory: ClosedTabEntry[];
+
+	// Embedded Terminal Tabs - xterm.js-based terminals that coexist with AI and file tabs
+	// Each terminal tab owns its own PTY process (tab.id is the process manager key)
+	// Terminal tabs are NOT persisted — PTY dies on quit, restored as empty on session load
+	terminalTabs: TerminalTab[];
+	// Currently active terminal tab ID (null if an AI or file tab is active)
+	// Active tab priority: activeTerminalTabId > activeFileTabId > activeTabId
+	activeTerminalTabId: string | null;
 
 	// Saved scroll position for terminal/shell output view
 	terminalScrollTop?: number;
@@ -705,6 +729,7 @@ export interface Session {
 
 	// Symphony contribution metadata (only set for Symphony sessions)
 	symphonyMetadata?: SymphonySessionMetadata;
+
 }
 
 export interface AgentConfigOption {

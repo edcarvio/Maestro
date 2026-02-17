@@ -444,6 +444,8 @@ function MaestroConsoleInner() {
 		setShellEnvVars,
 		ghPath,
 		setGhPath,
+		codeEditorCommand,
+		setCodeEditorCommand,
 		fontFamily,
 		setFontFamily,
 		fontSize,
@@ -10936,6 +10938,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 
 		// Terminal tab handler
 		handleNewTerminalTab,
+
+		// Flash notifications for keyboard shortcuts
+		showSuccessFlash,
 	};
 
 	// Update flat file list when active session's tree, expanded folders, filter, or hidden files setting changes
@@ -12784,6 +12789,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 							setShellEnvVars={setShellEnvVars}
 							ghPath={ghPath}
 							setGhPath={setGhPath}
+							codeEditorCommand={codeEditorCommand}
+							setCodeEditorCommand={setCodeEditorCommand}
 							enterToSendAI={enterToSendAI}
 							setEnterToSendAI={setEnterToSendAI}
 							enterToSendTerminal={enterToSendTerminal}

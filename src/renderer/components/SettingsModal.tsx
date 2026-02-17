@@ -35,6 +35,7 @@ import {
 	User,
 	ArrowDownToLine,
 	Clapperboard,
+	Code2,
 } from 'lucide-react';
 import { useSettings } from '../hooks';
 import type {
@@ -257,6 +258,8 @@ interface SettingsModalProps {
 	setShellEnvVars: (vars: Record<string, string>) => void;
 	ghPath: string;
 	setGhPath: (path: string) => void;
+	codeEditorCommand: string;
+	setCodeEditorCommand: (command: string) => void;
 	enterToSendAI: boolean;
 	setEnterToSendAI: (value: boolean) => void;
 	enterToSendTerminal: boolean;
@@ -1499,6 +1502,46 @@ export const SettingsModal = memo(function SettingsModal(props: SettingsModalPro
 											gh
 										</code>{' '}
 										binary if it's not in your PATH. Used for Auto Run worktree features.
+									</p>
+								</div>
+							</div>
+
+							{/* Code Editor Command */}
+							<div>
+								<label className="block text-xs font-bold opacity-70 uppercase mb-2 flex items-center gap-2">
+									<Code2 className="w-3 h-3" />
+									Code Editor Command
+								</label>
+								<div
+									className="p-3 rounded border"
+									style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bgMain }}
+								>
+									<label className="block text-xs opacity-60 mb-1">Custom Command (optional)</label>
+									<div className="flex gap-2">
+										<input
+											type="text"
+											value={props.codeEditorCommand}
+											onChange={(e) => props.setCodeEditorCommand(e.target.value)}
+											placeholder="Auto-detect (cursor, code, codium, zed)"
+											className="flex-1 p-1.5 rounded border bg-transparent outline-none text-xs font-mono"
+											style={{ borderColor: theme.colors.border, color: theme.colors.textMain }}
+										/>
+										{props.codeEditorCommand && (
+											<button
+												onClick={() => props.setCodeEditorCommand('')}
+												className="px-2 py-1 rounded text-xs"
+												style={{
+													backgroundColor: theme.colors.bgActivity,
+													color: theme.colors.textDim,
+												}}
+											>
+												Clear
+											</button>
+										)}
+									</div>
+									<p className="text-xs opacity-40 mt-2">
+										Command to open projects in your editor. Leave empty to auto-detect.
+										Used by the "Open in Editor" button and {formatMetaKey()}+O shortcut.
 									</p>
 								</div>
 							</div>

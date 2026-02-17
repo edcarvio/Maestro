@@ -186,6 +186,7 @@ export interface SettingsStoreState {
 	shellArgs: string;
 	shellEnvVars: Record<string, string>;
 	ghPath: string;
+	codeEditorCommand: string;
 	fontFamily: string;
 	fontSize: number;
 	activeThemeId: ThemeId;
@@ -259,6 +260,7 @@ export interface SettingsStoreActions {
 	setShellArgs: (value: string) => void;
 	setShellEnvVars: (value: Record<string, string>) => void;
 	setGhPath: (value: string) => void;
+	setCodeEditorCommand: (value: string) => void;
 	setFontFamily: (value: string) => void;
 	setFontSize: (value: number) => void;
 	setActiveThemeId: (value: ThemeId) => void;
@@ -390,6 +392,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
 	shellArgs: '',
 	shellEnvVars: {},
 	ghPath: '',
+	codeEditorCommand: '',
 	fontFamily: 'Roboto Mono, Menlo, "Courier New", monospace',
 	fontSize: 14,
 	activeThemeId: 'dracula',
@@ -499,6 +502,11 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
 	setGhPath: (value) => {
 		set({ ghPath: value });
 		window.maestro.settings.set('ghPath', value);
+	},
+
+	setCodeEditorCommand: (value) => {
+		set({ codeEditorCommand: value });
+		window.maestro.settings.set('codeEditorCommand', value);
 	},
 
 	setFontFamily: (value) => {
@@ -1305,6 +1313,9 @@ export async function loadAllSettings(): Promise<void> {
 
 		if (allSettings['ghPath'] !== undefined) patch.ghPath = allSettings['ghPath'] as string;
 
+		if (allSettings['codeEditorCommand'] !== undefined)
+			patch.codeEditorCommand = allSettings['codeEditorCommand'] as string;
+
 		if (allSettings['fontFamily'] !== undefined)
 			patch.fontFamily = allSettings['fontFamily'] as string;
 
@@ -1667,6 +1678,7 @@ export function getSettingsActions() {
 		setShellArgs: state.setShellArgs,
 		setShellEnvVars: state.setShellEnvVars,
 		setGhPath: state.setGhPath,
+		setCodeEditorCommand: state.setCodeEditorCommand,
 		setFontFamily: state.setFontFamily,
 		setFontSize: state.setFontSize,
 		setActiveThemeId: state.setActiveThemeId,

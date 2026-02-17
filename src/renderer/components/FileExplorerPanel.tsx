@@ -13,6 +13,7 @@ import {
 	Target,
 	Copy,
 	ExternalLink,
+	Code2,
 	Server,
 	GitBranch,
 	Clock,
@@ -1104,6 +1105,24 @@ function FileExplorerPanelInner(props: FileExplorerPanelProps) {
 					</span>
 				</div>
 				<div className="flex items-center gap-1 flex-shrink-0">
+					{/* Open in Code Editor button - hidden for SSH remote sessions */}
+					{!session.sshRemote && (
+						<button
+							onClick={async () => {
+								const result = await window.maestro.shell.openInCodeEditor(session.projectRoot);
+								if (result.success) {
+									onShowFlash?.(`Opened in ${result.editor}`);
+								} else {
+									onShowFlash?.(result.error || 'Failed to open editor');
+								}
+							}}
+							className="p-1 rounded hover:bg-white/10 transition-colors"
+							title="Open in Code Editor (Cmd+O)"
+							style={{ color: theme.colors.textDim }}
+						>
+							<Code2 className="w-3.5 h-3.5" />
+						</button>
+					)}
 					{/* Last Document Graph indicator */}
 					{lastGraphFocusFile && onOpenLastDocumentGraph && (
 						<button

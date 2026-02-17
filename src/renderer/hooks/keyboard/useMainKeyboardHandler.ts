@@ -412,6 +412,22 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 				e.preventDefault();
 				ctx.setDirectorNotesOpen?.(true);
 				trackShortcut('directorNotes');
+			} else if (ctx.isShortcut(e, 'openInEditor')) {
+				e.preventDefault();
+				if (ctx.activeSession?.projectRoot && !ctx.activeSession?.sshRemote) {
+					window.maestro.shell.openInCodeEditor(ctx.activeSession.projectRoot).then(
+						(result: { success: boolean; editor?: string; error?: string }) => {
+							if (result.success) {
+								ctx.showSuccessFlash?.(`Opened in ${result.editor}`);
+							} else {
+								ctx.showSuccessFlash?.(result.error || 'Failed to open editor');
+							}
+						}
+					);
+					trackShortcut('openInEditor');
+				} else if (ctx.activeSession?.sshRemote) {
+					ctx.showSuccessFlash?.('Cannot open remote session in local editor');
+				}
 			} else if (ctx.isShortcut(e, 'jumpToBottom')) {
 				e.preventDefault();
 				// Jump to the bottom of the current main panel output (AI logs or terminal output)

@@ -876,6 +876,7 @@ interface MaestroAPI {
 		openExternal: (url: string) => Promise<void>;
 		trashItem: (itemPath: string) => Promise<void>;
 		showItemInFolder: (itemPath: string) => Promise<void>;
+		openInCodeEditor: (directoryPath: string) => Promise<{ success: boolean; editor?: string; error?: string }>;
 	};
 	tunnel: {
 		isCloudflaredInstalled: () => Promise<boolean>;

@@ -202,7 +202,7 @@ interface MaestroAPI {
 		setAll: (groups: any[]) => Promise<boolean>;
 	};
 	process: {
-		spawn: (config: ProcessConfig) => Promise<{ pid: number; success: boolean }>;
+		spawn: (config: ProcessConfig) => Promise<{ pid: number; success: boolean; error?: string }>;
 		write: (sessionId: string, data: string) => Promise<boolean>;
 		interrupt: (sessionId: string) => Promise<boolean>;
 		kill: (sessionId: string) => Promise<boolean>;
@@ -229,6 +229,7 @@ interface MaestroAPI {
 			}>
 		>;
 		onData: (callback: (sessionId: string, data: string) => void) => () => void;
+		onRawPtyData: (callback: (sessionId: string, data: string) => void) => () => void;
 		onExit: (callback: (sessionId: string, code: number) => void) => () => void;
 		onSessionId: (callback: (sessionId: string, agentSessionId: string) => void) => () => void;
 		onSlashCommands: (callback: (sessionId: string, slashCommands: string[]) => void) => () => void;

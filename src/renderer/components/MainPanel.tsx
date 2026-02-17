@@ -33,6 +33,7 @@ import { GitStatusWidget } from './GitStatusWidget';
 import { AgentSessionsBrowser } from './AgentSessionsBrowser';
 import { TabBar } from './TabBar';
 import { WizardConversationView, DocumentGenerationView } from './InlineWizard';
+import { EmbeddedTerminal } from './EmbeddedTerminal';
 import { gitService } from '../services/git';
 import { remoteUrlToBrowserUrl } from '../../shared/gitUtils';
 import { useGitBranch, useGitDetail, useGitFileStatus } from '../contexts/GitStatusContext';
@@ -238,6 +239,13 @@ interface MainPanelProps {
 	onFileTabSearchQueryChange?: (tabId: string, searchQuery: string) => void;
 	/** Handler to reload file tab content from disk */
 	onReloadFileTab?: (tabId: string) => void;
+
+	// Terminal tab management
+	activeTerminalTabId?: string | null;
+	onTerminalTabSelect?: (tabId: string) => void;
+	onTerminalTabClose?: (tabId: string) => void;
+	onNewTerminalTab?: () => void;
+	onTerminalTabExit?: (tabId: string, exitCode: number) => void;
 
 	// Scroll position persistence
 	onScrollPositionChange?: (scrollTop: number) => void;
@@ -1585,6 +1593,11 @@ export const MainPanel = React.memo(
 									activeFileTabId={activeFileTabId}
 									onFileTabSelect={onFileTabSelect}
 									onFileTabClose={onFileTabClose}
+									// Terminal tab props
+									activeTerminalTabId={props.activeTerminalTabId}
+									onTerminalTabSelect={props.onTerminalTabSelect}
+									onTerminalTabClose={props.onTerminalTabClose}
+									onNewTerminalTab={props.onNewTerminalTab}
 									// Accessibility
 									colorBlindMode={colorBlindMode}
 								/>
@@ -1633,8 +1646,30 @@ export const MainPanel = React.memo(
 
 						{/* Show loading state for file tabs (SSH remote file loading) */}
 						{/* Content area: Show FilePreview when file tab is active, otherwise show terminal output */}
+						{/* Terminal tabs — always mounted, CSS-hidden when inactive (preserves xterm.js state) */}
+						{activeSession.terminalTabs?.map((termTab) => (
+							<div
+								key={termTab.id}
+								style={{
+									display: activeSession.activeTerminalTabId === termTab.id ? 'flex' : 'none',
+									flex: 1,
+									overflow: 'hidden',
+								}}
+							>
+								<EmbeddedTerminal
+									terminalTabId={termTab.id}
+									cwd={termTab.cwd}
+									theme={theme}
+									fontFamily={props.fontFamily}
+									isVisible={activeSession.activeTerminalTabId === termTab.id}
+									onProcessExit={props.onTerminalTabExit}
+								/>
+							</div>
+						))}
+
 						{/* Skip rendering when loading remote file - loading state takes over entire main area */}
-						{(filePreviewLoading && !activeFileTabId) || activeFileTab?.isLoading ? (
+						{activeSession.activeTerminalTabId ? null
+						: (filePreviewLoading && !activeFileTabId) || activeFileTab?.isLoading ? (
 							<div
 								className="flex-1 flex items-center justify-center"
 								style={{ backgroundColor: theme.colors.bgMain }}
@@ -1809,8 +1844,8 @@ export const MainPanel = React.memo(
 									)}
 								</div>
 
-								{/* Input Area (hidden in mobile landscape for focused reading, and during wizard doc generation) */}
-								{!isMobileLandscape && !activeTab?.wizardState?.isGeneratingDocs && (
+								{/* Input Area (hidden in mobile landscape, during wizard doc generation, and when terminal tab is active) */}
+								{!isMobileLandscape && !activeTab?.wizardState?.isGeneratingDocs && !activeSession.activeTerminalTabId && (
 									<div data-tour="input-area">
 										<InputArea
 											session={activeSession}

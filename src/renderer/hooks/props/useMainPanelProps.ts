@@ -235,6 +235,12 @@ export interface UseMainPanelPropsDeps {
 	handleFileTabSearchQueryChange: (tabId: string, searchQuery: string) => void;
 	handleReloadFileTab: (tabId: string) => void;
 
+	// Terminal tab handlers
+	handleNewTerminalTab: () => void;
+	handleTerminalTabSelect: (tabId: string) => void;
+	handleTerminalTabClose: (tabId: string) => void;
+	handleTerminalTabExit: (tabId: string, exitCode: number) => void;
+
 	handleScrollPositionChange: (scrollTop: number) => void;
 	handleAtBottomChange: (isAtBottom: boolean) => void;
 	handleMainPanelInputBlur: () => void;
@@ -436,6 +442,12 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			onFileTabScrollPositionChange: deps.handleFileTabScrollPositionChange,
 			onFileTabSearchQueryChange: deps.handleFileTabSearchQueryChange,
 			onReloadFileTab: deps.handleReloadFileTab,
+			// Terminal tab props
+			activeTerminalTabId: deps.activeSession?.activeTerminalTabId ?? null,
+			onTerminalTabSelect: deps.handleTerminalTabSelect,
+			onTerminalTabClose: deps.handleTerminalTabClose,
+			onNewTerminalTab: deps.handleNewTerminalTab,
+			onTerminalTabExit: deps.handleTerminalTabExit,
 			onToggleTabSaveToHistory: deps.handleToggleTabSaveToHistory,
 			onToggleTabShowThinking: deps.handleToggleTabShowThinking,
 			onScrollPositionChange: deps.handleScrollPositionChange,
@@ -678,6 +690,11 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			deps.handleFileTabScrollPositionChange,
 			deps.handleFileTabSearchQueryChange,
 			deps.handleReloadFileTab,
+			// Terminal tab
+			deps.handleNewTerminalTab,
+			deps.handleTerminalTabSelect,
+			deps.handleTerminalTabClose,
+			deps.handleTerminalTabExit,
 			deps.handleScrollPositionChange,
 			deps.handleAtBottomChange,
 			deps.handleMainPanelInputBlur,

@@ -47,6 +47,7 @@ export interface ProcessConfig {
 export interface ProcessSpawnResponse {
 	pid: number;
 	success: boolean;
+	error?: string;
 	sshRemote?: { id: string; name: string; host: string };
 }
 
@@ -185,6 +186,15 @@ export function createProcessApi() {
 			const handler = (_: unknown, sessionId: string, data: string) => callback(sessionId, data);
 			ipcRenderer.on('process:data', handler);
 			return () => ipcRenderer.removeListener('process:data', handler);
+		},
+
+		/**
+		 * Subscribe to raw PTY data for embedded terminal (bypasses stripControlSequences)
+		 */
+		onRawPtyData: (callback: (sessionId: string, data: string) => void): (() => void) => {
+			const handler = (_: unknown, sessionId: string, data: string) => callback(sessionId, data);
+			ipcRenderer.on('process:raw-pty-data', handler);
+			return () => ipcRenderer.removeListener('process:raw-pty-data', handler);
 		},
 
 		/**

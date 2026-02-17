@@ -125,6 +125,7 @@ export const FIXED_SHORTCUTS: Record<string, Shortcut> = {
 export const TAB_SHORTCUTS: Record<string, Shortcut> = {
 	tabSwitcher: { id: 'tabSwitcher', label: 'Tab Switcher', keys: ['Alt', 'Meta', 't'] },
 	newTab: { id: 'newTab', label: 'New Tab', keys: ['Meta', 't'] },
+	newTerminalTab: { id: 'newTerminalTab', label: 'New Terminal Tab', keys: ['Meta', 'Shift', '`'] },
 	closeTab: { id: 'closeTab', label: 'Close Tab', keys: ['Meta', 'w'] },
 	closeAllTabs: { id: 'closeAllTabs', label: 'Close All Tabs', keys: ['Meta', 'Shift', 'w'] },
 	closeOtherTabs: { id: 'closeOtherTabs', label: 'Close Other Tabs', keys: ['Alt', 'Meta', 'w'] },

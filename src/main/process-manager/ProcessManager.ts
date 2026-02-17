@@ -58,7 +58,7 @@ export class ProcessManager extends EventEmitter {
 
 	private shouldUsePty(config: ProcessConfig): boolean {
 		const { toolType, requiresPty, prompt } = config;
-		return (toolType === 'terminal' || requiresPty === true) && !prompt;
+		return (toolType === 'terminal' || toolType === 'embedded-terminal' || requiresPty === true) && !prompt;
 	}
 
 	/**

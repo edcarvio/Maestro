@@ -203,11 +203,11 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
 				// For terminal sessions, we also load custom shell path, args, and env vars
 				let shellToUse =
 					config.shell ||
-					(config.toolType === 'terminal' ? settingsStore.get('defaultShell', 'zsh') : undefined);
+					(config.toolType === 'terminal' || config.toolType === 'embedded-terminal' ? settingsStore.get('defaultShell', 'zsh') : undefined);
 				let shellArgsStr: string | undefined;
 				let shellEnvVars: Record<string, string> | undefined;
 
-				if (config.toolType === 'terminal') {
+				if (config.toolType === 'terminal' || config.toolType === 'embedded-terminal') {
 					// Custom shell path overrides the detected/selected shell path
 					const customShellPath = settingsStore.get('customShellPath', '');
 					if (customShellPath && customShellPath.trim()) {
@@ -326,13 +326,13 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
 				if (isWindows) {
 					logger.info(`Evaluating SSH remote config`, LOG_CONTEXT, {
 						toolType: config.toolType,
-						isTerminal: config.toolType === 'terminal',
+						isTerminal: config.toolType === 'terminal' || config.toolType === 'embedded-terminal',
 						hasSessionSshRemoteConfig: !!config.sessionSshRemoteConfig,
 						sshEnabled: config.sessionSshRemoteConfig?.enabled,
-						willUseSsh: config.toolType !== 'terminal' && config.sessionSshRemoteConfig?.enabled,
+						willUseSsh: config.toolType !== 'terminal' && config.toolType !== 'embedded-terminal' && config.sessionSshRemoteConfig?.enabled,
 					});
 				}
-				if (config.toolType !== 'terminal' && config.sessionSshRemoteConfig?.enabled) {
+				if (config.toolType !== 'terminal' && config.toolType !== 'embedded-terminal' && config.sessionSshRemoteConfig?.enabled) {
 					// Session-level SSH config provided - resolve and use it
 					logger.info(`Using session-level SSH config`, LOG_CONTEXT, {
 						sessionId: config.sessionId,
@@ -488,6 +488,16 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
 					sshStdinScript,
 				});
 
+				if (!result.success) {
+					logger.error(`Process spawn failed`, LOG_CONTEXT, {
+						sessionId: config.sessionId,
+						error: result.error,
+						toolType: config.toolType,
+					});
+					return result;
+				}
+
+
 				logger.info(`Process spawned successfully`, LOG_CONTEXT, {
 					sessionId: config.sessionId,
 					pid: result.pid,
@@ -499,7 +509,7 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
 
 				// Add power block reason for AI sessions (not terminals)
 				// This prevents system sleep while AI is processing
-				if (config.toolType !== 'terminal') {
+				if (config.toolType !== 'terminal' && config.toolType !== 'embedded-terminal') {
 					powerManager.addBlockReason(`session:${config.sessionId}`);
 				}
 

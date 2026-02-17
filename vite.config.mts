@@ -65,7 +65,7 @@ export default defineConfig(({ mode }) => ({
 					}
 
 					// Terminal (xterm) in its own chunk - large and not immediately needed
-					if (id.includes('node_modules/xterm')) {
+					if (id.includes('node_modules/xterm') || id.includes('node_modules/@xterm/')) {
 						return 'vendor-xterm';
 					}
 

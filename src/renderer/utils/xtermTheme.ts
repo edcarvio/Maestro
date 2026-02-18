@@ -1,15 +1,16 @@
 /**
  * Maps Maestro Theme → xterm.js ITheme
  *
- * Derives terminal ANSI colors from the Maestro theme palette.
- * Provides sensible fallback ANSI colors for colors that themes don't define.
+ * Uses per-theme ANSI color palettes when available for a native terminal look.
+ * Falls back to generic dark/light palettes for themes without custom ANSI colors.
  */
 
-import type { Theme } from '../types';
+import type { Theme } from '../../shared/theme-types';
+import type { AnsiColors } from '../../shared/theme-types';
 import type { ITheme } from '@xterm/xterm';
 
-// Default ANSI color palettes for dark and light modes
-const DARK_ANSI = {
+// Fallback ANSI color palettes for themes that don't define their own
+const DARK_ANSI_FALLBACK: AnsiColors = {
 	black: '#1a1a2e',
 	red: '#ff5555',
 	green: '#50fa7b',
@@ -28,7 +29,7 @@ const DARK_ANSI = {
 	brightWhite: '#ffffff',
 };
 
-const LIGHT_ANSI = {
+const LIGHT_ANSI_FALLBACK: AnsiColors = {
 	black: '#073642',
 	red: '#dc322f',
 	green: '#859900',
@@ -48,11 +49,19 @@ const LIGHT_ANSI = {
 };
 
 /**
+ * Resolve the ANSI color palette for a theme.
+ * Prefers the theme's own ansiColors, then falls back to mode-based defaults.
+ */
+function resolveAnsiColors(theme: Theme): AnsiColors {
+	if (theme.ansiColors) return theme.ansiColors;
+	return theme.mode === 'light' ? LIGHT_ANSI_FALLBACK : DARK_ANSI_FALLBACK;
+}
+
+/**
  * Convert a Maestro Theme to an xterm.js ITheme
  */
 export function toXtermTheme(theme: Theme): ITheme {
-	const isLight = theme.mode === 'light';
-	const ansi = isLight ? LIGHT_ANSI : DARK_ANSI;
+	const ansi = resolveAnsiColors(theme);
 
 	return {
 		background: theme.colors.bgMain,
@@ -62,12 +71,12 @@ export function toXtermTheme(theme: Theme): ITheme {
 		selectionBackground: theme.colors.accentDim,
 		selectionForeground: theme.colors.textMain,
 
-		// Map semantic theme colors to ANSI equivalents where possible
+		// All 16 ANSI colors from the resolved palette
 		black: ansi.black,
-		red: theme.colors.error || ansi.red,
-		green: theme.colors.success || ansi.green,
-		yellow: theme.colors.warning || ansi.yellow,
-		blue: theme.colors.accent || ansi.blue,
+		red: ansi.red,
+		green: ansi.green,
+		yellow: ansi.yellow,
+		blue: ansi.blue,
 		magenta: ansi.magenta,
 		cyan: ansi.cyan,
 		white: ansi.white,

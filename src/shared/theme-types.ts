@@ -70,6 +70,30 @@ export interface ThemeColors {
 }
 
 /**
+ * Terminal ANSI color palette (16 colors)
+ * Used by xterm.js to render colored terminal output.
+ * Each theme can provide its own palette for a native look.
+ */
+export interface AnsiColors {
+	black: string;
+	red: string;
+	green: string;
+	yellow: string;
+	blue: string;
+	magenta: string;
+	cyan: string;
+	white: string;
+	brightBlack: string;
+	brightRed: string;
+	brightGreen: string;
+	brightYellow: string;
+	brightBlue: string;
+	brightMagenta: string;
+	brightCyan: string;
+	brightWhite: string;
+}
+
+/**
  * Complete theme definition
  */
 export interface Theme {
@@ -81,6 +105,8 @@ export interface Theme {
 	mode: ThemeMode;
 	/** Color palette */
 	colors: ThemeColors;
+	/** Optional terminal ANSI color palette for native xterm.js rendering */
+	ansiColors?: AnsiColors;
 }
 
 /**

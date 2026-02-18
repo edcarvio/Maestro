@@ -350,6 +350,100 @@ describe('EmbeddedTerminal', () => {
 		expect(mockKill).toHaveBeenCalledWith('test-tab-cleanup');
 	});
 
+	it('does not block Ctrl+C in custom key handler (allows xterm to send \\x03)', async () => {
+		let keyHandler: (ev: KeyboardEvent) => boolean;
+
+		// Capture the key handler when attachCustomKeyEventHandler is called
+		terminalMethods.attachCustomKeyEventHandler.mockImplementation((handler: (ev: KeyboardEvent) => boolean) => {
+			keyHandler = handler;
+		});
+
+		await act(async () => {
+			render(
+				<EmbeddedTerminal
+					terminalTabId="test-tab-ctrlc"
+					cwd="/tmp"
+					theme={defaultTheme}
+					fontFamily="Menlo"
+					isVisible={true}
+				/>
+			);
+		});
+
+		expect(terminalMethods.attachCustomKeyEventHandler).toHaveBeenCalled();
+
+		// Simulate Ctrl+C keydown — should return true (xterm handles it)
+		const ctrlC = new KeyboardEvent('keydown', {
+			key: 'c',
+			ctrlKey: true,
+			metaKey: false,
+			shiftKey: false,
+			altKey: false,
+		});
+		expect(keyHandler!(ctrlC)).toBe(true);
+	});
+
+	it('forwards \\x03 (Ctrl+C) from xterm onData to processService.write', async () => {
+		let dataCallback: (data: string) => void;
+
+		// Capture the onData callback that EmbeddedTerminal registers
+		terminalMethods.onData.mockImplementation((handler: (data: string) => void) => {
+			dataCallback = handler;
+			return { dispose: vi.fn() };
+		});
+
+		await act(async () => {
+			render(
+				<EmbeddedTerminal
+					terminalTabId="test-tab-ctrlc-write"
+					cwd="/tmp"
+					theme={defaultTheme}
+					fontFamily="Menlo"
+					isVisible={true}
+				/>
+			);
+		});
+
+		// Simulate xterm.js sending \x03 (what happens when user presses Ctrl+C)
+		await act(async () => {
+			dataCallback!('\x03');
+		});
+
+		expect(mockWrite).toHaveBeenCalledWith('test-tab-ctrlc-write', '\x03');
+	});
+
+	it('does not block other Ctrl key combos needed by terminal (Ctrl+A, Ctrl+D, Ctrl+Z)', async () => {
+		let keyHandler: (ev: KeyboardEvent) => boolean;
+
+		terminalMethods.attachCustomKeyEventHandler.mockImplementation((handler: (ev: KeyboardEvent) => boolean) => {
+			keyHandler = handler;
+		});
+
+		await act(async () => {
+			render(
+				<EmbeddedTerminal
+					terminalTabId="test-tab-ctrl-keys"
+					cwd="/tmp"
+					theme={defaultTheme}
+					fontFamily="Menlo"
+					isVisible={true}
+				/>
+			);
+		});
+
+		// All of these should return true (xterm handles them, not Maestro)
+		for (const key of ['a', 'c', 'd', 'z', 'l']) {
+			const ev = new KeyboardEvent('keydown', {
+				key,
+				ctrlKey: true,
+				metaKey: false,
+				shiftKey: false,
+				altKey: false,
+			});
+			expect(keyHandler!(ev)).toBe(true);
+		}
+	});
+
 	it('shows error message when spawn fails', async () => {
 		mockSpawn.mockResolvedValueOnce({ success: false, pid: 0, error: 'No shell found' });
 

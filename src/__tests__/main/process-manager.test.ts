@@ -416,6 +416,120 @@ describe('process-manager.ts', () => {
 			});
 		});
 
+		describe('interrupt method (Ctrl+C / SIGINT)', () => {
+			it('should return false for non-existent session', () => {
+				expect(processManager.interrupt('non-existent')).toBe(false);
+			});
+
+			it('should write \\x03 to PTY process for terminal sessions', () => {
+				// Access private processes map to inject a mock PTY process
+				const processes = (processManager as any).processes as Map<string, any>;
+				const mockPtyWrite = vi.fn();
+				processes.set('pty-session', {
+					sessionId: 'pty-session',
+					isTerminal: true,
+					ptyProcess: {
+						write: mockPtyWrite,
+						kill: vi.fn(),
+						resize: vi.fn(),
+						onData: vi.fn(),
+						onExit: vi.fn(),
+						pid: 12345,
+					},
+					pid: 12345,
+					cwd: '/tmp',
+					toolType: 'embedded-terminal',
+					startTime: Date.now(),
+				});
+
+				const result = processManager.interrupt('pty-session');
+
+				expect(result).toBe(true);
+				expect(mockPtyWrite).toHaveBeenCalledWith('\x03');
+				expect(mockPtyWrite).toHaveBeenCalledTimes(1);
+			});
+
+			it('should send SIGINT to child process for non-terminal sessions', () => {
+				const processes = (processManager as any).processes as Map<string, any>;
+				const mockKill = vi.fn();
+				const mockOnce = vi.fn();
+				processes.set('child-session', {
+					sessionId: 'child-session',
+					isTerminal: false,
+					childProcess: {
+						kill: mockKill,
+						killed: false,
+						once: mockOnce,
+						stdin: { write: vi.fn() },
+					},
+					pid: 12346,
+					cwd: '/tmp',
+					toolType: 'claude-code',
+					startTime: Date.now(),
+				});
+
+				const result = processManager.interrupt('child-session');
+
+				expect(result).toBe(true);
+				expect(mockKill).toHaveBeenCalledWith('SIGINT');
+			});
+		});
+
+		describe('write method', () => {
+			it('should return false for non-existent session', () => {
+				expect(processManager.write('non-existent', 'data')).toBe(false);
+			});
+
+			it('should write data to PTY process stdin', () => {
+				const processes = (processManager as any).processes as Map<string, any>;
+				const mockPtyWrite = vi.fn();
+				processes.set('pty-session', {
+					sessionId: 'pty-session',
+					isTerminal: true,
+					ptyProcess: {
+						write: mockPtyWrite,
+						kill: vi.fn(),
+						resize: vi.fn(),
+						onData: vi.fn(),
+						onExit: vi.fn(),
+						pid: 12345,
+					},
+					pid: 12345,
+					cwd: '/tmp',
+					toolType: 'embedded-terminal',
+					startTime: Date.now(),
+				});
+
+				const result = processManager.write('pty-session', '\x03');
+
+				expect(result).toBe(true);
+				expect(mockPtyWrite).toHaveBeenCalledWith('\x03');
+			});
+
+			it('should write data to child process stdin', () => {
+				const processes = (processManager as any).processes as Map<string, any>;
+				const mockStdinWrite = vi.fn();
+				processes.set('child-session', {
+					sessionId: 'child-session',
+					isTerminal: false,
+					childProcess: {
+						stdin: { write: mockStdinWrite },
+						kill: vi.fn(),
+						killed: false,
+					},
+					pid: 12347,
+					cwd: '/tmp',
+					toolType: 'claude-code',
+					startTime: Date.now(),
+				});
+
+				const result = processManager.write('child-session', 'hello\n');
+
+				expect(result).toBe(true);
+				expect(mockStdinWrite).toHaveBeenCalledWith('hello\n');
+			});
+		});
+
 		describe('getParser method', () => {
 			it('should return null for unknown session', () => {
 				const parser = processManager.getParser('non-existent-session');

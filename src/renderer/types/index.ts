@@ -484,12 +484,16 @@ export interface FilePreviewTab {
  * The tab id doubles as the processManager session key.
  */
 export interface TerminalTab {
-	id: string;              // UUID — also used as processManager session key
-	name: string | null;     // User name (null = "Terminal")
+	id: string;                      // UUID — also used as processManager session key
+	name: string | null;             // User name (null = show shell name or "Terminal N")
+	shellType: string;               // Shell being used (e.g., 'zsh', 'bash', 'powershell')
+	pid: number;                     // PTY process ID (0 if not spawned yet)
+	cwd: string;                     // Working directory at spawn time
 	createdAt: number;
-	cwd: string;             // Working directory at spawn time
-	processRunning?: boolean; // Runtime only — whether PTY is alive
-	exitCode?: number;        // Runtime only — set when process exits
+	state: 'idle' | 'busy' | 'exited';  // Tab state (busy = command running)
+	exitCode?: number;               // Exit code if shell exited
+	scrollTop?: number;              // Saved scroll position
+	searchQuery?: string;            // Active search query (for Cmd+F persistence)
 }
 
 /**
@@ -528,6 +532,8 @@ export interface Session {
 	fullPath: string;
 	projectRoot: string; // The initial working directory (never changes, used for Claude session storage)
 	aiLogs: LogEntry[];
+	// DEPRECATED: Legacy shell output logs — will be removed after terminal tabs migration
+	// Terminal tabs use xterm.js with direct PTY streaming, not log entries
 	shellLogs: LogEntry[];
 	workLog: WorkLogItem[];
 	contextUsage: number;
@@ -537,8 +543,8 @@ export interface Session {
 	// AI process PID (for agents with persistent processes)
 	// For batch mode agents, this is 0 since processes spawn per-message
 	aiPid: number;
-	// Terminal uses runCommand() which spawns fresh shells per command
-	// This field is kept for backwards compatibility but is always 0
+	// DEPRECATED: Single terminal PID — replaced by terminalTabs[].pid
+	// Kept for backwards compatibility during migration
 	terminalPid: number;
 	port: number;
 	// Live mode - makes session accessible via web interface

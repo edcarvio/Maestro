@@ -677,9 +677,11 @@ export function createTerminalTab(
 	const newTab: TerminalTab = {
 		id: generateId(),
 		name,
-		createdAt: Date.now(),
+		shellType: 'zsh', // Default; overridden by main process after spawn
+		pid: 0,
 		cwd,
-		processRunning: undefined, // Set by component after spawn
+		createdAt: Date.now(),
+		state: 'idle',
 	};
 
 	// Add to unifiedTabOrder and set as active terminal tab
@@ -999,7 +1001,8 @@ export function reopenUnifiedClosedTab(session: Session): ReopenUnifiedClosedTab
 		const restoredTab: TerminalTab = {
 			...tabToRestore,
 			id: generateId(),
-			processRunning: false, // Caller spawns fresh PTY
+			pid: 0,        // Caller spawns fresh PTY
+			state: 'idle',
 			exitCode: undefined,
 		};
 

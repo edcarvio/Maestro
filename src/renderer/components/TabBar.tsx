@@ -1655,12 +1655,12 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 		[isActive, theme.colors, isHovered, hoverBgColor, isDragOver]
 	);
 
-	// Status dot color: green = running, gray = exited/unknown
+	// Status dot color: green = idle/running, red = exited with error, gray = exited cleanly
 	const statusColor =
-		tab.processRunning === true
+		tab.state === 'idle' || tab.state === 'busy'
 			? '#22c55e'
-			: tab.processRunning === false
-				? theme.colors.textDim
+			: tab.state === 'exited' && tab.exitCode !== 0
+				? '#ef4444'
 				: theme.colors.textDim;
 
 	return (

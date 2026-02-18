@@ -548,6 +548,7 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			deps.activeAgentSessionId,
 			deps.activeSession?.id, // Use ID instead of full object
 			deps.activeSession?.activeTabId,
+			deps.activeSession?.activeTerminalTabId,
 			deps.activeSession?.inputMode,
 			deps.activeSession?.projectRoot,
 			deps.activeSession?.cwd,

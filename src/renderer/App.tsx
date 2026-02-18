@@ -10452,7 +10452,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 					return {
 						...s,
 						terminalTabs: s.terminalTabs.map((t) =>
-							t.id === tabId ? { ...t, processRunning: false, exitCode } : t
+							t.id === tabId ? { ...t, state: 'exited' as const, exitCode } : t
 						),
 					};
 				})

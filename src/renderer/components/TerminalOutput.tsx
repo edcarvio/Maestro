@@ -1456,7 +1456,7 @@ export const TerminalOutput = memo(
 					}
 				});
 			}
-		}, [session.inputMode, filteredLogs.length, autoScrollAiMode, autoScrollPaused]);
+		}, [session.inputMode, filteredLogs.length, autoScrollAiMode, autoScrollPaused, activeTabId]);
 
 		// Restore scroll position when component mounts or initialScrollTop changes
 		// Uses requestAnimationFrame to ensure DOM is ready

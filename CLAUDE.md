@@ -61,8 +61,8 @@ Use "agent" in user-facing language. Reserve "session" for provider-level conver
 - **Left Bar** - Left sidebar with agent list and groups (`SessionList.tsx`)
 - **Right Bar** - Right sidebar with Files, History, Auto Run tabs (`RightPanel.tsx`)
 - **Main Window** - Center workspace (`MainPanel.tsx`)
-  - **AI Terminal** - Main window in AI mode (interacting with AI agents)
-  - **Command Terminal** - Main window in terminal/shell mode
+  - **AI Terminal** - Main window in AI mode, renders via `TerminalOutput.tsx` (log-based display)
+  - **Command Terminal** - Main window in terminal mode, renders via `XTerminal.tsx` (xterm.js emulation)
   - **System Log Viewer** - Special view for system logs (`LogViewer.tsx`)
 
 ### Agent States (color-coded)
@@ -194,6 +194,8 @@ src/
 | Add Director's Notes feature | `src/renderer/components/DirectorNotes/`, `src/main/ipc/handlers/director-notes.ts` |
 | Add Encore Feature | `src/renderer/types/index.ts` (flag), `useSettings.ts` (state), `SettingsModal.tsx` (toggle UI), gate in `App.tsx` + keyboard handler |
 | Modify history components | `src/renderer/components/History/` |
+| Add/modify terminal tab | `src/renderer/components/XTerminal/XTerminal.tsx`, `src/renderer/types/index.ts` (`TerminalTab`) |
+| Terminal tab IPC | `src/main/ipc/handlers/process.ts` (`spawnTerminalTab`), `src/main/process-manager/ProcessManager.ts` |
 
 ---
 
@@ -273,6 +275,49 @@ if (sshStore && session.sshRemoteConfig?.enabled) {
 - Agent's `binaryName` is used for remote execution (not local paths)
 
 See [[CLAUDE-PATTERNS.md]] for detailed SSH patterns.
+
+---
+
+### Terminal Mode
+
+Terminal mode uses **xterm.js** for full terminal emulation via the `XTerminal` component. This replaces the legacy `shellLogs`-based approach.
+
+**Architecture:**
+- Each session has multiple terminal tabs (`session.terminalTabs: TerminalTab[]`)
+- PTY processes are managed per-tab via `process:spawnTerminalTab` IPC
+- Raw PTY data streams directly to xterm.js — no intermediate parsing or filtering
+- `TerminalOutput.tsx` is **AI-mode only** (log-based display for agent conversations)
+- `InputArea` is hidden in terminal mode — xterm.js handles its own input
+
+**Key types and fields:**
+```typescript
+interface TerminalTab {
+  id: string;              // UUID, also the processManager session key
+  name: string | null;     // User-assigned name (null = "Terminal")
+  createdAt: number;
+  cwd: string;             // Working directory at spawn time
+  processRunning?: boolean; // Runtime only — not persisted
+  exitCode?: number;        // Runtime only — not persisted
+}
+
+// Session fields
+session.terminalTabs: TerminalTab[];
+session.activeTerminalTabId: string | null;
+```
+
+**Deprecated fields (kept for backwards compatibility):**
+- `session.shellLogs` — no longer used for terminal output on desktop; retained for web/mobile interface which lacks xterm.js
+- `session.terminalPid` — always 0, use `terminalTabs[].id` as the process key instead
+- `process:runCommand` IPC — use `process:spawnTerminalTab` for persistent PTY sessions
+
+**Key files:**
+| File | Purpose |
+|------|---------|
+| `src/renderer/components/XTerminal/XTerminal.tsx` | xterm.js terminal emulator component |
+| `src/renderer/components/TerminalOutput.tsx` | AI-mode log display (not for terminal mode) |
+| `src/main/ipc/handlers/process.ts` | `spawnTerminalTab` IPC handler |
+| `src/main/process-manager/ProcessManager.ts` | PTY process spawning and management |
+| `src/renderer/types/index.ts` | `TerminalTab` interface definition |
 
 ---
 

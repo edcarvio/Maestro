@@ -1850,6 +1850,20 @@ describe('MainPanel', () => {
 
 			expect(screen.queryByTestId('input-area')).not.toBeInTheDocument();
 		});
+
+		it('should hide input area in terminal mode (xterm.js handles input)', () => {
+			const session = createSession({ inputMode: 'terminal' });
+			render(<MainPanel {...defaultProps} activeSession={session} />);
+
+			expect(screen.queryByTestId('input-area')).not.toBeInTheDocument();
+		});
+
+		it('should show input area in AI mode', () => {
+			const session = createSession({ inputMode: 'ai' });
+			render(<MainPanel {...defaultProps} activeSession={session} />);
+
+			expect(screen.getByTestId('input-area')).toBeInTheDocument();
+		});
 	});
 
 	describe('Git diff preview', () => {

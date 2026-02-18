@@ -95,9 +95,15 @@ const prepareSessionForPersistence = (session: Session): Session => {
 	const activeTabExists = truncatedTabs.some((tab) => tab.id === session.activeTabId);
 	const newActiveTabId = activeTabExists ? session.activeTabId : truncatedTabs[0]?.id;
 
+	// Strip runtime-only fields from terminal tabs before persistence.
+	// PTY processes are ephemeral — they die on quit and are respawned on mount.
+	// Only persist metadata: id, name, createdAt, cwd.
+	const persistedTerminalTabs = (session.terminalTabs || []).map(({ processRunning, exitCode, ...metadata }) => metadata);
+
 	return {
 		...sessionWithoutRuntimeFields,
 		aiTabs: truncatedTabs,
+		terminalTabs: persistedTerminalTabs,
 		activeTabId: newActiveTabId,
 		// Reset runtime-only session state - processes don't survive app restart
 		state: 'idle',

@@ -27,8 +27,6 @@ import {
 } from 'lucide-react';
 import type { Session, Theme, LogEntry, FocusArea } from '../types';
 import type { FileNode } from '../types/fileTree';
-import Convert from 'ansi-to-html';
-import DOMPurify from 'dompurify';
 import { useLayerStack } from '../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../constants/modalPriorities';
 import { getActiveTab } from '../utils/tabHelpers';
@@ -36,12 +34,10 @@ import { useDebouncedValue, useThrottledCallback } from '../hooks';
 import {
 	processLogTextHelper,
 	filterTextByLinesHelper,
-	getCachedAnsiHtml,
 } from '../utils/textProcessing';
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { QueuedItemsList } from './QueuedItemsList';
-import { LogFilterControls } from './LogFilterControls';
 import { SaveMarkdownModal } from './SaveMarkdownModal';
 import { generateTerminalProseStyles } from '../utils/markdownConfig';
 
@@ -52,13 +48,11 @@ import { generateTerminalProseStyles } from '../utils/markdownConfig';
 interface LogItemProps {
 	log: LogEntry;
 	index: number;
-	isTerminal: boolean;
 	isAIMode: boolean;
 	theme: Theme;
 	fontFamily: string;
 	maxOutputLines: number;
 	outputSearchQuery: string;
-	lastUserCommand?: string;
 	// Expansion state
 	isExpanded: boolean;
 	onToggleExpanded: (logId: string) => void;
@@ -88,8 +82,6 @@ interface LogItemProps {
 		source?: 'staged' | 'history'
 	) => void;
 	copyToClipboard: (text: string) => void;
-	// ANSI converter
-	ansiConverter: Convert;
 	// Markdown rendering mode for AI responses (when true, shows raw text)
 	markdownEditMode: boolean;
 	onToggleMarkdownEditMode: () => void;
@@ -110,13 +102,11 @@ const LogItemComponent = memo(
 	({
 		log,
 		index,
-		isTerminal,
 		isAIMode,
 		theme,
 		fontFamily,
 		maxOutputLines,
 		outputSearchQuery,
-		lastUserCommand,
 		isExpanded,
 		onToggleExpanded,
 		localFilterQuery,
@@ -132,7 +122,6 @@ const LogItemComponent = memo(
 		scrollContainerRef,
 		setLightboxImage,
 		copyToClipboard,
-		ansiConverter,
 		markdownEditMode,
 		onToggleMarkdownEditMode,
 		onReplayMessage,
@@ -218,47 +207,7 @@ const LogItemComponent = memo(
 			return parts.length > 0 ? parts : text;
 		};
 
-		// Helper function to add search highlighting markers to text (before ANSI conversion)
-		const addHighlightMarkers = (text: string, query: string): string => {
-			if (!query) return text;
-
-			let result = '';
-			let lastIndex = 0;
-			const lowerText = text.toLowerCase();
-			const lowerQuery = query.toLowerCase();
-			let searchIndex = 0;
-
-			while (searchIndex < lowerText.length) {
-				const idx = lowerText.indexOf(lowerQuery, searchIndex);
-				if (idx === -1) break;
-
-				result += text.substring(lastIndex, idx);
-				result += `<mark style="background-color: ${theme.colors.warning}; color: ${theme.mode === 'light' ? '#fff' : '#000'}; padding: 1px 2px; border-radius: 2px;">`;
-				result += text.substring(idx, idx + query.length);
-				result += '</mark>';
-
-				lastIndex = idx + query.length;
-				searchIndex = lastIndex;
-			}
-
-			result += text.substring(lastIndex);
-			return result;
-		};
-
-		// Strip command echo from terminal output
-		let textToProcess = log.text;
-		if (isTerminal && log.source !== 'user' && lastUserCommand) {
-			if (textToProcess.startsWith(lastUserCommand)) {
-				textToProcess = textToProcess.slice(lastUserCommand.length);
-				if (textToProcess.startsWith('\r\n')) {
-					textToProcess = textToProcess.slice(2);
-				} else if (textToProcess.startsWith('\n') || textToProcess.startsWith('\r')) {
-					textToProcess = textToProcess.slice(1);
-				}
-			}
-		}
-
-		const processedText = processLogTextHelper(textToProcess, isTerminal && log.source !== 'user');
+		const processedText = processLogTextHelper(log.text, false);
 
 		// Skip rendering stderr entries that have no actual content
 		if (log.source === 'stderr' && !processedText.trim()) {
@@ -296,24 +245,7 @@ const LogItemComponent = memo(
 			localFilterQuery && !filteredStdout.trim() && !filteredStderr.trim() && log.source !== 'user';
 
 		// For stderr entries, use stderr content; for all others, use stdout content
-		const contentToDisplay = log.source === 'stderr' ? filteredStderr : filteredStdout;
-
-		// Apply search highlighting before ANSI conversion for terminal output
-		const contentWithHighlights =
-			isTerminal && log.source !== 'user' && outputSearchQuery
-				? addHighlightMarkers(contentToDisplay, outputSearchQuery)
-				: contentToDisplay;
-
-		// PERF: Convert ANSI codes to HTML, using cache when no search highlighting is applied
-		// When search is active, highlighting markers change the text so we can't use cache
-		const htmlContent =
-			isTerminal && log.source !== 'user'
-				? outputSearchQuery
-					? DOMPurify.sanitize(ansiConverter.toHtml(contentWithHighlights))
-					: getCachedAnsiHtml(contentToDisplay, theme.id, ansiConverter)
-				: contentToDisplay;
-
-		const filteredText = contentToDisplay;
+		const filteredText = log.source === 'stderr' ? filteredStderr : filteredStdout;
 
 		// Count lines in the filtered text
 		const lineCount = filteredText.split('\n').length;
@@ -324,20 +256,6 @@ const LogItemComponent = memo(
 			shouldCollapse && !isExpanded
 				? filteredText.split('\n').slice(0, maxOutputLines).join('\n')
 				: filteredText;
-
-		// Apply highlighting to truncated text as well
-		const displayTextWithHighlights =
-			shouldCollapse && !isExpanded && isTerminal && log.source !== 'user' && outputSearchQuery
-				? addHighlightMarkers(displayText, outputSearchQuery)
-				: displayText;
-
-		// PERF: Sanitize with DOMPurify, using cache when no search highlighting
-		const displayHtmlContent =
-			shouldCollapse && !isExpanded && isTerminal && log.source !== 'user'
-				? outputSearchQuery
-					? DOMPurify.sanitize(ansiConverter.toHtml(displayTextWithHighlights))
-					: getCachedAnsiHtml(displayText, theme.id, ansiConverter)
-				: htmlContent;
 
 		const isUserMessage = log.source === 'user';
 
@@ -393,23 +311,6 @@ const LogItemComponent = memo(
 									: theme.colors.border,
 					}}
 				>
-					{/* Local filter icon for system output only */}
-					{log.source !== 'user' && isTerminal && (
-						<div className="absolute top-2 right-2 flex items-center gap-2">
-							<LogFilterControls
-								logId={log.id}
-								fontFamily={fontFamily}
-								theme={theme}
-								filterQuery={localFilterQuery}
-								filterMode={filterMode}
-								isActive={activeLocalFilter === log.id}
-								onToggleFilter={onToggleLocalFilter}
-								onSetFilterQuery={onSetLocalFilterQuery}
-								onSetFilterMode={onSetFilterMode}
-								onClearFilter={onClearLocalFilter}
-							/>
-						</div>
-					)}
 					{log.images && log.images.length > 0 && (
 						<div
 							className="flex gap-2 mb-2 overflow-x-auto scrollbar-thin"
@@ -580,24 +481,16 @@ const LogItemComponent = memo(
 						) : shouldCollapse && !isExpanded ? (
 							<div>
 								<div
-									className={`${isTerminal && log.source !== 'user' ? 'whitespace-pre text-sm' : 'whitespace-pre-wrap text-sm break-words'}`}
+									className="whitespace-pre-wrap text-sm break-words"
 									style={{
 										maxHeight: `${maxOutputLines * 1.5}em`,
-										overflow: isTerminal && log.source !== 'user' ? 'hidden' : 'hidden',
+										overflow: 'hidden',
 										color: theme.colors.textMain,
 										fontFamily,
-										overflowWrap: isTerminal && log.source !== 'user' ? undefined : 'break-word',
+										overflowWrap: 'break-word',
 									}}
 								>
-									{isTerminal && log.source !== 'user' ? (
-										// Content sanitized with DOMPurify above
-										// Horizontal scroll for terminal output to preserve column alignment
-										<div
-											className="overflow-x-auto scrollbar-thin"
-											dangerouslySetInnerHTML={{ __html: displayHtmlContent }}
-										/>
-									) : isAIMode && !markdownEditMode ? (
-										// Collapsed markdown preview with rendered markdown
+									{isAIMode && !markdownEditMode ? (
 										<MarkdownRenderer
 											content={displayText}
 											theme={theme}
@@ -627,14 +520,14 @@ const LogItemComponent = memo(
 						) : shouldCollapse && isExpanded ? (
 							<div>
 								<div
-									className={`${isTerminal && log.source !== 'user' ? 'whitespace-pre text-sm scrollbar-thin' : 'whitespace-pre-wrap text-sm break-words'}`}
+									className="whitespace-pre-wrap text-sm break-words"
 									style={{
 										maxHeight: '600px',
 										overflow: 'auto',
 										overscrollBehavior: 'contain',
 										color: theme.colors.textMain,
 										fontFamily,
-										overflowWrap: isTerminal && log.source !== 'user' ? undefined : 'break-word',
+										overflowWrap: 'break-word',
 									}}
 									onWheel={(e) => {
 										// Prevent scroll from propagating to parent when this container can scroll
@@ -649,16 +542,7 @@ const LogItemComponent = memo(
 										}
 									}}
 								>
-									{isTerminal && log.source !== 'user' ? (
-										// Content sanitized with DOMPurify above
-										// Horizontal scroll for terminal output to preserve column alignment
-										<div dangerouslySetInnerHTML={{ __html: displayHtmlContent }} />
-									) : log.source === 'user' && isTerminal ? (
-										<div style={{ fontFamily }}>
-											<span style={{ color: theme.colors.accent }}>$ </span>
-											{highlightMatches(filteredText, outputSearchQuery)}
-										</div>
-									) : log.aiCommand ? (
+									{log.aiCommand ? (
 										<div className="space-y-3">
 											<div
 												className="flex items-center gap-2 px-3 py-2 rounded-lg border"
@@ -709,26 +593,7 @@ const LogItemComponent = memo(
 							</div>
 						) : (
 							<>
-								{isTerminal && log.source !== 'user' ? (
-									// Content sanitized with DOMPurify above
-									<div
-										className="whitespace-pre text-sm overflow-x-auto scrollbar-thin"
-										style={{
-											color: theme.colors.textMain,
-											fontFamily,
-											overscrollBehavior: 'contain',
-										}}
-										dangerouslySetInnerHTML={{ __html: displayHtmlContent }}
-									/>
-								) : log.source === 'user' && isTerminal ? (
-									<div
-										className="whitespace-pre-wrap text-sm break-words"
-										style={{ color: theme.colors.textMain, fontFamily }}
-									>
-										<span style={{ color: theme.colors.accent }}>$ </span>
-										{highlightMatches(filteredText, outputSearchQuery)}
-									</div>
-								) : log.aiCommand ? (
+								{log.aiCommand ? (
 									<div className="space-y-3">
 										<div
 											className="flex items-center gap-2 px-3 py-2 rounded-lg border"
@@ -1240,27 +1105,6 @@ export const TerminalOutput = memo(
 			}
 		}, [outputSearchOpen]);
 
-		// Create ANSI converter with theme-aware colors
-		const ansiConverter = useMemo(() => {
-			return new Convert({
-				fg: theme.colors.textMain,
-				bg: theme.colors.bgMain,
-				newline: false,
-				escapeXML: true,
-				stream: false,
-				colors: {
-					0: theme.colors.textMain, // black -> textMain
-					1: theme.colors.error, // red -> error
-					2: theme.colors.success, // green -> success
-					3: theme.colors.warning, // yellow -> warning
-					4: theme.colors.accent, // blue -> accent
-					5: theme.colors.accentDim, // magenta -> accentDim
-					6: theme.colors.accent, // cyan -> accent
-					7: theme.colors.textDim, // white -> textDim
-				},
-			});
-		}, [theme]);
-
 		// PERF: Memoize active tab lookup to avoid O(n) .find() on every render
 		const activeTab = useMemo(
 			() => (session.inputMode === 'ai' ? getActiveTab(session) : undefined),
@@ -1513,21 +1357,7 @@ export const TerminalOutput = memo(
 			}
 		}, []);
 
-		// Helper to find last user command for echo stripping in terminal mode
-		const getLastUserCommand = useCallback(
-			(index: number): string | undefined => {
-				for (let i = index - 1; i >= 0; i--) {
-					if (filteredLogs[i]?.source === 'user') {
-						return filteredLogs[i].text;
-					}
-				}
-				return undefined;
-			},
-			[filteredLogs]
-		);
-
 		// Computed values for rendering
-		const isTerminal = session.inputMode === 'terminal';
 		const isAIMode = session.inputMode === 'ai';
 
 		// Memoized prose styles - applied once at container level instead of per-log-item
@@ -1650,15 +1480,11 @@ export const TerminalOutput = memo(
 							key={log.id}
 							log={log}
 							index={index}
-							isTerminal={isTerminal}
 							isAIMode={isAIMode}
 							theme={theme}
 							fontFamily={fontFamily}
 							maxOutputLines={maxOutputLines}
 							outputSearchQuery={outputSearchQuery}
-							lastUserCommand={
-								isTerminal && log.source !== 'user' ? getLastUserCommand(index) : undefined
-							}
 							isExpanded={expandedLogs.has(log.id)}
 							onToggleExpanded={toggleExpanded}
 							localFilterQuery={localFilters.get(log.id) || ''}
@@ -1674,7 +1500,6 @@ export const TerminalOutput = memo(
 							scrollContainerRef={scrollContainerRef}
 							setLightboxImage={setLightboxImage}
 							copyToClipboard={copyToClipboard}
-							ansiConverter={ansiConverter}
 							markdownEditMode={markdownEditMode}
 							onToggleMarkdownEditMode={toggleMarkdownEditMode}
 							onReplayMessage={onReplayMessage}

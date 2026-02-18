@@ -250,7 +250,8 @@ export function useBatchedSessionUpdates(
 						};
 					}
 
-					// Apply shell logs
+					// DEPRECATED: Shell logs only used by web/mobile remote interface
+					// Desktop terminal mode uses xterm.js with direct PTY streaming
 					if (shellStdout || shellStderr) {
 						const shellLogs = [...updatedSession.shellLogs];
 

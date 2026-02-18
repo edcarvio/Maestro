@@ -6,6 +6,11 @@
  * session and tab state. It's a direct extraction of the ~1500-line useEffect
  * that previously lived in App.tsx (lines 1970-3493).
  *
+ * NOTE: Terminal output handling (shellLogs paths) is DEPRECATED for desktop.
+ * Desktop terminal mode uses xterm.js via XTerminal component with direct PTY streaming.
+ * The shellLogs paths are retained only for web/mobile remote interface which uses
+ * runCommand for terminal execution since it doesn't have xterm.js.
+ *
  * Design decisions:
  * - Reads sessionStore directly (no sessionsRef proxy needed)
  * - Reads modalStore directly for openModal('agentError', ...)
@@ -207,6 +212,7 @@ export function useAgentListeners(deps: UseAgentListenersDeps): void {
 				tabIdFromSession = aiTabMatch[2];
 				isFromAi = true;
 			} else if (sessionId.endsWith('-terminal')) {
+				// Desktop terminal PTY data is handled directly by XTerminal component
 				return;
 			} else if (sessionId.includes('-batch-')) {
 				return;
@@ -215,10 +221,11 @@ export function useAgentListeners(deps: UseAgentListenersDeps): void {
 				isFromAi = false;
 			}
 
-			// Filter out empty stdout for terminal commands
+			// DEPRECATED: Non-AI output path below is only used by web/mobile remote interface
+			// Desktop terminal mode uses xterm.js with direct PTY streaming (via XTerminal component)
+			// This path handles output from runCommand (used by web/mobile for terminal commands)
 			if (!isFromAi && !data.trim()) return;
 
-			// For terminal output, use batched append to shell logs
 			if (!isFromAi) {
 				deps.batchedUpdater.appendLog(actualSessionId, null, false, data);
 				return;
@@ -660,7 +667,8 @@ export function useAgentListeners(deps: UseAgentListenersDeps): void {
 							};
 						}
 
-						// Terminal exit
+						// DEPRECATED: Terminal exit shellLogs path only used by web/mobile remote interface
+						// Desktop terminal mode uses xterm.js — exit events are handled by XTerminal component
 						const exitLog: LogEntry = {
 							id: generateId(),
 							timestamp: Date.now(),
@@ -679,7 +687,8 @@ export function useAgentListeners(deps: UseAgentListenersDeps): void {
 					})
 				);
 
-				// Refresh git branches/tags after terminal command completes
+				// DEPRECATED: Git refresh via shellLogs only used by web/mobile remote interface
+				// Desktop terminal mode has its own git refresh in XTerminal/TerminalView
 				if (!isFromAi) {
 					const currentSession = getSessions().find((s) => s.id === actualSessionId);
 					if (currentSession?.isGitRepo) {
@@ -1015,12 +1024,15 @@ export function useAgentListeners(deps: UseAgentListenersDeps): void {
 			if (isFromAi && tabIdFromSession) {
 				deps.batchedUpdater.appendLog(actualSessionId, tabIdFromSession, true, data, true);
 			} else {
+				// DEPRECATED: Non-AI stderr path only used by web/mobile (desktop terminal uses xterm.js)
 				deps.batchedUpdater.appendLog(actualSessionId, null, false, data, true);
 			}
 		});
 
 		// ================================================================
 		// onCommandExit — Handle command exit from runCommand
+		// DEPRECATED: runCommand is only used by web/mobile remote interface
+		// Desktop terminal mode uses persistent PTY via spawnTerminalTab
 		// ================================================================
 		const unsubscribeCommandExit = window.maestro.process.onCommandExit(
 			(sessionId: string, code: number) => {

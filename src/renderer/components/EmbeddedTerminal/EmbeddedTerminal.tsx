@@ -16,10 +16,12 @@
  * - On unmount: disposes terminal, unsubscribes listeners, kills process
  */
 
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { SearchAddon } from '@xterm/addon-search';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
 
 import type { Theme } from '../../types';
@@ -33,6 +35,23 @@ interface EmbeddedTerminalProps {
 	fontFamily: string;
 	isVisible: boolean;
 	onProcessExit?: (tabId: string, exitCode: number) => void;
+}
+
+/**
+ * Imperative handle exposed via ref for parent component control.
+ * Used for search UI (Phase 9), clear (Cmd+K), and programmatic interaction.
+ */
+export interface EmbeddedTerminalHandle {
+	write: (data: string) => void;
+	focus: () => void;
+	clear: () => void;
+	scrollToBottom: () => void;
+	search: (query: string) => boolean;
+	searchNext: () => boolean;
+	searchPrevious: () => boolean;
+	clearSearch: () => void;
+	getSelection: () => string;
+	resize: () => void;
 }
 
 /**
@@ -110,19 +129,40 @@ function isMaestroShortcut(ev: KeyboardEvent): boolean {
 	return false;
 }
 
-const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
+const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProps>(({
 	terminalTabId,
 	cwd,
 	theme,
 	fontFamily,
 	isVisible,
 	onProcessExit,
-}) => {
+}, ref) => {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const terminalRef = useRef<Terminal | null>(null);
 	const fitAddonRef = useRef<FitAddon | null>(null);
+	const searchAddonRef = useRef<SearchAddon | null>(null);
 	const spawnedRef = useRef(false);
 	const cleanupFnsRef = useRef<Array<() => void>>([]);
+
+	// Expose imperative methods to parent via ref
+	useImperativeHandle(ref, () => ({
+		write: (data: string) => terminalRef.current?.write(data),
+		focus: () => terminalRef.current?.focus(),
+		clear: () => terminalRef.current?.clear(),
+		scrollToBottom: () => terminalRef.current?.scrollToBottom(),
+		search: (query: string) => searchAddonRef.current?.findNext(query) ?? false,
+		searchNext: () => searchAddonRef.current?.findNext('') ?? false,
+		searchPrevious: () => searchAddonRef.current?.findPrevious('') ?? false,
+		clearSearch: () => searchAddonRef.current?.clearDecorations(),
+		getSelection: () => terminalRef.current?.getSelection() ?? '',
+		resize: () => {
+			try {
+				fitAddonRef.current?.fit();
+			} catch {
+				// Ignore fit errors
+			}
+		},
+	}), []);
 
 	// Spawn PTY and wire up data flow
 	const setupTerminal = useCallback(async () => {
@@ -141,6 +181,14 @@ const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
 		const fitAddon = new FitAddon();
 		term.loadAddon(fitAddon);
 		term.loadAddon(new WebLinksAddon());
+
+		const searchAddon = new SearchAddon();
+		term.loadAddon(searchAddon);
+		searchAddonRef.current = searchAddon;
+
+		const unicode11Addon = new Unicode11Addon();
+		term.loadAddon(unicode11Addon);
+		term.unicode.activeVersion = '11';
 
 		// Try WebGL addon for performance, fall back to canvas
 		try {
@@ -254,7 +302,6 @@ const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
 			}
 		};
 		// Only run on mount/unmount — terminalTabId is stable
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [terminalTabId]);
 
 	// Update theme when it changes
@@ -297,6 +344,8 @@ const EmbeddedTerminal: React.FC<EmbeddedTerminalProps> = ({
 			}}
 		/>
 	);
-};
+});
+
+EmbeddedTerminal.displayName = 'EmbeddedTerminal';
 
 export default EmbeddedTerminal;

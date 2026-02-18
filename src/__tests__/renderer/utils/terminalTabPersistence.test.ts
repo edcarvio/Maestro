@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import type { Session, TerminalTab, UnifiedTabRef, AITab } from '../../../renderer/types';
+import type { Session, TerminalTab, UnifiedTabRef, AITab, LogEntry } from '../../../renderer/types';
 
 // Mock the generateId function for predictable test IDs
 vi.mock('../../../renderer/utils/ids', () => ({
@@ -250,6 +250,20 @@ describe('terminal tab persistence', () => {
 			expect(result.terminalTabs[0].name).toBeNull();
 		});
 
+		it('handles legacy session with shellLogs but no terminalTabs', () => {
+			// Legacy session from pre-xterm.js era
+			const result = restoreTerminalTabs({
+				shellLogs: [
+					{ id: 'log-1', timestamp: Date.now(), source: 'stdout', text: 'npm start' },
+				] as LogEntry[],
+				// No terminalTabs field at all
+			});
+
+			// Should initialize empty terminalTabs (shellLogs are not convertible)
+			expect(result.terminalTabs).toEqual([]);
+			expect(result.activeTerminalTabId).toBeNull();
+		});
+
 		it('full serialization round-trip: create → persist → restore', () => {
 			// Simulate creating terminal tabs during a session
 			const sessionTerminalTabs: TerminalTab[] = [
@@ -305,6 +319,134 @@ describe('terminal tab persistence', () => {
 			expect(result.unifiedTabOrder).toEqual(sessionUnifiedTabOrder);
 			const termRefs = result.unifiedTabOrder.filter((r) => r.type === 'terminal');
 			expect(termRefs).toHaveLength(2);
+		});
+	});
+
+	describe('shellLogs to terminalTabs migration', () => {
+		/**
+		 * Simulate the migration logic from App.tsx restoreSession.
+		 * Sessions with shellLogs but no terminalTabs are from the pre-xterm.js era.
+		 * shellLogs content is NOT converted to terminal tabs — they represent
+		 * fundamentally different paradigms (discrete log entries vs live PTY sessions).
+		 */
+		function migrateShellLogsSession(session: Partial<Session>): Partial<Session> {
+			if (session.shellLogs?.length && !session.terminalTabs?.length) {
+				return {
+					...session,
+					terminalTabs: [],
+					activeTerminalTabId: null,
+				};
+			}
+			return session;
+		}
+
+		function createMockLogEntry(overrides: Partial<LogEntry> = {}): LogEntry {
+			return {
+				id: 'log-1',
+				timestamp: Date.now(),
+				source: 'stdout',
+				text: 'test output',
+				...overrides,
+			};
+		}
+
+		it('migrates session with shellLogs and no terminalTabs', () => {
+			const session: Partial<Session> = {
+				shellLogs: [createMockLogEntry({ text: 'ls -la' })],
+				// terminalTabs is undefined (pre-xterm.js session)
+			};
+
+			const migrated = migrateShellLogsSession(session);
+
+			expect(migrated.terminalTabs).toEqual([]);
+			expect(migrated.activeTerminalTabId).toBeNull();
+		});
+
+		it('migrates session with multiple shellLogs entries', () => {
+			const session: Partial<Session> = {
+				shellLogs: [
+					createMockLogEntry({ text: 'npm install' }),
+					createMockLogEntry({ text: 'npm start' }),
+					createMockLogEntry({ text: 'curl localhost:3000' }),
+				],
+			};
+
+			const migrated = migrateShellLogsSession(session);
+
+			expect(migrated.terminalTabs).toEqual([]);
+			expect(migrated.activeTerminalTabId).toBeNull();
+		});
+
+		it('preserves shellLogs during migration (not deleted)', () => {
+			const logs = [createMockLogEntry({ text: 'npm install' })];
+			const session: Partial<Session> = { shellLogs: logs };
+
+			const migrated = migrateShellLogsSession(session);
+
+			expect(migrated.shellLogs).toBe(logs);
+		});
+
+		it('does not migrate session that already has terminalTabs', () => {
+			const tab = createMockTerminalTab({ id: 'existing-tab' });
+			const session: Partial<Session> = {
+				shellLogs: [createMockLogEntry()],
+				terminalTabs: [tab],
+				activeTerminalTabId: 'existing-tab',
+			};
+
+			const migrated = migrateShellLogsSession(session);
+
+			// Should not be modified — terminalTabs already exists
+			expect(migrated.terminalTabs).toEqual([tab]);
+			expect(migrated.activeTerminalTabId).toBe('existing-tab');
+		});
+
+		it('does not migrate session with empty shellLogs', () => {
+			const session: Partial<Session> = {
+				shellLogs: [],
+			};
+
+			const migrated = migrateShellLogsSession(session);
+
+			// No migration needed — shellLogs is empty
+			expect(migrated).toBe(session); // Same reference, not modified
+		});
+
+		it('does not migrate session with no shellLogs field', () => {
+			const session: Partial<Session> = {};
+
+			const migrated = migrateShellLogsSession(session);
+
+			// No migration needed — no shellLogs at all
+			expect(migrated).toBe(session);
+		});
+
+		it('preserves other session fields during migration', () => {
+			const session: Partial<Session> = {
+				id: 'session-123',
+				cwd: '/home/user/project',
+				shellLogs: [createMockLogEntry()],
+				inputMode: 'ai',
+			};
+
+			const migrated = migrateShellLogsSession(session);
+
+			expect(migrated.id).toBe('session-123');
+			expect(migrated.cwd).toBe('/home/user/project');
+			expect(migrated.inputMode).toBe('ai');
+		});
+
+		it('handles session with shellLogs and empty terminalTabs array', () => {
+			const session: Partial<Session> = {
+				shellLogs: [createMockLogEntry()],
+				terminalTabs: [], // Explicitly empty (not undefined)
+			};
+
+			const migrated = migrateShellLogsSession(session);
+
+			// Empty array is falsy for .length — migration triggers
+			expect(migrated.terminalTabs).toEqual([]);
+			expect(migrated.activeTerminalTabId).toBeNull();
 		});
 	});
 });

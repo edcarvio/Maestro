@@ -460,7 +460,7 @@ export function QuickActionsModal(props: QuickActionsModalProps) {
 			? [
 					{
 						id: 'switchMode',
-						label: 'Switch AI/Shell Mode',
+						label: 'Switch AI/Terminal Mode',
 						shortcut: shortcuts.toggleMode,
 						action: toggleInputMode,
 					},

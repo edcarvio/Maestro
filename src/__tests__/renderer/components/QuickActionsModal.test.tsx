@@ -395,11 +395,11 @@ describe('QuickActionsModal', () => {
 			expect(props.setRightPanelOpen).toHaveBeenCalled();
 		});
 
-		it('handles Switch AI/Shell Mode action', () => {
+		it('handles Switch AI/Terminal Mode action', () => {
 			const props = createDefaultProps();
 			render(<QuickActionsModal {...props} />);
 
-			fireEvent.click(screen.getByText('Switch AI/Shell Mode'));
+			fireEvent.click(screen.getByText('Switch AI/Terminal Mode'));
 
 			expect(props.toggleInputMode).toHaveBeenCalled();
 		});

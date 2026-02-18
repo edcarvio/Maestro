@@ -1224,7 +1224,7 @@ describe('useMainKeyboardHandler', () => {
 		});
 
 		describe('tab shortcuts disabled in terminal mode', () => {
-			it('should not execute tab shortcuts when in terminal/shell mode', () => {
+			it('should not execute tab shortcuts when in terminal mode', () => {
 				const { result } = renderHook(() => useMainKeyboardHandler());
 
 				const mockCreateTab = vi.fn();

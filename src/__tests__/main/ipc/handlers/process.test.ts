@@ -279,6 +279,7 @@ describe('process IPC handlers', () => {
 		it('should register all process handlers', () => {
 			const expectedChannels = [
 				'process:spawn',
+				'process:spawnTerminalTab',
 				'process:write',
 				'process:interrupt',
 				'process:kill',

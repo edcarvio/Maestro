@@ -610,6 +610,56 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
 		})
 	);
 
+	// Spawn a terminal PTY for a specific tab (xterm.js integration)
+	// This is a simplified spawn path for terminal tabs that bypasses agent-specific logic.
+	ipcMain.handle(
+		'process:spawnTerminalTab',
+		withIpcErrorLogging(
+			handlerOpts('spawnTerminalTab'),
+			async (config: {
+				sessionId: string;
+				cwd: string;
+				shell?: string;
+				shellArgs?: string;
+				shellEnvVars?: Record<string, string>;
+				cols?: number;
+				rows?: number;
+			}) => {
+				const processManager = requireProcessManager(getProcessManager);
+
+				// Resolve shell from settings if not provided
+				let shellToUse = config.shell || settingsStore.get('defaultShell', 'zsh');
+				const customShellPath = settingsStore.get('customShellPath', '');
+				if (customShellPath && (customShellPath as string).trim()) {
+					shellToUse = (customShellPath as string).trim();
+				}
+
+				// Load shell args and env vars from settings
+				const shellArgsStr = config.shellArgs || settingsStore.get('shellArgs', '');
+				const settingsEnvVars = settingsStore.get('shellEnvVars', {}) as Record<string, string>;
+				const shellEnvVars = config.shellEnvVars
+					? { ...settingsEnvVars, ...config.shellEnvVars }
+					: settingsEnvVars;
+
+				logger.info('Spawning terminal tab', LOG_CONTEXT, {
+					sessionId: config.sessionId,
+					cwd: config.cwd,
+					shell: shellToUse,
+				});
+
+				return processManager.spawnTerminalTab({
+					sessionId: config.sessionId,
+					cwd: config.cwd,
+					shell: shellToUse as string,
+					shellArgs: shellArgsStr as string,
+					shellEnvVars,
+					cols: config.cols,
+					rows: config.rows,
+				});
+			}
+		)
+	);
+
 	// Run a single command and capture only stdout/stderr (no PTY echo/prompts)
 	// Supports SSH remote execution when sessionSshRemoteConfig is provided
 	ipcMain.handle(

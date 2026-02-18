@@ -95,6 +95,19 @@ const prepareSessionForPersistence = (session: Session): Session => {
 	const activeTabExists = truncatedTabs.some((tab) => tab.id === session.activeTabId);
 	const newActiveTabId = activeTabExists ? session.activeTabId : truncatedTabs[0]?.id;
 
+	// Clean terminal tab runtime state — PTY processes don't survive app restart
+	// Preserve tab structure (id, name, shellType, cwd, createdAt) but reset process state
+	const cleanedTerminalTabs = (session.terminalTabs || []).map((tab) => ({
+		id: tab.id,
+		name: tab.name,
+		shellType: tab.shellType,
+		cwd: tab.cwd,
+		createdAt: tab.createdAt,
+		// Runtime state is reset on persist
+		pid: 0,
+		state: 'idle' as const,
+	}));
+
 	return {
 		...sessionWithoutRuntimeFields,
 		aiTabs: truncatedTabs,
@@ -106,6 +119,8 @@ const prepareSessionForPersistence = (session: Session): Session => {
 		currentCycleTokens: undefined,
 		currentCycleBytes: undefined,
 		statusMessage: undefined,
+		// Terminal tabs — persisted with reset runtime state
+		terminalTabs: cleanedTerminalTabs,
 		// Clear runtime SSH state - these are populated from process:ssh-remote event after each spawn
 		// They represent the state of the LAST spawn, not configuration. On app restart,
 		// they'll be repopulated based on sessionSshRemoteConfig when the agent next spawns.

@@ -171,6 +171,7 @@ import type {
 	LeaderboardRegistration,
 	CustomAICommand,
 	ThinkingMode,
+	TerminalTab,
 } from './types';
 import { THEMES } from './constants/themes';
 import { generateId } from './utils/ids';
@@ -205,6 +206,27 @@ import { getSlashCommandDescription } from './constants/app';
 import { useUIStore } from './stores/uiStore';
 import { useTabStore } from './stores/tabStore';
 import { useFileExplorerStore } from './stores/fileExplorerStore';
+
+/**
+ * Create a default terminal tab for session initialization.
+ * Used when constructing session objects before `createTerminalTab` from tabHelpers
+ * can be used (which requires a full Session object — chicken-and-egg problem).
+ */
+function makeDefaultTerminalTab(cwd: string): { tab: TerminalTab; ref: UnifiedTabRef } {
+	const id = generateId();
+	return {
+		tab: {
+			id,
+			name: null,
+			shellType: 'zsh',
+			pid: 0,
+			cwd,
+			createdAt: Date.now(),
+			state: 'idle',
+		},
+		ref: { type: 'terminal' as const, id },
+	};
+}
 
 function MaestroConsoleInner() {
 	// --- LAYER STACK (for blocking shortcuts when modals are open) ---
@@ -1189,6 +1211,7 @@ function MaestroConsoleInner() {
 					session.id
 				);
 				const defaultTabId = generateId();
+				const defaultTermTab = makeDefaultTerminalTab(session.cwd);
 				return {
 					...session,
 					aiPid: -1,
@@ -1219,10 +1242,10 @@ function MaestroConsoleInner() {
 					activeTabId: defaultTabId,
 					filePreviewTabs: [],
 					activeFileTabId: null,
-					unifiedTabOrder: [{ type: 'ai' as const, id: defaultTabId }],
+					unifiedTabOrder: [{ type: 'ai' as const, id: defaultTabId }, defaultTermTab.ref],
 					unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTermTab.tab],
+				activeTerminalTabId: defaultTermTab.tab.id,
 				};
 			}
 
@@ -1322,6 +1345,41 @@ function MaestroConsoleInner() {
 					thinkingStartTime: undefined,
 				}));
 
+				// Migrate terminal tabs: restore persisted tabs with reset runtime state,
+				// or create a default tab if none exist (backwards compatibility migration)
+				let restoredTerminalTabs: TerminalTab[];
+				let restoredActiveTerminalTabId: string | null;
+				let terminalTabRefs: UnifiedTabRef[];
+				if (correctedSession.terminalTabs && correctedSession.terminalTabs.length > 0) {
+					// Reset runtime state — PTY processes don't survive app restart
+					restoredTerminalTabs = correctedSession.terminalTabs.map((tab) => ({
+						...tab,
+						pid: 0,
+						state: 'idle' as const,
+						exitCode: undefined,
+					}));
+					restoredActiveTerminalTabId = correctedSession.activeTerminalTabId
+						?? restoredTerminalTabs[0].id;
+					terminalTabRefs = restoredTerminalTabs.map((tab) => ({
+						type: 'terminal' as const,
+						id: tab.id,
+					}));
+				} else {
+					// Migration: session has no terminal tabs, create a default one
+					const defaultTermTab = makeDefaultTerminalTab(correctedSession.cwd);
+					restoredTerminalTabs = [defaultTermTab.tab];
+					restoredActiveTerminalTabId = defaultTermTab.tab.id;
+					terminalTabRefs = [defaultTermTab.ref];
+					console.log(`[restoreSession] Migrated session ${correctedSession.id} to terminal tabs`);
+				}
+
+				// Build unified tab order: keep existing non-terminal refs, then append terminal refs
+				const existingNonTerminalRefs = (
+					correctedSession.unifiedTabOrder ||
+					resetAiTabs.map((tab) => ({ type: 'ai' as const, id: tab.id }))
+				).filter((ref) => ref.type !== 'terminal');
+				const restoredUnifiedTabOrder = [...existingNonTerminalRefs, ...terminalTabRefs];
+
 				// Session restored - no superfluous messages added to AI Terminal or Command Terminal
 				return {
 					...correctedSession,
@@ -1352,13 +1410,10 @@ function MaestroConsoleInner() {
 					// File preview tabs - initialize from persisted data or empty
 					filePreviewTabs: correctedSession.filePreviewTabs || [],
 					activeFileTabId: correctedSession.activeFileTabId ?? null,
-					unifiedTabOrder: (
-						correctedSession.unifiedTabOrder ||
-						resetAiTabs.map((tab) => ({ type: 'ai' as const, id: tab.id }))
-					).filter((ref) => ref.type !== 'terminal'), // Filter out terminal refs — PTY dies on quit
-					// Terminal tabs are NOT persisted — PTY processes die on app quit
-					terminalTabs: [],
-					activeTerminalTabId: null,
+					unifiedTabOrder: restoredUnifiedTabOrder,
+					// Terminal tabs — restored with reset runtime state, or migrated from empty
+					terminalTabs: restoredTerminalTabs,
+					activeTerminalTabId: restoredActiveTerminalTabId,
 				};
 			} else {
 				// Process spawn failed
@@ -1767,6 +1822,7 @@ function MaestroConsoleInner() {
 							// Ignore errors
 						}
 
+						const defaultTermTab = makeDefaultTerminalTab(subdir.path);
 						const worktreeSession: Session = {
 							id: newId,
 							name: subdir.branch || subdir.name,
@@ -1813,10 +1869,10 @@ function MaestroConsoleInner() {
 							closedTabHistory: [],
 							filePreviewTabs: [],
 							activeFileTabId: null,
-							unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
+							unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }, defaultTermTab.ref],
 							unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTermTab.tab],
+				activeTerminalTabId: defaultTermTab.tab.id,
 							customPath: parentSession.customPath,
 							customArgs: parentSession.customArgs,
 							customEnvVars: parentSession.customEnvVars,
@@ -6385,6 +6441,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 				// Ignore errors
 			}
 
+			const defaultTermTab = makeDefaultTerminalTab(worktree.path);
 			const worktreeSession: Session = {
 				id: newId,
 				name: worktree.branch || worktree.name,
@@ -6431,10 +6488,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 				closedTabHistory: [],
 				filePreviewTabs: [],
 				activeFileTabId: null,
-				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
+				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }, defaultTermTab.ref],
 				unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTermTab.tab],
+				activeTerminalTabId: defaultTermTab.tab.id,
 				customPath: parentSession.customPath,
 				customArgs: parentSession.customArgs,
 				customEnvVars: parentSession.customEnvVars,
@@ -6571,6 +6628,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 								// Ignore errors
 							}
 
+							const defaultTermTab = makeDefaultTerminalTab(subdir.path);
 							const newSession: Session = {
 								id: newId,
 								name: sessionName,
@@ -6618,10 +6676,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 								closedTabHistory: [],
 								filePreviewTabs: [],
 								activeFileTabId: null,
-								unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
+								unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }, defaultTermTab.ref],
 								unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTermTab.tab],
+				activeTerminalTabId: defaultTermTab.tab.id,
 								customPath: session.customPath,
 								customArgs: session.customArgs,
 								customEnvVars: session.customEnvVars,
@@ -7958,6 +8016,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 				showThinking: defaultShowThinking,
 			};
 
+			// Initialize with a default terminal tab so every session has one from creation
+			const defaultTermTab = makeDefaultTerminalTab(workingDir);
+
 			const newSession: Session = {
 				id: newId,
 				name,
@@ -8002,13 +8063,13 @@ You are taking over this conversation. Based on the context above, provide a bri
 				aiTabs: [initialTab],
 				activeTabId: initialTabId,
 				closedTabHistory: [],
-				// File preview tabs - start empty, unified tab order starts with initial AI tab
+				// File preview tabs - start empty, unified tab order starts with initial AI tab + terminal tab
 				filePreviewTabs: [],
 				activeFileTabId: null,
-				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
+				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }, defaultTermTab.ref],
 				unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTermTab.tab],
+				activeTerminalTabId: defaultTermTab.tab.id,
 				// Nudge message - appended to every interactive user message
 				nudgeMessage,
 				// Per-agent config (path, args, env vars, model)
@@ -8135,6 +8196,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 			const firstDoc = generatedDocuments[0];
 			const autoRunSelectedFile = firstDoc ? firstDoc.filename.replace(/\.md$/, '') : undefined;
 
+			// Initialize with a default terminal tab
+			const defaultTermTab = makeDefaultTerminalTab(directoryPath);
+
 			// Create the session with Auto Run configured
 			const newSession: Session = {
 				id: newId,
@@ -8179,10 +8243,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 				closedTabHistory: [],
 				filePreviewTabs: [],
 				activeFileTabId: null,
-				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
+				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }, defaultTermTab.ref],
 				unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTermTab.tab],
+				activeTerminalTabId: defaultTermTab.tab.id,
 				// Auto Run configuration from wizard
 				autoRunFolderPath,
 				autoRunSelectedFile,
@@ -9825,6 +9889,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 							// Ignore errors fetching git info
 						}
 
+						const defaultTermTab = makeDefaultTerminalTab(subdir.path);
 						const worktreeSession: Session = {
 							id: newId,
 							name: subdir.branch || subdir.name,
@@ -9873,10 +9938,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 							closedTabHistory: [],
 							filePreviewTabs: [],
 							activeFileTabId: null,
-							unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
+							unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }, defaultTermTab.ref],
 							unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTermTab.tab],
+				activeTerminalTabId: defaultTermTab.tab.id,
 							customPath: activeSession.customPath,
 							customArgs: activeSession.customArgs,
 							customEnvVars: activeSession.customEnvVars,
@@ -10008,6 +10073,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 					// Ignore errors
 				}
 
+				const defaultTermTab = makeDefaultTerminalTab(worktreePath);
 				const worktreeSession: Session = {
 					id: newId,
 					name: branchName,
@@ -10054,10 +10120,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 					closedTabHistory: [],
 					filePreviewTabs: [],
 					activeFileTabId: null,
-					unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
+					unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }, defaultTermTab.ref],
 					unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTermTab.tab],
+				activeTerminalTabId: defaultTermTab.tab.id,
 					customPath: activeSession.customPath,
 					customArgs: activeSession.customArgs,
 					customEnvVars: activeSession.customEnvVars,
@@ -10167,6 +10233,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 				// Ignore errors
 			}
 
+			const defaultTermTab = makeDefaultTerminalTab(worktreePath);
 			const worktreeSession: Session = {
 				id: newId,
 				name: branchName,
@@ -10213,10 +10280,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 				closedTabHistory: [],
 				filePreviewTabs: [],
 				activeFileTabId: null,
-				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
+				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }, defaultTermTab.ref],
 				unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTermTab.tab],
+				activeTerminalTabId: defaultTermTab.tab.id,
 				customPath: createWorktreeSession.customPath,
 				customArgs: createWorktreeSession.customArgs,
 				customEnvVars: createWorktreeSession.customEnvVars,
@@ -12307,6 +12374,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 								};
 
 								// Create session with Symphony metadata
+								const defaultTermTab = makeDefaultTerminalTab(data.localPath);
 								const newSession: Session = {
 									id: newId,
 									name: data.sessionName,
@@ -12350,10 +12418,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 									closedTabHistory: [],
 									filePreviewTabs: [],
 									activeFileTabId: null,
-									unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
+									unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }, defaultTermTab.ref],
 									unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTermTab.tab],
+				activeTerminalTabId: defaultTermTab.tab.id,
 									// Custom agent config
 									customPath: data.customPath,
 									customArgs: data.customArgs,

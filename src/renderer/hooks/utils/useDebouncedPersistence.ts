@@ -98,7 +98,7 @@ const prepareSessionForPersistence = (session: Session): Session => {
 	// Strip runtime-only fields from terminal tabs before persistence.
 	// PTY processes are ephemeral — they die on quit and are respawned on mount.
 	// Only persist metadata: id, name, createdAt, cwd.
-	const persistedTerminalTabs = (session.terminalTabs || []).map(({ processRunning, exitCode, ...metadata }) => metadata);
+	const persistedTerminalTabs = (session.terminalTabs || []).map(({ processRunning: _processRunning, exitCode: _exitCode, ...metadata }) => metadata);
 
 	return {
 		...sessionWithoutRuntimeFields,

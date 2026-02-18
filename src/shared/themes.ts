@@ -10,7 +10,7 @@
  * Do NOT duplicate theme definitions elsewhere.
  */
 
-import type { Theme, ThemeId, AnsiColors } from './theme-types';
+import type { Theme, ThemeId } from './theme-types';
 
 export const THEMES: Record<ThemeId, Theme> = {
 	// Dark themes

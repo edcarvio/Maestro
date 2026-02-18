@@ -56,6 +56,50 @@ export class ProcessManager extends EventEmitter {
 		}
 	}
 
+	/**
+	 * Spawn a terminal PTY for a specific terminal tab.
+	 * Uses 'embedded-terminal' toolType so xterm.js receives raw PTY data
+	 * (no control sequence filtering).
+	 *
+	 * @param config.sessionId - Full session ID in format {sessionId}-terminal-{tabId}
+	 * @param config.cwd - Working directory for the shell
+	 * @param config.shell - Shell to use (e.g., 'zsh', 'bash', '/usr/local/bin/zsh')
+	 * @param config.shellArgs - Additional shell arguments
+	 * @param config.shellEnvVars - Custom environment variables
+	 * @param config.cols - Initial column count (default: 80)
+	 * @param config.rows - Initial row count (default: 24)
+	 */
+	spawnTerminalTab(config: {
+		sessionId: string;
+		cwd: string;
+		shell?: string;
+		shellArgs?: string;
+		shellEnvVars?: Record<string, string>;
+		cols?: number;
+		rows?: number;
+	}): SpawnResult {
+		const { sessionId, cwd, shell, shellArgs, shellEnvVars, cols = 80, rows = 24 } = config;
+
+		logger.debug('[ProcessManager] Spawning terminal tab', 'ProcessManager', {
+			sessionId,
+			cwd,
+			shell,
+			cols,
+			rows,
+		});
+
+		return this.spawn({
+			sessionId,
+			toolType: 'embedded-terminal',
+			cwd,
+			command: shell || (process.platform === 'win32' ? 'powershell.exe' : 'zsh'),
+			args: [],
+			shell,
+			shellArgs,
+			shellEnvVars,
+		});
+	}
+
 	private shouldUsePty(config: ProcessConfig): boolean {
 		const { toolType, requiresPty, prompt } = config;
 		return (toolType === 'terminal' || toolType === 'embedded-terminal' || requiresPty === true) && !prompt;

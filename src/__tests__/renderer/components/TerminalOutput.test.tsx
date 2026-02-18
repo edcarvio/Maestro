@@ -2,12 +2,18 @@
  * @file TerminalOutput.test.tsx
  * @description Tests for TerminalOutput component and its internal helpers
  *
+ * TerminalOutput is a log-based output display primarily for AI mode.
+ * Desktop terminal mode now uses EmbeddedTerminal (xterm.js), NOT this component.
+ * Tests marked "legacy/web fallback" exercise the shellLogs code path that remains
+ * for backwards compatibility with the web/mobile interface (which lacks xterm.js).
+ *
  * Test coverage includes:
  * - Pure helper functions (tested via component behavior since they're not exported)
  * - CodeBlockWithCopy component
  * - ElapsedTimeDisplay component
  * - LogItemComponent (memoized)
  * - TerminalOutput main component
+ * - Legacy terminal-mode shellLogs rendering (web/mobile fallback)
  */
 
 import React from 'react';
@@ -176,7 +182,8 @@ describe('TerminalOutput', () => {
 			expect(outputDiv).toHaveStyle({ backgroundColor: defaultTheme.colors.bgMain });
 		});
 
-		it('renders with terminal mode background color', () => {
+		// DEPRECATED: Tests legacy terminal-mode background color (web/mobile fallback path)
+		it('renders with terminal mode background color (legacy/web fallback)', () => {
 			const session = createDefaultSession({ inputMode: 'terminal' });
 			const props = createDefaultProps({ session });
 			const { container } = render(<TerminalOutput {...props} />);
@@ -210,7 +217,10 @@ describe('TerminalOutput', () => {
 			expect(screen.getByText('First message')).toBeInTheDocument();
 		});
 
-		it('renders shell logs in terminal mode', () => {
+		// DEPRECATED: Tests legacy shellLogs rendering path used by web/mobile interface.
+		// Desktop terminal mode now uses EmbeddedTerminal (xterm.js), not TerminalOutput.
+		// This code path remains for backwards compatibility with web/mobile clients.
+		it('renders shell logs in terminal mode (legacy/web fallback)', () => {
 			const shellLogs: LogEntry[] = [
 				createLogEntry({ text: 'ls -la', source: 'user' }),
 				createLogEntry({ text: 'total 100', source: 'stdout' }),
@@ -259,7 +269,8 @@ describe('TerminalOutput', () => {
 			expect(screen.getByTitle('Message delivered')).toBeInTheDocument();
 		});
 
-		it('shows STDERR label for stderr entries', () => {
+		// DEPRECATED: Tests legacy shellLogs STDERR rendering (web/mobile fallback path)
+		it('shows STDERR label for stderr entries (legacy/web fallback)', () => {
 			const logs: LogEntry[] = [createLogEntry({ text: 'Error output', source: 'stderr' })];
 
 			const session = createDefaultSession({
@@ -362,17 +373,17 @@ describe('TerminalOutput', () => {
 			expect(setOutputSearchOpen).toHaveBeenCalledWith(true);
 		});
 
-		it('filters logs case-insensitively (in terminal mode)', async () => {
-			// Use terminal mode to avoid log collapsing
+		it('filters logs case-insensitively', async () => {
+			// Use alternating user/stdout to prevent AI-mode collapsing
 			const logs: LogEntry[] = [
-				createLogEntry({ text: 'This contains HELLO world', source: 'stdout' }),
-				createLogEntry({ text: 'This contains hello world', source: 'stdout' }),
-				createLogEntry({ text: 'This does not match', source: 'stdout' }),
+				createLogEntry({ text: 'This contains HELLO world', source: 'user' }),
+				createLogEntry({ text: 'This contains hello world', source: 'user' }),
+				createLogEntry({ text: 'This does not match', source: 'user' }),
 			];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({
@@ -392,16 +403,17 @@ describe('TerminalOutput', () => {
 			expect(logItems.length).toBe(2);
 		});
 
-		it('shows all logs when search query is empty (terminal mode)', async () => {
+		it('shows all logs when search query is empty', async () => {
+			// Use user-source logs to prevent AI-mode collapsing
 			const logs: LogEntry[] = [
-				createLogEntry({ text: 'First log', source: 'stdout' }),
-				createLogEntry({ text: 'Second log', source: 'stdout' }),
-				createLogEntry({ text: 'Third log', source: 'stdout' }),
+				createLogEntry({ text: 'First log', source: 'user' }),
+				createLogEntry({ text: 'Second log', source: 'user' }),
+				createLogEntry({ text: 'Third log', source: 'user' }),
 			];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({
@@ -486,16 +498,17 @@ describe('TerminalOutput', () => {
 			expect(mockUnregisterLayer).toHaveBeenCalled();
 		});
 
-		it('matches logs containing partial words (terminal mode)', async () => {
+		it('matches logs containing partial words', async () => {
+			// Use user-source logs to prevent AI-mode collapsing
 			const logs: LogEntry[] = [
-				createLogEntry({ text: 'authentication failed', source: 'stdout' }),
-				createLogEntry({ text: 'unauthorized access', source: 'stdout' }),
-				createLogEntry({ text: 'success', source: 'stdout' }),
+				createLogEntry({ text: 'authentication failed', source: 'user' }),
+				createLogEntry({ text: 'unauthorized access', source: 'user' }),
+				createLogEntry({ text: 'success', source: 'user' }),
 			];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({
@@ -663,8 +676,8 @@ describe('TerminalOutput', () => {
 			const logs: LogEntry[] = [createLogEntry({ text: longText, source: 'stdout' })];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({
@@ -682,8 +695,8 @@ describe('TerminalOutput', () => {
 			const logs: LogEntry[] = [createLogEntry({ text: longText, source: 'stdout' })];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({
@@ -711,7 +724,9 @@ describe('TerminalOutput', () => {
 		});
 	});
 
-	describe('busy state indicators', () => {
+	// DEPRECATED: These tests exercise the legacy terminal-mode busy indicator in TerminalOutput.
+	// Desktop terminal mode now uses EmbeddedTerminal (xterm.js). These remain for web/mobile fallback.
+	describe('busy state indicators (legacy/web fallback)', () => {
 		it('shows busy indicator for terminal mode when state is busy', () => {
 			const session = createDefaultSession({
 				inputMode: 'terminal',
@@ -1185,7 +1200,8 @@ describe('TerminalOutput', () => {
 			expect(screen.queryByTitle(/Delete command/)).not.toBeInTheDocument();
 		});
 
-		it('shows delete button with correct tooltip in terminal mode', () => {
+		// DEPRECATED: Tests legacy terminal-mode delete tooltip (web/mobile fallback path)
+		it('shows delete button with correct tooltip in terminal mode (legacy/web fallback)', () => {
 			const logs: LogEntry[] = [createLogEntry({ text: 'ls -la', source: 'user' })];
 
 			const session = createDefaultSession({
@@ -1403,7 +1419,8 @@ describe('TerminalOutput', () => {
 			expect(screen.queryByTitle(/Show formatted/)).not.toBeInTheDocument();
 		});
 
-		it('does not show markdown toggle button in terminal mode', () => {
+		// DEPRECATED: Tests legacy terminal-mode markdown toggle behavior (web/mobile fallback path)
+		it('does not show markdown toggle button in terminal mode (legacy/web fallback)', () => {
 			const logs: LogEntry[] = [createLogEntry({ text: 'Terminal output', source: 'stdout' })];
 
 			const session = createDefaultSession({
@@ -1765,7 +1782,8 @@ describe('TerminalOutput', () => {
 			expect(screen.getByTestId('react-markdown')).toBeInTheDocument();
 		});
 
-		it('renders thinking logs as plain text in terminal mode', () => {
+		// DEPRECATED: Tests legacy terminal-mode thinking log rendering (web/mobile fallback path)
+		it('renders thinking logs as plain text in terminal mode (legacy/web fallback)', () => {
 			const logs: LogEntry[] = [createLogEntry({ text: '**bold** thinking', source: 'thinking' })];
 
 			const session = createDefaultSession({
@@ -1861,7 +1879,9 @@ describe('TerminalOutput', () => {
 		});
 	});
 
-	describe('elapsed time display', () => {
+	// DEPRECATED: These tests exercise the legacy terminal-mode elapsed time display.
+	// Desktop terminal mode now uses EmbeddedTerminal (xterm.js). These remain for web/mobile fallback.
+	describe('elapsed time display (legacy/web fallback)', () => {
 		it('shows elapsed time for busy terminal state with thinkingStartTime', () => {
 			const session = createDefaultSession({
 				inputMode: 'terminal',
@@ -1993,12 +2013,12 @@ describe('TerminalOutput', () => {
 		it('skips empty stderr entries', () => {
 			const logs: LogEntry[] = [
 				createLogEntry({ text: '', source: 'stderr' }),
-				createLogEntry({ text: 'Valid output', source: 'stdout' }),
+				createLogEntry({ text: 'Valid output', source: 'user' }),
 			];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({ session });
@@ -2022,14 +2042,14 @@ describe('helper function behaviors (tested via component)', () => {
 	});
 
 	describe('processCarriageReturns behavior', () => {
-		it('handles carriage returns in terminal output', () => {
+		it('handles carriage returns in output', () => {
 			// Text with carriage return - should show last segment
 			const textWithCR = 'Loading...\rDone!';
 			const logs: LogEntry[] = [createLogEntry({ text: textWithCR, source: 'stdout' })];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({ session });
@@ -2045,8 +2065,8 @@ describe('helper function behaviors (tested via component)', () => {
 			const logs: LogEntry[] = [createLogEntry({ text, source: 'stdout' })];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({ session });

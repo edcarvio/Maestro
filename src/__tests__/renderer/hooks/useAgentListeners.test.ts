@@ -481,7 +481,10 @@ describe('useAgentListeners', () => {
 			expect(updated?.state).toBe('idle');
 		});
 
-		it('adds system log entry for non-zero exit code', () => {
+		// DEPRECATED: Tests legacy shellLogs exit logging (web/mobile fallback path).
+		// Desktop terminal mode now uses EmbeddedTerminal (xterm.js) with per-tab exit handling.
+		// This handler still appends to shellLogs for web/mobile clients.
+		it('adds system log entry to shellLogs for non-zero exit code (legacy/web fallback)', () => {
 			const deps = createMockDeps();
 			const session = createMockSession({
 				id: 'sess-1',
@@ -498,7 +501,7 @@ describe('useAgentListeners', () => {
 			onCommandExitHandler?.('sess-1', 1);
 
 			const updated = useSessionStore.getState().sessions.find((s) => s.id === 'sess-1');
-			// System log should be appended to shellLogs for non-zero exit
+			// DEPRECATED: shellLogs exit logging retained for web/mobile
 			const exitLog = updated?.shellLogs?.find(
 				(log: any) => log.source === 'system' && log.text?.includes('exited with code 1')
 			);

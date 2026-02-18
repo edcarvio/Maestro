@@ -71,6 +71,7 @@ import { QuitConfirmModal } from './QuitConfirmModal';
 import { NewInstanceModal, EditAgentModal } from './NewInstanceModal';
 import { RenameSessionModal } from './RenameSessionModal';
 import { RenameTabModal } from './RenameTabModal';
+import { TerminalTabRenameModal } from './TerminalTabRenameModal';
 
 // Group Modal Components
 import { CreateGroupModal } from './CreateGroupModal';
@@ -433,6 +434,13 @@ export interface AppSessionModalsProps {
 	renameTabInitialName: string;
 	onCloseRenameTabModal: () => void;
 	onRenameTab: (newName: string) => void;
+
+	// TerminalTabRenameModal
+	terminalRenameModalOpen: boolean;
+	terminalRenameTabId: string | null;
+	terminalRenameInitialName: string;
+	onCloseTerminalRenameModal: () => void;
+	onTerminalTabRenameSave: (newName: string) => void;
 }
 
 /**
@@ -474,6 +482,12 @@ export function AppSessionModals({
 	renameTabInitialName,
 	onCloseRenameTabModal,
 	onRenameTab,
+	// TerminalTabRenameModal
+	terminalRenameModalOpen,
+	terminalRenameTabId,
+	terminalRenameInitialName,
+	onCloseTerminalRenameModal,
+	onTerminalTabRenameSave,
 }: AppSessionModalsProps) {
 	return (
 		<>
@@ -520,6 +534,17 @@ export function AppSessionModals({
 					agentSessionId={activeSession?.aiTabs?.find((t) => t.id === renameTabId)?.agentSessionId}
 					onClose={onCloseRenameTabModal}
 					onRename={onRenameTab}
+				/>
+			)}
+
+			{/* --- RENAME TERMINAL TAB MODAL --- */}
+			{terminalRenameModalOpen && terminalRenameTabId && (
+				<TerminalTabRenameModal
+					theme={theme}
+					initialName={terminalRenameInitialName}
+					defaultName={`Terminal ${((activeSession?.terminalTabs || []).findIndex((t) => t.id === terminalRenameTabId) ?? 0) + 1}`}
+					onClose={onCloseTerminalRenameModal}
+					onRename={onTerminalTabRenameSave}
 				/>
 			)}
 		</>
@@ -1847,6 +1872,11 @@ export interface AppModalsProps {
 	renameTabInitialName: string;
 	onCloseRenameTabModal: () => void;
 	onRenameTab: (newName: string) => void;
+	terminalRenameModalOpen: boolean;
+	terminalRenameTabId: string | null;
+	terminalRenameInitialName: string;
+	onCloseTerminalRenameModal: () => void;
+	onTerminalTabRenameSave: (newName: string) => void;
 
 	// --- AppGroupModals props ---
 	createGroupModalOpen: boolean;
@@ -2185,6 +2215,11 @@ export function AppModals(props: AppModalsProps) {
 		renameTabInitialName,
 		onCloseRenameTabModal,
 		onRenameTab,
+		terminalRenameModalOpen,
+		terminalRenameTabId,
+		terminalRenameInitialName,
+		onCloseTerminalRenameModal,
+		onTerminalTabRenameSave,
 		// Group modals
 		createGroupModalOpen,
 		onCloseCreateGroupModal,
@@ -2476,6 +2511,11 @@ export function AppModals(props: AppModalsProps) {
 				renameTabInitialName={renameTabInitialName}
 				onCloseRenameTabModal={onCloseRenameTabModal}
 				onRenameTab={onRenameTab}
+				terminalRenameModalOpen={terminalRenameModalOpen}
+				terminalRenameTabId={terminalRenameTabId}
+				terminalRenameInitialName={terminalRenameInitialName}
+				onCloseTerminalRenameModal={onCloseTerminalRenameModal}
+				onTerminalTabRenameSave={onTerminalTabRenameSave}
 			/>
 
 			{/* Group Management Modals */}

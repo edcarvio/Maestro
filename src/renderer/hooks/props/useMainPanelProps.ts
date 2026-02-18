@@ -240,6 +240,7 @@ export interface UseMainPanelPropsDeps {
 	handleTerminalTabSelect: (tabId: string) => void;
 	handleTerminalTabClose: (tabId: string) => void;
 	handleTerminalTabExit: (tabId: string, exitCode: number) => void;
+	handleRequestTerminalTabRename: (tabId: string) => void;
 
 	handleScrollPositionChange: (scrollTop: number) => void;
 	handleAtBottomChange: (isAtBottom: boolean) => void;
@@ -448,6 +449,7 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			onTerminalTabClose: deps.handleTerminalTabClose,
 			onNewTerminalTab: deps.handleNewTerminalTab,
 			onTerminalTabExit: deps.handleTerminalTabExit,
+			onRequestTerminalTabRename: deps.handleRequestTerminalTabRename,
 			onToggleTabSaveToHistory: deps.handleToggleTabSaveToHistory,
 			onToggleTabShowThinking: deps.handleToggleTabShowThinking,
 			onScrollPositionChange: deps.handleScrollPositionChange,
@@ -695,6 +697,7 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			deps.handleTerminalTabSelect,
 			deps.handleTerminalTabClose,
 			deps.handleTerminalTabExit,
+			deps.handleRequestTerminalTabRename,
 			deps.handleScrollPositionChange,
 			deps.handleAtBottomChange,
 			deps.handleMainPanelInputBlur,

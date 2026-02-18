@@ -85,6 +85,8 @@ interface TabBarProps {
 	onTerminalTabClose?: (tabId: string) => void;
 	/** Handler to create a new terminal tab */
 	onNewTerminalTab?: () => void;
+	/** Handler to open rename modal for a terminal tab */
+	onRequestTerminalTabRename?: (tabId: string) => void;
 
 	// === Accessibility ===
 	/** Whether colorblind-friendly colors should be used for extension badges */
@@ -1586,6 +1588,7 @@ interface TerminalTabProps {
 	theme: Theme;
 	onSelect: (tabId: string) => void;
 	onClose: (tabId: string) => void;
+	onRequestRename?: (tabId: string) => void;
 	onDragStart: (tabId: string, e: React.DragEvent) => void;
 	onDragOver: (tabId: string, e: React.DragEvent) => void;
 	onDragEnd: () => void;
@@ -1604,6 +1607,7 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 	theme,
 	onSelect,
 	onClose,
+	onRequestRename,
 	onDragStart,
 	onDragOver,
 	onDragEnd,
@@ -1616,6 +1620,12 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 	const handleClick = useCallback(() => {
 		onSelect(tab.id);
 	}, [onSelect, tab.id]);
+
+	const handleDoubleClick = useCallback(() => {
+		if (onRequestRename) {
+			onRequestRename(tab.id);
+		}
+	}, [onRequestRename, tab.id]);
 
 	const handleClose = useCallback(
 		(e: React.MouseEvent) => {
@@ -1668,6 +1678,7 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 			className={`relative flex items-center gap-1.5 px-3 py-1.5 cursor-pointer select-none shrink-0 transition-colors duration-100 ring-1 ring-inset ${isDragging ? 'opacity-40' : ''}`}
 			style={tabStyle}
 			onClick={handleClick}
+			onDoubleClick={handleDoubleClick}
 			onMouseDown={handleMouseDown}
 			onMouseEnter={() => setIsHovered(true)}
 			onMouseLeave={() => setIsHovered(false)}
@@ -1755,6 +1766,7 @@ function TabBarInner({
 	onTerminalTabSelect,
 	onTerminalTabClose,
 	onNewTerminalTab,
+	onRequestTerminalTabRename,
 	// Accessibility
 	colorBlindMode,
 }: TabBarProps) {
@@ -2267,6 +2279,7 @@ function TabBarInner({
 										theme={theme}
 										onSelect={onTerminalTabSelect || (() => {})}
 										onClose={onTerminalTabClose || (() => {})}
+										onRequestRename={onRequestTerminalTabRename}
 										onDragStart={handleDragStart}
 										onDragOver={handleDragOver}
 										onDragEnd={handleDragEnd}

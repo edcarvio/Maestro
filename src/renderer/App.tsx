@@ -311,6 +311,13 @@ function MaestroConsoleInner() {
 		setRenameTabId,
 		renameTabInitialName,
 		setRenameTabInitialName,
+		// Rename Terminal Tab Modal
+		terminalRenameModalOpen,
+		setTerminalRenameModalOpen,
+		terminalRenameTabId,
+		setTerminalRenameTabId,
+		terminalRenameInitialName,
+		setTerminalRenameInitialName,
 		// Rename Group Modal
 		renameGroupModalOpen,
 		setRenameGroupModalOpen,
@@ -991,6 +998,10 @@ function MaestroConsoleInner() {
 	const handleCloseRenameTabModal = useCallback(() => {
 		setRenameTabModalOpen(false);
 		setRenameTabId(null);
+	}, []);
+	const handleCloseTerminalRenameModal = useCallback(() => {
+		setTerminalRenameModalOpen(false);
+		setTerminalRenameTabId(null);
 	}, []);
 
 	// Note: All modal states (confirmation, rename, queue browser, batch runner, etc.)
@@ -4451,6 +4462,17 @@ You are taking over this conversation. Based on the context above, provide a bri
 		}
 	}, []);
 
+	const handleRequestTerminalTabRename = useCallback((tabId: string) => {
+		const session = sessionsRef.current.find((s) => s.id === activeSessionIdRef.current);
+		if (!session) return;
+		const tab = (session.terminalTabs || []).find((t) => t.id === tabId);
+		if (tab) {
+			setTerminalRenameTabId(tabId);
+			setTerminalRenameInitialName(tab.name || '');
+			setTerminalRenameModalOpen(true);
+		}
+	}, []);
+
 	const handleTabReorder = useCallback((fromIndex: number, toIndex: number) => {
 		setSessions((prev) =>
 			prev.map((s) => {
@@ -7319,6 +7341,26 @@ You are taking over this conversation. Based on the context above, provide a bri
 			);
 		},
 		[activeSession, renameTabId]
+	);
+
+	const handleTerminalTabRenameSave = useCallback(
+		(newName: string) => {
+			if (!activeSession || !terminalRenameTabId) return;
+			setSessions((prev) =>
+				prev.map((s) => {
+					if (s.id !== activeSession.id) return s;
+					return {
+						...s,
+						terminalTabs: (s.terminalTabs || []).map((tab) =>
+							tab.id === terminalRenameTabId
+								? { ...tab, name: newName || null }
+								: tab
+						),
+					};
+				})
+			);
+		},
+		[activeSession, terminalRenameTabId]
 	);
 
 	// Persist groups directly (groups change infrequently, no need to debounce)
@@ -11487,6 +11529,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		handleTerminalTabSelect,
 		handleTerminalTabClose,
 		handleTerminalTabExit,
+		handleRequestTerminalTabRename,
 
 		handleScrollPositionChange,
 		handleAtBottomChange,
@@ -11931,6 +11974,11 @@ You are taking over this conversation. Based on the context above, provide a bri
 					renameTabInitialName={renameTabInitialName}
 					onCloseRenameTabModal={handleCloseRenameTabModal}
 					onRenameTab={handleRenameTab}
+					terminalRenameModalOpen={terminalRenameModalOpen}
+					terminalRenameTabId={terminalRenameTabId}
+					terminalRenameInitialName={terminalRenameInitialName}
+					onCloseTerminalRenameModal={handleCloseTerminalRenameModal}
+					onTerminalTabRenameSave={handleTerminalTabRenameSave}
 					// AppGroupModals props
 					createGroupModalOpen={createGroupModalOpen}
 					onCloseCreateGroupModal={handleCloseCreateGroupModal}

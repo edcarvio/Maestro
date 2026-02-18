@@ -444,6 +444,132 @@ describe('EmbeddedTerminal', () => {
 		}
 	});
 
+	describe('progress indicator (\\r overwrite) support', () => {
+		it('forwards raw PTY data containing \\r directly to term.write()', async () => {
+			let rawPtyCallback: (sessionId: string, data: string) => void;
+
+			// Capture the onRawPtyData callback
+			mockOnRawPtyData.mockImplementation((handler: (sessionId: string, data: string) => void) => {
+				rawPtyCallback = handler;
+				return vi.fn();
+			});
+
+			await act(async () => {
+				render(
+					<EmbeddedTerminal
+						terminalTabId="test-tab-progress"
+						cwd="/tmp"
+						theme={defaultTheme}
+						fontFamily="Menlo"
+						isVisible={true}
+					/>
+				);
+			});
+
+			// Simulate progress indicator output with \r carriage returns
+			await act(async () => {
+				rawPtyCallback!('test-tab-progress', 'Downloading: 10%\r');
+			});
+			await act(async () => {
+				rawPtyCallback!('test-tab-progress', 'Downloading: 50%\r');
+			});
+			await act(async () => {
+				rawPtyCallback!('test-tab-progress', 'Downloading: 100%\n');
+			});
+
+			// Verify all three chunks were written to xterm.js with \r preserved
+			expect(terminalMethods.write).toHaveBeenCalledWith('Downloading: 10%\r');
+			expect(terminalMethods.write).toHaveBeenCalledWith('Downloading: 50%\r');
+			expect(terminalMethods.write).toHaveBeenCalledWith('Downloading: 100%\n');
+		});
+
+		it('forwards ANSI color codes with \\r overwrites to xterm without modification', async () => {
+			let rawPtyCallback: (sessionId: string, data: string) => void;
+
+			mockOnRawPtyData.mockImplementation((handler: (sessionId: string, data: string) => void) => {
+				rawPtyCallback = handler;
+				return vi.fn();
+			});
+
+			await act(async () => {
+				render(
+					<EmbeddedTerminal
+						terminalTabId="test-tab-ansi-progress"
+						cwd="/tmp"
+						theme={defaultTheme}
+						fontFamily="Menlo"
+						isVisible={true}
+					/>
+				);
+			});
+
+			// npm-style colored progress with \r overwrite
+			const coloredProgress = '\x1b[32m█████\x1b[0m░░░░░ 50%\r';
+			await act(async () => {
+				rawPtyCallback!('test-tab-ansi-progress', coloredProgress);
+			});
+
+			expect(terminalMethods.write).toHaveBeenCalledWith(coloredProgress);
+		});
+
+		it('ignores raw PTY data from other session IDs', async () => {
+			let rawPtyCallback: (sessionId: string, data: string) => void;
+
+			mockOnRawPtyData.mockImplementation((handler: (sessionId: string, data: string) => void) => {
+				rawPtyCallback = handler;
+				return vi.fn();
+			});
+
+			await act(async () => {
+				render(
+					<EmbeddedTerminal
+						terminalTabId="test-tab-mine"
+						cwd="/tmp"
+						theme={defaultTheme}
+						fontFamily="Menlo"
+						isVisible={true}
+					/>
+				);
+			});
+
+			// Data from a different session should be ignored
+			await act(async () => {
+				rawPtyCallback!('other-session', 'Progress: 100%\r');
+			});
+
+			expect(terminalMethods.write).not.toHaveBeenCalledWith('Progress: 100%\r');
+		});
+
+		it('handles multi-line output with \\r overwrites and \\n newlines', async () => {
+			let rawPtyCallback: (sessionId: string, data: string) => void;
+
+			mockOnRawPtyData.mockImplementation((handler: (sessionId: string, data: string) => void) => {
+				rawPtyCallback = handler;
+				return vi.fn();
+			});
+
+			await act(async () => {
+				render(
+					<EmbeddedTerminal
+						terminalTabId="test-tab-multiline"
+						cwd="/tmp"
+						theme={defaultTheme}
+						fontFamily="Menlo"
+						isVisible={true}
+					/>
+				);
+			});
+
+			// Simulate output with both \r (overwrite) and \n (newline) — common in build tools
+			const buildOutput = 'Compiling module 1/10\rCompiling module 5/10\rCompiling module 10/10\nBuild complete!\n';
+			await act(async () => {
+				rawPtyCallback!('test-tab-multiline', buildOutput);
+			});
+
+			expect(terminalMethods.write).toHaveBeenCalledWith(buildOutput);
+		});
+	});
+
 	it('shows error message when spawn fails', async () => {
 		mockSpawn.mockResolvedValueOnce({ success: false, pid: 0, error: 'No shell found' });
 

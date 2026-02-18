@@ -165,8 +165,10 @@ export function createProcessApi() {
 			ipcRenderer.invoke('process:resize', sessionId, cols, rows),
 
 		/**
-		 * Run a single command and capture only stdout/stderr (no PTY echo/prompts)
-		 * Supports SSH remote execution when sessionSshRemoteConfig is provided
+		 * @deprecated Use spawnTerminalTab instead. runCommand was used for discrete command execution.
+		 * Terminal mode now uses persistent PTY via spawnTerminalTab.
+		 * Kept for backwards compatibility with any external callers.
+		 * Supports SSH remote execution when sessionSshRemoteConfig is provided.
 		 */
 		runCommand: (config: RunCommandConfig): Promise<{ exitCode: number }> =>
 			ipcRenderer.invoke('process:runCommand', config),

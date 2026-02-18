@@ -207,6 +207,9 @@ interface MaestroAPI {
 		interrupt: (sessionId: string) => Promise<boolean>;
 		kill: (sessionId: string) => Promise<boolean>;
 		resize: (sessionId: string, cols: number, rows: number) => Promise<boolean>;
+		/**
+		 * @deprecated Use spawnTerminalTab instead. Kept for backwards compatibility.
+		 */
 		runCommand: (config: {
 			sessionId: string;
 			command: string;

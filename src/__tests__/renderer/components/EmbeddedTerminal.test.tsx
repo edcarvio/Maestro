@@ -9,7 +9,7 @@
 
 import React, { createRef } from 'react';
 import { render, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Theme } from '../../../shared/theme-types';
 
 // --- Hoisted mocks (vi.hoisted runs before vi.mock) ---
@@ -445,7 +445,21 @@ describe('EmbeddedTerminal', () => {
 	});
 
 	describe('progress indicator (\\r overwrite) support', () => {
-		it('forwards raw PTY data containing \\r directly to term.write()', async () => {
+		// Use fake timers to control jsdom's requestAnimationFrame (polyfilled via setTimeout)
+		beforeEach(() => {
+			vi.useFakeTimers();
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		// Flush jsdom's requestAnimationFrame by advancing fake timers
+		const flushRaf = () => act(() => {
+			vi.advanceTimersByTime(16);
+		});
+
+		it('forwards raw PTY data containing \\r to term.write() via RAF batching', async () => {
 			let rawPtyCallback: (sessionId: string, data: string) => void;
 
 			// Capture the onRawPtyData callback
@@ -467,20 +481,26 @@ describe('EmbeddedTerminal', () => {
 			});
 
 			// Simulate progress indicator output with \r carriage returns
+			// Data is now RAF-batched, so all chunks sent before RAF fires are combined
 			await act(async () => {
 				rawPtyCallback!('test-tab-progress', 'Downloading: 10%\r');
-			});
-			await act(async () => {
 				rawPtyCallback!('test-tab-progress', 'Downloading: 50%\r');
-			});
-			await act(async () => {
 				rawPtyCallback!('test-tab-progress', 'Downloading: 100%\n');
 			});
 
-			// Verify all three chunks were written to xterm.js with \r preserved
-			expect(terminalMethods.write).toHaveBeenCalledWith('Downloading: 10%\r');
-			expect(terminalMethods.write).toHaveBeenCalledWith('Downloading: 50%\r');
-			expect(terminalMethods.write).toHaveBeenCalledWith('Downloading: 100%\n');
+			// Flush the RAF buffer to trigger the batched write
+			await flushRaf();
+
+			// With RAF batching, all chunks are combined into a single write
+			// that preserves \r sequences for xterm.js to handle natively
+			const writeCall = terminalMethods.write.mock.calls.find(
+				(call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('Downloading:')
+			);
+			expect(writeCall).toBeTruthy();
+			const writtenData = writeCall![0] as string;
+			expect(writtenData).toContain('Downloading: 10%\r');
+			expect(writtenData).toContain('Downloading: 50%\r');
+			expect(writtenData).toContain('Downloading: 100%\n');
 		});
 
 		it('forwards ANSI color codes with \\r overwrites to xterm without modification', async () => {
@@ -509,7 +529,15 @@ describe('EmbeddedTerminal', () => {
 				rawPtyCallback!('test-tab-ansi-progress', coloredProgress);
 			});
 
-			expect(terminalMethods.write).toHaveBeenCalledWith(coloredProgress);
+			// Flush RAF buffer
+			await flushRaf();
+
+			// Verify ANSI codes are preserved in the batched write
+			const writeCall = terminalMethods.write.mock.calls.find(
+				(call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('\x1b[32m')
+			);
+			expect(writeCall).toBeTruthy();
+			expect(writeCall![0]).toBe(coloredProgress);
 		});
 
 		it('ignores raw PTY data from other session IDs', async () => {
@@ -537,7 +565,11 @@ describe('EmbeddedTerminal', () => {
 				rawPtyCallback!('other-session', 'Progress: 100%\r');
 			});
 
-			expect(terminalMethods.write).not.toHaveBeenCalledWith('Progress: 100%\r');
+			// Flush RAF buffer
+			await flushRaf();
+
+			// No write should have been called with the foreign data
+			expect(terminalMethods.write).not.toHaveBeenCalled();
 		});
 
 		it('handles multi-line output with \\r overwrites and \\n newlines', async () => {
@@ -566,7 +598,15 @@ describe('EmbeddedTerminal', () => {
 				rawPtyCallback!('test-tab-multiline', buildOutput);
 			});
 
-			expect(terminalMethods.write).toHaveBeenCalledWith(buildOutput);
+			// Flush RAF buffer
+			await flushRaf();
+
+			// Batched write should contain the full output with \r and \n preserved
+			const writeCall = terminalMethods.write.mock.calls.find(
+				(call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('Compiling')
+			);
+			expect(writeCall).toBeTruthy();
+			expect(writeCall![0]).toBe(buildOutput);
 		});
 	});
 

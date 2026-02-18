@@ -357,4 +357,8 @@ export const PERFORMANCE_THRESHOLDS = {
 	LAYOUT_ALGORITHM: 500,
 	/** React render should be under 16ms for 60fps */
 	REACT_RENDER: 16,
+	/** Terminal write batch (RAF-buffered) should be under 8ms to stay within frame budget */
+	TERMINAL_WRITE_BATCH: 8,
+	/** Terminal should handle 50K lines of scrollback without degradation */
+	TERMINAL_SCROLLBACK_LINES: 50000,
 } as const;

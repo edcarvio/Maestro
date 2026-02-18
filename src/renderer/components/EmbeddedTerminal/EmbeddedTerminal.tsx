@@ -9,6 +9,16 @@
  * is used as the process manager session key, allowing multiple terminals
  * within the same Maestro agent session.
  *
+ * Performance:
+ * - PTY data is batched via requestAnimationFrame to avoid flooding xterm.js
+ *   with individual write() calls during high-throughput output (e.g. find /,
+ *   cat large-file, yes). This matches the RAF batching pattern used for
+ *   thinking stream chunks.
+ * - WebGL renderer is used when available for GPU-accelerated rendering,
+ *   with automatic fallback to canvas.
+ * - Terminal instances are CSS-hidden (not destroyed) when tabs switch,
+ *   preserving scrollback and cursor state with zero re-initialization cost.
+ *
  * Lifecycle:
  * - On mount: creates xterm.js Terminal, spawns PTY, subscribes to raw data
  * - On theme change: updates terminal colors
@@ -144,6 +154,11 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 	const spawnedRef = useRef(false);
 	const cleanupFnsRef = useRef<Array<() => void>>([]);
 
+	// Write batching: accumulates PTY data and flushes once per animation frame
+	// to avoid flooding xterm.js with individual write() calls during high-throughput output
+	const writeBufferRef = useRef<string>('');
+	const writeRafRef = useRef<number | null>(null);
+
 	// Expose imperative methods to parent via ref
 	useImperativeHandle(ref, () => ({
 		write: (data: string) => terminalRef.current?.write(data),
@@ -235,10 +250,24 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 			return;
 		}
 
-		// Subscribe to raw PTY data — write directly to xterm.js
+		// Subscribe to raw PTY data — batch writes via RAF for performance.
+		// High-throughput commands (find /, cat large-file, yes) can produce
+		// thousands of data events per second. Batching into a single write()
+		// per animation frame reduces xterm.js rendering overhead significantly.
 		const unsubData = processService.onRawPtyData((sessionId, data) => {
-			if (sessionId === terminalTabId) {
-				term.write(data);
+			if (sessionId !== terminalTabId) return;
+
+			writeBufferRef.current += data;
+
+			if (writeRafRef.current === null) {
+				writeRafRef.current = requestAnimationFrame(() => {
+					const buffered = writeBufferRef.current;
+					writeBufferRef.current = '';
+					writeRafRef.current = null;
+					if (buffered) {
+						term.write(buffered);
+					}
+				});
 			}
 		});
 		cleanupFnsRef.current.push(unsubData);
@@ -283,6 +312,17 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 		setupTerminal();
 
 		return () => {
+			// Cancel pending write RAF and flush remaining data
+			if (writeRafRef.current !== null) {
+				cancelAnimationFrame(writeRafRef.current);
+				writeRafRef.current = null;
+			}
+			// Flush any remaining buffered data before disposing
+			if (writeBufferRef.current && terminalRef.current) {
+				terminalRef.current.write(writeBufferRef.current);
+			}
+			writeBufferRef.current = '';
+
 			// Cleanup all subscriptions
 			for (const cleanup of cleanupFnsRef.current) {
 				cleanup();

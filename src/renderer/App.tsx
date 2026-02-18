@@ -1352,13 +1352,19 @@ function MaestroConsoleInner() {
 					// File preview tabs - initialize from persisted data or empty
 					filePreviewTabs: correctedSession.filePreviewTabs || [],
 					activeFileTabId: correctedSession.activeFileTabId ?? null,
-					unifiedTabOrder: (
+					unifiedTabOrder:
 						correctedSession.unifiedTabOrder ||
-						resetAiTabs.map((tab) => ({ type: 'ai' as const, id: tab.id }))
-					).filter((ref) => ref.type !== 'terminal'), // Filter out terminal refs — PTY dies on quit
-					// Terminal tabs are NOT persisted — PTY processes die on app quit
-					terminalTabs: [],
-					activeTerminalTabId: null,
+						resetAiTabs.map((tab) => ({ type: 'ai' as const, id: tab.id })),
+					// Terminal tabs — persist metadata (name, cwd), reset runtime PTY state.
+					// EmbeddedTerminal spawns a fresh PTY on mount.
+					terminalTabs: (correctedSession.terminalTabs || []).map((t) => ({
+						...t,
+						processRunning: undefined,
+						exitCode: undefined,
+					})),
+					activeTerminalTabId: correctedSession.terminalTabs?.length
+						? correctedSession.activeTerminalTabId ?? null
+						: null,
 				};
 			} else {
 				// Process spawn failed

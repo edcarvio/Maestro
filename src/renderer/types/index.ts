@@ -649,7 +649,7 @@ export interface Session {
 
 	// Embedded Terminal Tabs - xterm.js-based terminals that coexist with AI and file tabs
 	// Each terminal tab owns its own PTY process (tab.id is the process manager key)
-	// Terminal tabs are NOT persisted — PTY dies on quit, restored as empty on session load
+	// Terminal tab metadata (name, cwd) persists across app restarts; PTY is respawned on load
 	terminalTabs: TerminalTab[];
 	// Currently active terminal tab ID (null if an AI or file tab is active)
 	// Active tab priority: activeTerminalTabId > activeFileTabId > activeTabId

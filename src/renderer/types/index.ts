@@ -537,8 +537,9 @@ export interface Session {
 	// AI process PID (for agents with persistent processes)
 	// For batch mode agents, this is 0 since processes spawn per-message
 	aiPid: number;
-	// Terminal uses runCommand() which spawns fresh shells per command
-	// This field is kept for backwards compatibility but is always 0
+	// DEPRECATED: terminalPid was always 0 (terminal used runCommand, not persistent PTY)
+	// New implementation uses terminalTabs[].pid via xterm.js PTY sessions
+	// Kept for backwards compatibility — do not use in new code
 	terminalPid: number;
 	port: number;
 	// Live mode - makes session accessible via web interface

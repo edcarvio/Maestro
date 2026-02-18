@@ -122,7 +122,7 @@ Each agent runs **two processes simultaneously**:
 interface Session {
   id: string;                    // Unique identifier
   aiPid: number;                 // AI agent process (suffixed -ai)
-  terminalPid: number;           // Terminal process (suffixed -terminal)
+  terminalPid: number;           // DEPRECATED: was always 0, use terminalTabs[].pid
   inputMode: 'ai' | 'terminal';  // Which process receives input
   // ... other fields
 }

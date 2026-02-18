@@ -1219,7 +1219,7 @@ function MaestroConsoleInner() {
 				return {
 					...session,
 					aiPid: -1,
-					terminalPid: 0,
+					terminalPid: 0, // DEPRECATED: use terminalTabs[].pid instead
 					state: 'error' as SessionState,
 					isLive: false,
 					liveUrl: undefined,
@@ -1292,7 +1292,7 @@ function MaestroConsoleInner() {
 				return {
 					...correctedSession,
 					aiPid: -1,
-					terminalPid: 0,
+					terminalPid: 0, // DEPRECATED: use terminalTabs[].pid instead
 					state: 'error' as SessionState,
 					isLive: false,
 					liveUrl: undefined,
@@ -1353,7 +1353,7 @@ function MaestroConsoleInner() {
 				return {
 					...correctedSession,
 					aiPid: aiSpawnResult.pid,
-					terminalPid: 0, // Terminal uses runCommand (fresh shells per command)
+					terminalPid: 0, // DEPRECATED: use terminalTabs[].pid instead
 					state: 'idle' as SessionState,
 					// Reset runtime-only busy state - processes don't survive app restart
 					busySource: undefined,
@@ -1402,7 +1402,7 @@ function MaestroConsoleInner() {
 				return {
 					...session,
 					aiPid: -1,
-					terminalPid: 0,
+					terminalPid: 0, // DEPRECATED: use terminalTabs[].pid instead
 					state: 'error' as SessionState,
 					isLive: false,
 					liveUrl: undefined,
@@ -1413,7 +1413,7 @@ function MaestroConsoleInner() {
 			return {
 				...session,
 				aiPid: -1,
-				terminalPid: 0,
+				terminalPid: 0, // DEPRECATED: use terminalTabs[].pid instead
 				state: 'error' as SessionState,
 				isLive: false,
 				liveUrl: undefined,
@@ -1824,7 +1824,7 @@ function MaestroConsoleInner() {
 							contextUsage: 0,
 							inputMode: parentSession.toolType === 'terminal' ? 'terminal' : 'ai',
 							aiPid: 0,
-							terminalPid: 0,
+							terminalPid: 0, // DEPRECATED: use terminalTabs[].pid instead
 							port: 3000 + Math.floor(Math.random() * 100),
 							isLive: false,
 							changedFiles: [],
@@ -6448,7 +6448,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 				contextUsage: 0,
 				inputMode: parentSession.toolType === 'terminal' ? 'terminal' : 'ai',
 				aiPid: 0,
-				terminalPid: 0,
+				terminalPid: 0, // DEPRECATED: use terminalTabs[].pid instead
 				port: 3000 + Math.floor(Math.random() * 100),
 				isLive: false,
 				changedFiles: [],
@@ -6628,7 +6628,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 								contextUsage: 0,
 								inputMode: session.inputMode,
 								aiPid: 0,
-								terminalPid: 0,
+								terminalPid: 0, // DEPRECATED: use terminalTabs[].pid instead
 								port: 3000 + Math.floor(Math.random() * 100),
 								isLive: false,
 								changedFiles: [],
@@ -8029,7 +8029,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 				// AI process PID (terminal uses runCommand which spawns fresh shells)
 				// For agents that requiresPromptToStart, this starts as 0 and gets set on first message
 				aiPid,
-				terminalPid: 0,
+				terminalPid: 0, // DEPRECATED: use terminalTabs[].pid instead
 				port: 3000 + Math.floor(Math.random() * 100),
 				isLive: false,
 				changedFiles: [],
@@ -8198,7 +8198,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 				contextUsage: 0,
 				inputMode: 'ai',
 				aiPid,
-				terminalPid: 0,
+				terminalPid: 0, // DEPRECATED: use terminalTabs[].pid instead
 				port: 3000 + Math.floor(Math.random() * 100),
 				isLive: false,
 				changedFiles: [],
@@ -9889,7 +9889,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 							contextUsage: 0,
 							inputMode: activeSession.toolType === 'terminal' ? 'terminal' : 'ai',
 							aiPid: 0,
-							terminalPid: 0,
+							terminalPid: 0, // DEPRECATED: use terminalTabs[].pid instead
 							port: 3000 + Math.floor(Math.random() * 100),
 							isLive: false,
 							changedFiles: [],
@@ -10063,7 +10063,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 					contextUsage: 0,
 					inputMode: activeSession.toolType === 'terminal' ? 'terminal' : 'ai',
 					aiPid: 0,
-					terminalPid: 0,
+					terminalPid: 0, // DEPRECATED: use terminalTabs[].pid instead
 					port: 3000 + Math.floor(Math.random() * 100),
 					isLive: false,
 					changedFiles: [],
@@ -10215,7 +10215,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 				contextUsage: 0,
 				inputMode: createWorktreeSession.toolType === 'terminal' ? 'terminal' : 'ai',
 				aiPid: 0,
-				terminalPid: 0,
+				terminalPid: 0, // DEPRECATED: use terminalTabs[].pid instead
 				port: 3000 + Math.floor(Math.random() * 100),
 				isLive: false,
 				changedFiles: [],
@@ -12351,7 +12351,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 									contextUsage: 0,
 									inputMode: 'ai',
 									aiPid: 0,
-									terminalPid: 0,
+									terminalPid: 0, // DEPRECATED: use terminalTabs[].pid instead
 									port: 3000 + Math.floor(Math.random() * 100),
 									isLive: false,
 									changedFiles: [],

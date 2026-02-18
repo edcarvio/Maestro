@@ -33,7 +33,8 @@ import { GitStatusWidget } from './GitStatusWidget';
 import { AgentSessionsBrowser } from './AgentSessionsBrowser';
 import { TabBar } from './TabBar';
 import { WizardConversationView, DocumentGenerationView } from './InlineWizard';
-import { EmbeddedTerminal } from './EmbeddedTerminal';
+import { EmbeddedTerminal, TerminalSearchBar } from './EmbeddedTerminal';
+import type { EmbeddedTerminalHandle } from './EmbeddedTerminal';
 import { gitService } from '../services/git';
 import { remoteUrlToBrowserUrl } from '../../shared/gitUtils';
 import { useGitBranch, useGitDetail, useGitFileStatus } from '../contexts/GitStatusContext';
@@ -497,6 +498,55 @@ export const MainPanel = React.memo(
 		const filePreviewContainerRef = useRef<HTMLDivElement>(null);
 		const filePreviewRef = useRef<FilePreviewHandle>(null);
 		const [configuredContextWindow, setConfiguredContextWindow] = useState(0);
+
+		// Terminal search state and refs
+		const [terminalSearchOpen, setTerminalSearchOpen] = useState(false);
+		const embeddedTerminalRefsMap = useRef<Map<string, React.RefObject<EmbeddedTerminalHandle>>>(new Map());
+
+		// Get or create a stable ref for an EmbeddedTerminal by tab ID
+		const getTerminalRef = useCallback((tabId: string) => {
+			let ref = embeddedTerminalRefsMap.current.get(tabId);
+			if (!ref) {
+				ref = React.createRef<EmbeddedTerminalHandle>();
+				embeddedTerminalRefsMap.current.set(tabId, ref);
+			}
+			return ref;
+		}, []);
+
+		// Close terminal search when switching away from terminal tabs
+		useEffect(() => {
+			if (!activeSession?.activeTerminalTabId) {
+				setTerminalSearchOpen(false);
+			}
+		}, [activeSession?.activeTerminalTabId]);
+
+		// Redirect outputSearchOpen to terminal search when a terminal tab is active
+		useEffect(() => {
+			if (outputSearchOpen && activeSession?.activeTerminalTabId) {
+				// Close the output search (meant for TerminalOutput) and open terminal search instead
+				setOutputSearchOpen(false);
+				setOutputSearchQuery('');
+				setTerminalSearchOpen(true);
+			}
+		}, [outputSearchOpen, activeSession?.activeTerminalTabId, setOutputSearchOpen, setOutputSearchQuery]);
+
+		// Cmd+F handler for when xterm.js has focus (bypassed via isMaestroShortcut)
+		useEffect(() => {
+			const handleKeyDown = (e: KeyboardEvent) => {
+				if (
+					e.key === 'f' &&
+					(e.metaKey || e.ctrlKey) &&
+					!e.shiftKey &&
+					!e.altKey &&
+					activeSession?.activeTerminalTabId
+				) {
+					e.preventDefault();
+					setTerminalSearchOpen((prev) => !prev);
+				}
+			};
+			window.addEventListener('keydown', handleKeyDown);
+			return () => window.removeEventListener('keydown', handleKeyDown);
+		}, [activeSession?.activeTerminalTabId]);
 
 		// Extract tab handlers from props
 		const {
@@ -1647,25 +1697,41 @@ export const MainPanel = React.memo(
 						{/* Show loading state for file tabs (SSH remote file loading) */}
 						{/* Content area: Show FilePreview when file tab is active, otherwise show terminal output */}
 						{/* Terminal tabs — always mounted, CSS-hidden when inactive (preserves xterm.js state) */}
-						{activeSession.terminalTabs?.map((termTab) => (
-							<div
-								key={termTab.id}
-								style={{
-									display: activeSession.activeTerminalTabId === termTab.id ? 'flex' : 'none',
-									flex: 1,
-									overflow: 'hidden',
-								}}
-							>
-								<EmbeddedTerminal
-									terminalTabId={termTab.id}
-									cwd={termTab.cwd}
-									theme={theme}
-									fontFamily={props.fontFamily}
-									isVisible={activeSession.activeTerminalTabId === termTab.id}
-									onProcessExit={props.onTerminalTabExit}
-								/>
-							</div>
-						))}
+						{activeSession.terminalTabs?.map((termTab) => {
+							const isActive = activeSession.activeTerminalTabId === termTab.id;
+							const termRef = getTerminalRef(termTab.id);
+							return (
+								<div
+									key={termTab.id}
+									style={{
+										display: isActive ? 'flex' : 'none',
+										flex: 1,
+										overflow: 'hidden',
+										position: 'relative',
+									}}
+								>
+									<EmbeddedTerminal
+										ref={termRef}
+										terminalTabId={termTab.id}
+										cwd={termTab.cwd}
+										theme={theme}
+										fontFamily={props.fontFamily}
+										isVisible={isActive}
+										onProcessExit={props.onTerminalTabExit}
+									/>
+									{isActive && terminalSearchOpen && (
+										<TerminalSearchBar
+											terminalRef={termRef}
+											theme={theme}
+											onClose={() => {
+												setTerminalSearchOpen(false);
+												termRef.current?.focus();
+											}}
+										/>
+									)}
+								</div>
+							);
+						})}
 
 						{/* Skip rendering when loading remote file - loading state takes over entire main area */}
 						{activeSession.activeTerminalTabId ? null

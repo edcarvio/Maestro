@@ -570,6 +570,46 @@ describe('EmbeddedTerminal', () => {
 		});
 	});
 
+	it('blocks Cmd+F so Maestro can handle terminal search (isMaestroShortcut returns true)', async () => {
+		let keyHandler: (ev: KeyboardEvent) => boolean;
+
+		terminalMethods.attachCustomKeyEventHandler.mockImplementation((handler: (ev: KeyboardEvent) => boolean) => {
+			keyHandler = handler;
+		});
+
+		await act(async () => {
+			render(
+				<EmbeddedTerminal
+					terminalTabId="test-tab-cmdf"
+					cwd="/tmp"
+					theme={defaultTheme}
+					fontFamily="Menlo"
+					isVisible={true}
+				/>
+			);
+		});
+
+		// Cmd+F should be blocked from xterm.js (isMaestroShortcut returns true → handler returns false)
+		const cmdF = new KeyboardEvent('keydown', {
+			key: 'f',
+			metaKey: true,
+			ctrlKey: false,
+			shiftKey: false,
+			altKey: false,
+		});
+		expect(keyHandler!(cmdF)).toBe(false);
+
+		// Ctrl+F (Linux) should also be blocked
+		const ctrlF = new KeyboardEvent('keydown', {
+			key: 'f',
+			metaKey: false,
+			ctrlKey: true,
+			shiftKey: false,
+			altKey: false,
+		});
+		expect(keyHandler!(ctrlF)).toBe(false);
+	});
+
 	it('shows error message when spawn fails', async () => {
 		mockSpawn.mockResolvedValueOnce({ success: false, pid: 0, error: 'No shell found' });
 

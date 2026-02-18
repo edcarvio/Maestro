@@ -224,6 +224,9 @@ export const MODAL_PRIORITIES = {
 	/** File preview overlay */
 	FILE_PREVIEW: 100,
 
+	/** Terminal scrollback search bar (Cmd+F in xterm.js tabs) */
+	TERMINAL_SEARCH: 55,
+
 	/** Slash command autocomplete */
 	SLASH_AUTOCOMPLETE: 50,
 

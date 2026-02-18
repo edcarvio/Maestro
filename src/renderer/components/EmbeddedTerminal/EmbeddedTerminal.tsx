@@ -66,9 +66,9 @@ function isMaestroShortcut(ev: KeyboardEvent): boolean {
 
 	// Cmd+K (quick action), Cmd+, (settings), Cmd+J (toggle mode)
 	// Cmd+N (new agent), Cmd+W (close tab), Cmd+T (new tab)
-	// Cmd+. (focus input), Cmd+/ (help)
+	// Cmd+. (focus input), Cmd+/ (help), Cmd+F (search in terminal)
 	if (!ev.shiftKey && !ev.altKey) {
-		if (['k', ',', 'j', 'n', 'w', 't', '.', '/'].includes(key)) return true;
+		if (['k', ',', 'j', 'n', 'w', 't', '.', '/', 'f'].includes(key)) return true;
 		// Cmd+1-9,0 (go to tab)
 		if (/^[0-9]$/.test(key)) return true;
 		// Cmd+[ and Cmd+] (cycle agents)

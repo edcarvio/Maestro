@@ -207,7 +207,7 @@ const LogItemComponent = memo(
 			return parts.length > 0 ? parts : text;
 		};
 
-		const processedText = processLogTextHelper(log.text, false);
+		const processedText = processLogTextHelper(log.text);
 
 		// Skip rendering stderr entries that have no actual content
 		if (log.source === 'stderr' && !processedText.trim()) {

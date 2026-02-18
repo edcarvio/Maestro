@@ -79,88 +79,31 @@ describe('processCarriageReturns', () => {
 // ============================================================================
 
 describe('processLogTextHelper', () => {
-	describe('non-terminal mode', () => {
-		it('returns carriage-return-processed text without filtering', () => {
-			const input = 'old\rnew\n\n$\nbash-5.2$';
-			const result = processLogTextHelper(input, false);
-			// Should apply CR processing but NOT filter prompts or empty lines
-			expect(result).toBe('new\n\n$\nbash-5.2$');
-		});
-
-		it('returns empty lines intact in non-terminal mode', () => {
-			const input = 'line1\n\n\nline2';
-			expect(processLogTextHelper(input, false)).toBe('line1\n\n\nline2');
-		});
+	it('applies carriage return processing', () => {
+		const input = 'old\rnew\n\n$\nbash-5.2$';
+		const result = processLogTextHelper(input);
+		// Should apply CR processing but NOT filter prompts or empty lines
+		// (terminal-specific filtering was removed — terminal mode uses xterm.js now)
+		expect(result).toBe('new\n\n$\nbash-5.2$');
 	});
 
-	describe('terminal mode', () => {
-		it('filters out empty lines', () => {
-			const input = 'line1\n\n\nline2';
-			expect(processLogTextHelper(input, true)).toBe('line1\nline2');
-		});
+	it('preserves empty lines', () => {
+		const input = 'line1\n\n\nline2';
+		expect(processLogTextHelper(input)).toBe('line1\n\n\nline2');
+	});
 
-		it('filters out bash prompt "bash-5.2$"', () => {
-			const input = 'output\nbash-5.2$\nmore output';
-			expect(processLogTextHelper(input, true)).toBe('output\nmore output');
-		});
+	it('preserves bash prompts (no longer filtered)', () => {
+		const input = 'output\nbash-5.2$\nmore output';
+		expect(processLogTextHelper(input)).toBe('output\nbash-5.2$\nmore output');
+	});
 
-		it('filters out bash prompt with trailing space "bash-5.2$ "', () => {
-			const input = 'output\nbash-5.2$ \nmore output';
-			expect(processLogTextHelper(input, true)).toBe('output\nmore output');
-		});
+	it('handles empty string', () => {
+		expect(processLogTextHelper('')).toBe('');
+	});
 
-		it('filters out zsh% prompt', () => {
-			const input = 'output\nzsh%\nmore output';
-			expect(processLogTextHelper(input, true)).toBe('output\nmore output');
-		});
-
-		it('filters out zsh# prompt', () => {
-			const input = 'output\nzsh#\nmore output';
-			expect(processLogTextHelper(input, true)).toBe('output\nmore output');
-		});
-
-		it('filters out standalone $ prompt', () => {
-			const input = 'output\n$\nmore output';
-			expect(processLogTextHelper(input, true)).toBe('output\nmore output');
-		});
-
-		it('filters out standalone # prompt', () => {
-			const input = 'output\n#\nmore output';
-			expect(processLogTextHelper(input, true)).toBe('output\nmore output');
-		});
-
-		it('filters out prompts with leading whitespace', () => {
-			const input = 'output\n  $  \nmore output';
-			expect(processLogTextHelper(input, true)).toBe('output\nmore output');
-		});
-
-		it('keeps lines that contain prompts as part of other text', () => {
-			const input = 'echo $ hello\nprice is $5\nbash-5.2$ echo hello';
-			// These lines have content beyond just the prompt pattern
-			expect(processLogTextHelper(input, true)).toBe(
-				'echo $ hello\nprice is $5\nbash-5.2$ echo hello'
-			);
-		});
-
-		it('filters combination of prompts and empty lines, keeps real output', () => {
-			const input = 'bash-5.2$\n\nreal output\n$\n\nzsh%\nanother line\n#';
-			expect(processLogTextHelper(input, true)).toBe('real output\nanother line');
-		});
-
-		it('applies carriage return processing before filtering', () => {
-			const input = 'old\rnew\nbash-5.2$\n\nkeep this';
-			expect(processLogTextHelper(input, true)).toBe('new\nkeep this');
-		});
-
-		it('returns empty string when all lines are prompts or empty', () => {
-			const input = 'bash-5.2$\n\n$\n#\nzsh%';
-			expect(processLogTextHelper(input, true)).toBe('');
-		});
-
-		it('filters bash prompts with different version numbers', () => {
-			const input = 'bash-4.4$\nbash-5.2$\nbash-3.0$';
-			expect(processLogTextHelper(input, true)).toBe('');
-		});
+	it('handles text with only carriage returns', () => {
+		const input = 'Progress: 10%\rProgress: 100%';
+		expect(processLogTextHelper(input)).toBe('Progress: 100%');
 	});
 });
 

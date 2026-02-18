@@ -2057,39 +2057,9 @@ describe('helper function behaviors (tested via component)', () => {
 		});
 	});
 
-	describe('processLogTextHelper behavior', () => {
-		it('filters out empty lines in terminal mode', () => {
-			const textWithEmptyLines = 'line1\n\n\nline2';
-			const logs: LogEntry[] = [createLogEntry({ text: textWithEmptyLines, source: 'stdout' })];
-
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			// Both lines should be present
-			expect(screen.getByText(/line1/)).toBeInTheDocument();
-		});
-
-		it('filters out bash prompts', () => {
-			const textWithPrompt = 'output\nbash-3.2$ \nmore output';
-			const logs: LogEntry[] = [createLogEntry({ text: textWithPrompt, source: 'stdout' })];
-
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			// Output should be present, prompt filtered
-			expect(screen.getByText(/output/)).toBeInTheDocument();
-		});
-	});
+	// REMOVED: processLogTextHelper terminal-mode behavior tests
+	// Terminal mode now uses xterm.js directly; processLogTextHelper no longer filters prompts
+	// The utility function is tested directly in textProcessing.test.ts
 
 	// REMOVED: filterTextByLinesHelper behavior tests
 	// These tested filtering via the terminal-mode LogFilterControls UI which has been removed

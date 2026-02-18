@@ -1,7 +1,7 @@
 /**
  * @file PtySpawner.test.ts
  * @description Tests for PtySpawner — verifies that embedded-terminal mode
- * emits raw PTY data (preserving \r, ANSI sequences, etc.) while non-embedded
+ * emits raw PTY data (preserving \r, ANSI sequences, etc.) while AI agent
  * modes go through stripControlSequences filtering.
  *
  * Key behavior under test: progress indicators using \r carriage returns
@@ -221,7 +221,7 @@ describe('PtySpawner', () => {
 		});
 	});
 
-	describe('non-embedded terminal modes use filtering', () => {
+	describe('non-embedded modes use stripControlSequences filtering', () => {
 		it('calls stripControlSequences for terminal (non-embedded) mode', () => {
 			const { spawner } = createTestContext();
 

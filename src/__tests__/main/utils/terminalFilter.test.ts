@@ -1,14 +1,16 @@
 /**
  * Tests for terminal filter utilities
  * @file src/__tests__/main/utils/terminalFilter.test.ts
+ *
+ * NOTE: Terminal mode now uses xterm.js with raw PTY streaming (embedded-terminal).
+ * stripControlSequences is only used for AI agent output.
+ * Terminal-specific tests (prompt filtering, command echo, etc.) have been removed.
  */
 
 import { describe, it, expect } from 'vitest';
 import {
 	stripControlSequences,
 	stripAllAnsiCodes,
-	isCommandEcho,
-	extractCommand,
 } from '../../../main/utils/terminalFilter';
 
 describe('terminalFilter', () => {
@@ -233,135 +235,9 @@ describe('terminalFilter', () => {
 			});
 		});
 
-		describe('terminal mode filtering (isTerminal = true)', () => {
-			describe('shell prompt patterns', () => {
-				it('should remove [user:~/path] format prompts', () => {
-					const input = '[pedram:~/Projects]\n[pedram:~/Projects]$ ls\nfile1.txt';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('file1.txt');
-				});
-
-				it('should remove user@host:~$ format prompts', () => {
-					const input = 'pedram@macbook:~$\nsome output';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('some output');
-				});
-
-				it('should remove user@host:~# format prompts (root)', () => {
-					const input = 'root@server:~#\nsome output';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('some output');
-				});
-
-				it('should remove user@host:~% format prompts (zsh)', () => {
-					const input = 'user@host:~%\nsome output';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('some output');
-				});
-
-				it('should remove user@host:~> format prompts (PowerShell)', () => {
-					const input = 'user@host:~>\nsome output';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('some output');
-				});
-
-				it('should remove ~/path $ format prompts', () => {
-					const input = '~/Projects $\noutput';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('output');
-				});
-
-				it('should remove /absolute/path $ format prompts', () => {
-					const input = '/home/user $\noutput';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('output');
-				});
-
-				it('should remove standalone git branch indicators', () => {
-					const input = '(main)\n(master)\n(feature/test)\nactual output';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('actual output');
-				});
-
-				it('should remove standalone prompt characters', () => {
-					const input = '$\n#\n%\n>\nactual output';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('actual output');
-				});
-
-				it('should remove [user:~/path] (branch) $ format prompts', () => {
-					const input = '[pedram:~/Projects] (main) $\nactual output';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('actual output');
-				});
-
-				it('should handle prompts with dots and hyphens in names', () => {
-					const input = 'user-name.test@host-name.local:~$\noutput';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('output');
-				});
-			});
-
-			describe('command echo filtering', () => {
-				it('should remove exact command echoes', () => {
-					const input = 'ls -la\nfile1.txt\nfile2.txt';
-					const result = stripControlSequences(input, 'ls -la', true);
-					expect(result).toBe('file1.txt\nfile2.txt');
-				});
-
-				it('should not remove partial matches', () => {
-					const input = 'ls -la something\nfile1.txt';
-					const result = stripControlSequences(input, 'ls -la', true);
-					expect(result).toBe('ls -la something\nfile1.txt');
-				});
-
-				it('should handle command echo with leading whitespace', () => {
-					const input = '  ls  \nfile1.txt';
-					const result = stripControlSequences(input, 'ls', true);
-					expect(result).toBe('file1.txt');
-				});
-			});
-
-			describe('git branch cleanup', () => {
-				it('should remove git branch indicators from content lines', () => {
-					const input = 'output (main) text';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('output text');
-				});
-
-				it('should remove trailing prompt characters from content', () => {
-					// The regex removes trailing $ but keeps preceding space
-					// The line is 'some text $' -> regex replaces '$ ' with '' -> 'some text '
-					// (trailing space remains because cleanedLine.trim() is only checked for empty)
-					const input = 'some text $\nmore text';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('some text \nmore text');
-				});
-			});
-
-			describe('empty line handling', () => {
-				it('should skip empty lines', () => {
-					const input = '\n\n\nactual output\n\n';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('actual output');
-				});
-
-				it('should skip lines that become empty after cleaning', () => {
-					const input = ' (main) $\nactual output';
-					const result = stripControlSequences(input, undefined, true);
-					expect(result).toBe('actual output');
-				});
-			});
-		});
-
-		describe('non-terminal mode (isTerminal = false, default)', () => {
-			it('should not filter prompts when isTerminal is false', () => {
-				const input = 'user@host:~$ ls\nfile1.txt';
-				const result = stripControlSequences(input, 'ls', false);
-				expect(result).toBe('user@host:~$ ls\nfile1.txt');
-			});
-
-			it('should not filter prompts when isTerminal is not provided', () => {
+		describe('AI agent output (preserves content, strips control sequences)', () => {
+			it('should preserve shell prompt text in AI agent output', () => {
+				// AI agent output may contain prompt-like text — should NOT be filtered
 				const input = 'user@host:~$ ls\nfile1.txt';
 				const result = stripControlSequences(input);
 				expect(result).toBe('user@host:~$ ls\nfile1.txt');
@@ -605,99 +481,4 @@ describe('terminalFilter', () => {
 		});
 	});
 
-	describe('isCommandEcho', () => {
-		it('should return false when lastCommand is not provided', () => {
-			expect(isCommandEcho('ls')).toBe(false);
-		});
-
-		it('should return false when lastCommand is empty', () => {
-			expect(isCommandEcho('ls', '')).toBe(false);
-		});
-
-		it('should return true for exact match', () => {
-			expect(isCommandEcho('ls -la', 'ls -la')).toBe(true);
-		});
-
-		it('should return true for match with leading whitespace in line', () => {
-			expect(isCommandEcho('  ls -la  ', 'ls -la')).toBe(true);
-		});
-
-		it('should return true for match with leading whitespace in command', () => {
-			expect(isCommandEcho('ls -la', '  ls -la  ')).toBe(true);
-		});
-
-		it('should return true when line ends with the command', () => {
-			expect(isCommandEcho('$ ls -la', 'ls -la')).toBe(true);
-		});
-
-		it('should return true when line has prompt prefix and ends with command', () => {
-			expect(isCommandEcho('[user:~/path]$ ls -la', 'ls -la')).toBe(true);
-		});
-
-		it('should return false for partial match that does not end with command', () => {
-			expect(isCommandEcho('ls -la --all', 'ls -la')).toBe(false);
-		});
-
-		it('should return false for completely different line', () => {
-			expect(isCommandEcho('file1.txt', 'ls -la')).toBe(false);
-		});
-
-		it('should handle multi-word commands', () => {
-			expect(isCommandEcho('git commit -m "message"', 'git commit -m "message"')).toBe(true);
-		});
-
-		it('should handle commands with special characters', () => {
-			expect(isCommandEcho('echo "hello world"', 'echo "hello world"')).toBe(true);
-		});
-	});
-
-	describe('extractCommand', () => {
-		it('should return trimmed input when no prompt present', () => {
-			expect(extractCommand('ls -la')).toBe('ls -la');
-		});
-
-		it('should remove $ prompt prefix', () => {
-			expect(extractCommand('$ ls -la')).toBe('ls -la');
-		});
-
-		it('should remove # prompt prefix', () => {
-			expect(extractCommand('# ls -la')).toBe('ls -la');
-		});
-
-		it('should remove % prompt prefix', () => {
-			expect(extractCommand('% ls -la')).toBe('ls -la');
-		});
-
-		it('should remove > prompt prefix', () => {
-			expect(extractCommand('> ls -la')).toBe('ls -la');
-		});
-
-		it('should remove user@host:~$ prompt prefix', () => {
-			expect(extractCommand('user@host:~$ ls -la')).toBe('ls -la');
-		});
-
-		it('should remove [user:~/path]$ prompt prefix', () => {
-			expect(extractCommand('[pedram:~/Projects]$ npm install')).toBe('npm install');
-		});
-
-		it('should handle extra whitespace after prompt', () => {
-			expect(extractCommand('$   ls -la')).toBe('ls -la');
-		});
-
-		it('should handle complex prompt patterns', () => {
-			expect(extractCommand('user@host:/var/log# tail -f syslog')).toBe('tail -f syslog');
-		});
-
-		it('should return empty string for empty input', () => {
-			expect(extractCommand('')).toBe('');
-		});
-
-		it('should return empty string for just prompt', () => {
-			expect(extractCommand('$  ')).toBe('');
-		});
-
-		it('should handle multiple prompt characters (takes first)', () => {
-			expect(extractCommand('$ echo "$ hello"')).toBe('echo "$ hello"');
-		});
-	});
 });

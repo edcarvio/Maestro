@@ -191,7 +191,7 @@ export function createProcessApi() {
 		},
 
 		/**
-		 * Subscribe to raw PTY data for embedded terminal (bypasses stripControlSequences)
+		 * Subscribe to raw PTY data for embedded terminal (unfiltered PTY stream for xterm.js)
 		 */
 		onRawPtyData: (callback: (sessionId: string, data: string) => void): (() => void) => {
 			const handler = (_: unknown, sessionId: string, data: string) => callback(sessionId, data);

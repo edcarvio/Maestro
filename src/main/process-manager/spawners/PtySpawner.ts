@@ -22,7 +22,7 @@ export class PtySpawner {
 	 * Spawn a PTY process for a session
 	 */
 	spawn(config: ProcessConfig): SpawnResult {
-		const { sessionId, toolType, cwd, command, args, shell, shellArgs, shellEnvVars } = config;
+		const { sessionId, toolType, cwd, command, args, shell, shellArgs, shellEnvVars, cols: configCols, rows: configRows } = config;
 
 		const isTerminal = toolType === 'terminal' || toolType === 'embedded-terminal';
 		const isEmbeddedTerminal = toolType === 'embedded-terminal';
@@ -42,7 +42,7 @@ export class PtySpawner {
 
 				// Resolve shell name to absolute path (posix_spawnp may fail with bare names in Electron)
 				if (!isWindows && ptyCommand && !ptyCommand.startsWith('/')) {
-					
+
 					const shellPaths = [
 						`/bin/${ptyCommand}`,
 						`/usr/bin/${ptyCommand}`,
@@ -113,8 +113,8 @@ export class PtySpawner {
 
 			const ptyProcess = pty.spawn(ptyCommand, ptyArgs, {
 				name: 'xterm-256color',
-				cols: 100,
-				rows: 30,
+				cols: configCols || 100,
+				rows: configRows || 30,
 				cwd: cwd,
 				env: ptyEnv as Record<string, string>,
 			});
@@ -140,8 +140,9 @@ export class PtySpawner {
 					this.emitter.emit('raw-pty-data', sessionId, data);
 					return;
 				}
-				const managedProc = this.processes.get(sessionId);
-				const cleanedData = stripControlSequences(data, managedProc?.lastCommand, isTerminal);
+				// AI agent output: strip control sequences for log-based display
+				// (terminal mode uses embedded-terminal with raw passthrough above)
+				const cleanedData = stripControlSequences(data);
 				logger.debug('[ProcessManager] PTY onData', 'ProcessManager', {
 					sessionId,
 					pid: ptyProcess.pid,

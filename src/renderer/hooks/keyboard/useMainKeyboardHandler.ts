@@ -199,6 +199,12 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 				}
 			};
 
+			// Ctrl+C in terminal mode — let xterm.js handle it (sends \x03 to PTY)
+			// Must be checked before ANY shortcut matching to avoid accidental interception
+			if (e.ctrlKey && e.key === 'c' && !e.metaKey && !e.altKey && !e.shiftKey && ctx.activeSession?.inputMode === 'terminal') {
+				return;
+			}
+
 			// Terminal mode shortcuts (when in terminal mode)
 			// Must come BEFORE general shortcuts so Cmd+K clears terminal instead of opening Quick Actions
 			if (

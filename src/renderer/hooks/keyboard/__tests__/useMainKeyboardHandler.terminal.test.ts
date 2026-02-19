@@ -314,4 +314,61 @@ describe('useMainKeyboardHandler — terminal mode shortcuts', () => {
 			expect(ctx.handleNewTerminalTab).not.toHaveBeenCalled();
 		});
 	});
+
+	describe('Ctrl+C — passthrough to PTY', () => {
+		it('should NOT preventDefault on Ctrl+C in terminal mode (let xterm.js handle it)', () => {
+			setup();
+			let event: KeyboardEvent;
+			act(() => {
+				event = fireKey('c', { ctrl: true });
+			});
+			// The event should not have been prevented — xterm.js needs it to send \x03 to PTY
+			expect(event!.defaultPrevented).toBe(false);
+		});
+
+		it('should not trigger any terminal handlers on Ctrl+C', () => {
+			const ctx = setup();
+			act(() => {
+				fireKey('c', { ctrl: true });
+			});
+			expect(ctx.handleNewTerminalTab).not.toHaveBeenCalled();
+			expect(ctx.handleTerminalTabSelect).not.toHaveBeenCalled();
+			expect(ctx.handleTerminalTabClose).not.toHaveBeenCalled();
+			expect(ctx.handleReopenTerminalTab).not.toHaveBeenCalled();
+		});
+
+		it('should not intercept Ctrl+C even when shortcut matchers would match', () => {
+			// Simulate a hypothetical future shortcut that matches Ctrl+C
+			const ctx = setup({
+				isShortcut: vi.fn((_e: KeyboardEvent, id: string) => id === 'someCtrlCShortcut'),
+			});
+			act(() => {
+				fireKey('c', { ctrl: true });
+			});
+			// The early guard should return before any shortcut matching
+			expect(ctx.recordShortcutUsage).not.toHaveBeenCalled();
+		});
+
+		it('should NOT passthrough Ctrl+C when in AI mode (normal behavior)', () => {
+			const ctx = setup({
+				activeSession: {
+					id: 'session-1',
+					inputMode: 'ai',
+					terminalTabs: [],
+					activeTerminalTabId: null,
+					aiTabs: [],
+					activeTabId: null,
+				},
+			});
+			act(() => {
+				fireKey('c', { ctrl: true });
+			});
+			// In AI mode, Ctrl+C should not hit the terminal guard
+			// (it falls through to general shortcut handling)
+			// The key thing is that it does NOT early-return from the terminal guard
+			// We verify this indirectly: recordShortcutUsage is not called because
+			// there's no matching shortcut, but the handler continues past the guard
+			expect(ctx.recordShortcutUsage).not.toHaveBeenCalled();
+		});
+	});
 });

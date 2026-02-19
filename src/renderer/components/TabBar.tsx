@@ -1796,7 +1796,7 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 
 				{/* Tab name */}
 				<span
-					className="text-xs truncate max-w-[120px]"
+					className="text-xs truncate max-w-[150px]"
 					style={{
 						color: isActive ? theme.colors.textMain : theme.colors.textDim,
 					}}

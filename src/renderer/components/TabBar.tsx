@@ -1770,7 +1770,7 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 				onDragOver={(e) => onDragOver(tab.id, e)}
 				onDragEnd={onDragEnd}
 				onDrop={(e) => onDrop(tab.id, e)}
-				title={tab.name || 'Terminal'}
+				title={`${tab.name || 'Terminal'} — ${tab.cwd}`}
 			>
 				{/* Terminal icon */}
 				<TerminalSquare

@@ -52,6 +52,7 @@ export interface ManagedProcess {
 	isBatchMode?: boolean;
 	isStreamJsonMode?: boolean;
 	jsonBuffer?: string;
+	/** @deprecated No longer used — terminal mode uses xterm.js (no command tracking needed) */
 	lastCommand?: string;
 	sessionIdEmitted?: boolean;
 	resultEmitted?: boolean;

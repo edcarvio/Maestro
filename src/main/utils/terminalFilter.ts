@@ -1,90 +1,28 @@
 /**
  * Utility functions for cleaning and filtering terminal output
  * Removes control sequences, escape codes, and other non-visible content
- */
-
-/**
- * Filter out shell prompts and command echoes from terminal output
- * This is used in Command Terminal mode to show ONLY stdout/stderr
  *
- * Removes:
- * - Lines that look like shell prompts (e.g., [user:~/path], user@host:~$)
- * - Lines that match the last command sent (command echoes)
- * - Git branch indicators (e.g., (main), (master))
- * - Standalone prompt markers
+ * NOTE: These utilities are used for AI agent output only.
+ * Terminal mode uses xterm.js which handles ANSI rendering natively,
+ * so raw PTY data is sent directly to xterm without filtering.
  */
-function filterTerminalPrompts(text: string, lastCommand?: string): string {
-	const lines = text.split('\n');
-	const filteredLines: string[] = [];
-
-	for (const line of lines) {
-		const trimmedLine = line.trim();
-
-		// Skip empty lines
-		if (!trimmedLine) {
-			continue;
-		}
-
-		// Skip lines that look like shell prompts
-		// Patterns:
-		// - [user:~/path] or [user:~/path]$
-		// - user@host:~$
-		// - ~/path $
-		// - (main) or (master) - git branch indicators alone
-		// - Lines ending with $ or # (common prompt endings)
-		if (
-			/^\[[\w\-\.]+:.*?\]/.test(trimmedLine) || // [user:~/path]
-			/^[\w\-\.]+@[\w\-\.]+:.*?[\$#%>]/.test(trimmedLine) || // user@host:~$
-			/^~?\/.*?[\$#%>]\s*$/.test(trimmedLine) || // ~/path $
-			/^\([\w\-\/]+\)\s*$/.test(trimmedLine) || // (main) alone
-			/^[\$#%>]\s*$/.test(trimmedLine) || // Just a prompt character
-			/^\[.*?\]\s*\([\w\-\/]+\)\s*[\$#%>]?\s*$/.test(trimmedLine) // [user:~/path] (main) $
-		) {
-			continue;
-		}
-
-		// Skip command echoes (lines that match the last command sent)
-		if (lastCommand && trimmedLine === lastCommand) {
-			continue;
-		}
-
-		// Remove git branch indicators from the line (e.g., " (main)" or "(main) ")
-		let cleanedLine = line.replace(/\s*\([\w\-\/]+\)\s*/g, ' ');
-
-		// Remove trailing prompt characters if present
-		cleanedLine = cleanedLine.replace(/[\$#%>]\s*$/, '');
-
-		// If after all cleaning the line is empty, skip it
-		if (cleanedLine.trim()) {
-			filteredLines.push(cleanedLine);
-		}
-	}
-
-	return filteredLines.join('\n');
-}
 
 /**
- * Strip terminal control sequences from raw PTY output
+ * Strip terminal control sequences from raw PTY output for AI agent display.
  * This removes:
  * - OSC sequences (Operating System Commands) like title changes
  * - CSI sequences (Control Sequence Introducer) like cursor positioning
  * - SGR sequences (Select Graphic Rendition) that aren't visible content
  * - Shell prompt markers and other non-content control codes
- * - Shell prompts (for terminal mode only)
- * - Command echoes (for terminal mode only)
- * - Git branch indicators (for terminal mode only)
  *
- * @param text - Raw terminal output
- * @param lastCommand - Last command sent to terminal (for filtering echoes)
- * @param isTerminal - Whether this is terminal mode (enables aggressive filtering)
+ * This is NOT used for terminal mode — xterm.js handles raw PTY data directly.
+ * Only AI agent output (Claude Code, Codex, etc.) passes through this filter.
+ *
+ * @param text - Raw terminal output from AI agent PTY process
  *
  * Note: This preserves ANSI color codes which are handled by ansi-to-html in the renderer
  */
-export function stripControlSequences(
-	text: string,
-	lastCommand?: string,
-	isTerminal: boolean = false
-): string {
+export function stripControlSequences(text: string): string {
 	let cleaned = text;
 
 	// Remove OSC (Operating System Command) sequences
@@ -142,11 +80,6 @@ export function stripControlSequences(
 	// Remove other control characters except newline, tab, and ANSI escape start
 	cleaned = cleaned.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1A\x1C-\x1F]/g, '');
 
-	// For terminal mode, apply aggressive filtering to show ONLY command output
-	if (isTerminal) {
-		cleaned = filterTerminalPrompts(cleaned, lastCommand);
-	}
-
 	return cleaned;
 }
 
@@ -176,37 +109,3 @@ export function stripAllAnsiCodes(text: string): string {
 		.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1A\x1C-\x1F]/g, ''); // Other control chars
 }
 
-/**
- * Detect if a line is likely a command echo in terminal output
- * This helps identify when the terminal is echoing back the command the user typed
- *
- * @internal This function is exported for testing purposes only.
- * It is not used in production code - the echo detection logic is
- * handled within filterTerminalPrompts() instead.
- */
-export function isCommandEcho(line: string, lastCommand?: string): boolean {
-	if (!lastCommand) return false;
-
-	const trimmedLine = line.trim();
-	const trimmedCommand = lastCommand.trim();
-
-	// Exact match
-	if (trimmedLine === trimmedCommand) return true;
-
-	// Line starts with the command (may have prompt prefix)
-	if (trimmedLine.endsWith(trimmedCommand)) return true;
-
-	return false;
-}
-
-/**
- * Extract the actual command from user input (without prompt)
- *
- * @internal This function is exported for testing purposes only.
- * It is not used in production code.
- */
-export function extractCommand(input: string): string {
-	// Remove common prompt patterns from the beginning
-	const withoutPrompt = input.replace(/^[^$#%>]*[$#%>]\s*/, '');
-	return withoutPrompt.trim();
-}

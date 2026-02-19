@@ -497,7 +497,7 @@ describe('process-manager.ts', () => {
 				expect(mockPtyWrite).toHaveBeenCalledWith('\x03');
 			});
 
-			it('should not track last command for xterm.js terminal tabs', () => {
+			it('should not track last command (terminal uses xterm.js, no command tracking needed)', () => {
 				const sessionId = 'session-1-terminal-tab-1';
 				processManager.spawn({
 					sessionId,
@@ -507,10 +507,10 @@ describe('process-manager.ts', () => {
 					args: [],
 				});
 
-				// Write a command to an xterm.js tab
+				// Write a command to a terminal tab
 				processManager.write(sessionId, 'npm run dev\r');
 
-				// Verify lastCommand is not set (xterm handles echoing)
+				// lastCommand tracking was removed — xterm.js handles its own output
 				const proc = processManager.get(sessionId);
 				expect(proc?.lastCommand).toBeUndefined();
 			});

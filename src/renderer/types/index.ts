@@ -479,17 +479,19 @@ export interface FilePreviewTab {
 }
 
 /**
- * Embedded terminal tab for in-agent terminal sessions.
- * Each terminal tab owns its own PTY process and xterm.js instance.
+ * Terminal Tab for multi-tab terminal support within a Maestro session.
+ * Each tab represents a separate PTY shell session with full xterm.js emulation.
  * The tab id doubles as the processManager session key.
  */
 export interface TerminalTab {
 	id: string;              // UUID — also used as processManager session key
-	name: string | null;     // User name (null = "Terminal")
-	createdAt: number;
+	name: string | null;     // User-defined name (null = show "Terminal" or "Terminal N")
+	createdAt: number;       // Timestamp for ordering
 	cwd: string;             // Working directory at spawn time
-	processRunning?: boolean; // Runtime only — whether PTY is alive
-	exitCode?: number;        // Runtime only — set when process exits
+	processRunning?: boolean; // Runtime only — whether PTY is alive (not persisted)
+	exitCode?: number;        // Runtime only — set when process exits (not persisted)
+	scrollTop?: number;       // Saved scroll position (for tab switch persistence)
+	searchQuery?: string;     // Active search query (for Cmd+F persistence across tab switches)
 }
 
 /**

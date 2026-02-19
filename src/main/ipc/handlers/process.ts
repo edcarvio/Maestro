@@ -64,12 +64,13 @@ export interface ProcessHandlerDependencies {
  *
  * These handlers manage process lifecycle operations:
  * - spawn: Start a new process for a session
+ * - spawnTerminalTab: Spawn a persistent PTY for a terminal tab
  * - write: Send input to a process
  * - interrupt: Send SIGINT to a process
  * - kill: Terminate a process
  * - resize: Resize PTY dimensions
  * - getActiveProcesses: List all running processes
- * - runCommand: Execute a single command and capture output
+ * - runCommand: Execute a single command and capture output (deprecated)
  */
 export function registerProcessHandlers(deps: ProcessHandlerDependencies): void {
 	const { getProcessManager, getAgentDetector, agentConfigsStore, settingsStore, getMainWindow } =
@@ -608,6 +609,52 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
 				args: p.args,
 			}));
 		})
+	);
+
+	// Spawn a terminal PTY for a specific tab (xterm.js integration)
+	// This is the primary way to create terminal tabs — each tab gets a persistent PTY
+	ipcMain.handle(
+		'process:spawnTerminalTab',
+		withIpcErrorLogging(
+			handlerOpts('spawnTerminalTab'),
+			async (config: {
+				sessionId: string;
+				cwd: string;
+				shell?: string;
+				shellArgs?: string;
+				shellEnvVars?: Record<string, string>;
+				cols?: number;
+				rows?: number;
+			}) => {
+				const processManager = requireProcessManager(getProcessManager);
+
+				// Resolve shell from settings if not explicitly provided
+				let shell = config.shell || settingsStore.get('defaultShell', 'zsh');
+				const customShellPath = settingsStore.get('customShellPath', '');
+				if (customShellPath && (customShellPath as string).trim()) {
+					shell = (customShellPath as string).trim();
+				}
+
+				// Load shell args and env vars from settings if not provided
+				const shellArgs = config.shellArgs ?? (settingsStore.get('shellArgs', '') as string);
+				const shellEnvVars = config.shellEnvVars ?? (settingsStore.get('shellEnvVars', {}) as Record<string, string>);
+
+				logger.info('Spawning terminal tab', LOG_CONTEXT, {
+					sessionId: config.sessionId,
+					cwd: config.cwd,
+					shell,
+					cols: config.cols,
+					rows: config.rows,
+				});
+
+				return processManager.spawnTerminalTab({
+					...config,
+					shell,
+					shellArgs,
+					shellEnvVars,
+				});
+			}
+		)
 	);
 
 	// DEPRECATED: runCommand was used for discrete command execution

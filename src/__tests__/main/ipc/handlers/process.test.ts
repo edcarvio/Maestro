@@ -191,6 +191,7 @@ describe('process IPC handlers', () => {
 	let handlers: Map<string, Function>;
 	let mockProcessManager: {
 		spawn: ReturnType<typeof vi.fn>;
+		spawnTerminalTab: ReturnType<typeof vi.fn>;
 		write: ReturnType<typeof vi.fn>;
 		interrupt: ReturnType<typeof vi.fn>;
 		kill: ReturnType<typeof vi.fn>;
@@ -218,6 +219,7 @@ describe('process IPC handlers', () => {
 		// Create mock process manager
 		mockProcessManager = {
 			spawn: vi.fn(),
+			spawnTerminalTab: vi.fn(),
 			write: vi.fn(),
 			interrupt: vi.fn(),
 			kill: vi.fn(),
@@ -279,6 +281,7 @@ describe('process IPC handlers', () => {
 		it('should register all process handlers', () => {
 			const expectedChannels = [
 				'process:spawn',
+				'process:spawnTerminalTab',
 				'process:write',
 				'process:interrupt',
 				'process:kill',
@@ -541,6 +544,230 @@ describe('process IPC handlers', () => {
 					promptArgs: undefined,
 				})
 			);
+		});
+	});
+
+	describe('process:spawnTerminalTab', () => {
+		it('should spawn a terminal tab PTY with default settings', async () => {
+			mockProcessManager.spawnTerminalTab.mockReturnValue({ pid: 5001, success: true });
+
+			const handler = handlers.get('process:spawnTerminalTab');
+			const result = await handler!({} as any, {
+				sessionId: 'abc123-terminal-def456',
+				cwd: '/home/user/project',
+			});
+
+			expect(mockProcessManager.spawnTerminalTab).toHaveBeenCalledWith(
+				expect.objectContaining({
+					sessionId: 'abc123-terminal-def456',
+					cwd: '/home/user/project',
+					shell: 'zsh', // default from settings
+				})
+			);
+			expect(result.pid).toBe(5001);
+			expect(result.success).toBe(true);
+		});
+
+		it('should use default shell from settings', async () => {
+			mockSettingsStore.get.mockImplementation((key, defaultValue) => {
+				if (key === 'defaultShell') return 'fish';
+				if (key === 'customShellPath') return '';
+				return defaultValue;
+			});
+			mockProcessManager.spawnTerminalTab.mockReturnValue({ pid: 5002, success: true });
+
+			const handler = handlers.get('process:spawnTerminalTab');
+			await handler!({} as any, {
+				sessionId: 'session-terminal-tab1',
+				cwd: '/test',
+			});
+
+			expect(mockProcessManager.spawnTerminalTab).toHaveBeenCalledWith(
+				expect.objectContaining({
+					shell: 'fish',
+				})
+			);
+		});
+
+		it('should use custom shell path when set (overrides default shell)', async () => {
+			mockSettingsStore.get.mockImplementation((key, defaultValue) => {
+				if (key === 'defaultShell') return 'zsh';
+				if (key === 'customShellPath') return '/opt/homebrew/bin/fish';
+				return defaultValue;
+			});
+			mockProcessManager.spawnTerminalTab.mockReturnValue({ pid: 5003, success: true });
+
+			const handler = handlers.get('process:spawnTerminalTab');
+			await handler!({} as any, {
+				sessionId: 'session-terminal-tab2',
+				cwd: '/test',
+			});
+
+			expect(mockProcessManager.spawnTerminalTab).toHaveBeenCalledWith(
+				expect.objectContaining({
+					shell: '/opt/homebrew/bin/fish',
+				})
+			);
+		});
+
+		it('should use explicit shell from config when customShellPath is empty', async () => {
+			mockSettingsStore.get.mockImplementation((key, defaultValue) => {
+				if (key === 'defaultShell') return 'zsh';
+				if (key === 'customShellPath') return '';
+				return defaultValue;
+			});
+			mockProcessManager.spawnTerminalTab.mockReturnValue({ pid: 5004, success: true });
+
+			const handler = handlers.get('process:spawnTerminalTab');
+			await handler!({} as any, {
+				sessionId: 'session-terminal-tab3',
+				cwd: '/test',
+				shell: 'bash',
+			});
+
+			expect(mockProcessManager.spawnTerminalTab).toHaveBeenCalledWith(
+				expect.objectContaining({
+					shell: 'bash',
+				})
+			);
+		});
+
+		it('should let customShellPath override explicit config shell', async () => {
+			mockSettingsStore.get.mockImplementation((key, defaultValue) => {
+				if (key === 'defaultShell') return 'zsh';
+				if (key === 'customShellPath') return '/opt/homebrew/bin/fish';
+				return defaultValue;
+			});
+			mockProcessManager.spawnTerminalTab.mockReturnValue({ pid: 5004, success: true });
+
+			const handler = handlers.get('process:spawnTerminalTab');
+			await handler!({} as any, {
+				sessionId: 'session-terminal-tab3b',
+				cwd: '/test',
+				shell: 'bash', // explicit, but customShellPath overrides
+			});
+
+			expect(mockProcessManager.spawnTerminalTab).toHaveBeenCalledWith(
+				expect.objectContaining({
+					shell: '/opt/homebrew/bin/fish',
+				})
+			);
+		});
+
+		it('should load shell args and env vars from settings when not provided', async () => {
+			mockSettingsStore.get.mockImplementation((key, defaultValue) => {
+				if (key === 'defaultShell') return 'zsh';
+				if (key === 'customShellPath') return '';
+				if (key === 'shellArgs') return '--login';
+				if (key === 'shellEnvVars') return { TERM: 'xterm-256color' };
+				return defaultValue;
+			});
+			mockProcessManager.spawnTerminalTab.mockReturnValue({ pid: 5005, success: true });
+
+			const handler = handlers.get('process:spawnTerminalTab');
+			await handler!({} as any, {
+				sessionId: 'session-terminal-tab4',
+				cwd: '/test',
+			});
+
+			expect(mockProcessManager.spawnTerminalTab).toHaveBeenCalledWith(
+				expect.objectContaining({
+					shellArgs: '--login',
+					shellEnvVars: { TERM: 'xterm-256color' },
+				})
+			);
+		});
+
+		it('should prefer config-provided shell args and env vars over settings', async () => {
+			mockSettingsStore.get.mockImplementation((key, defaultValue) => {
+				if (key === 'defaultShell') return 'zsh';
+				if (key === 'customShellPath') return '';
+				if (key === 'shellArgs') return '--login';
+				if (key === 'shellEnvVars') return { FROM_SETTINGS: 'true' };
+				return defaultValue;
+			});
+			mockProcessManager.spawnTerminalTab.mockReturnValue({ pid: 5006, success: true });
+
+			const handler = handlers.get('process:spawnTerminalTab');
+			await handler!({} as any, {
+				sessionId: 'session-terminal-tab5',
+				cwd: '/test',
+				shellArgs: '-i',
+				shellEnvVars: { FROM_CONFIG: 'true' },
+			});
+
+			expect(mockProcessManager.spawnTerminalTab).toHaveBeenCalledWith(
+				expect.objectContaining({
+					shellArgs: '-i',
+					shellEnvVars: { FROM_CONFIG: 'true' },
+				})
+			);
+		});
+
+		it('should pass cols and rows through to process manager', async () => {
+			mockProcessManager.spawnTerminalTab.mockReturnValue({ pid: 5007, success: true });
+
+			const handler = handlers.get('process:spawnTerminalTab');
+			await handler!({} as any, {
+				sessionId: 'session-terminal-tab6',
+				cwd: '/test',
+				cols: 120,
+				rows: 40,
+			});
+
+			expect(mockProcessManager.spawnTerminalTab).toHaveBeenCalledWith(
+				expect.objectContaining({
+					cols: 120,
+					rows: 40,
+				})
+			);
+		});
+
+		it('should handle spawn failure', async () => {
+			mockProcessManager.spawnTerminalTab.mockReturnValue({ pid: -1, success: false, error: 'spawn failed' });
+
+			const handler = handlers.get('process:spawnTerminalTab');
+			const result = await handler!({} as any, {
+				sessionId: 'session-terminal-fail',
+				cwd: '/test',
+			});
+
+			expect(result.pid).toBe(-1);
+			expect(result.success).toBe(false);
+		});
+
+		it('should throw when process manager is not available', async () => {
+			// Re-register with null process manager
+			handlers.clear();
+			registerProcessHandlers({
+				...deps,
+				getProcessManager: () => null,
+			});
+
+			const handler = handlers.get('process:spawnTerminalTab');
+			await expect(
+				handler!({} as any, {
+					sessionId: 'session-terminal-no-pm',
+					cwd: '/test',
+				})
+			).rejects.toThrow('Process manager');
+		});
+
+		it('should work with terminal tab session ID format ({sessionId}-terminal-{tabId})', async () => {
+			mockProcessManager.spawnTerminalTab.mockReturnValue({ pid: 5008, success: true });
+
+			const handler = handlers.get('process:spawnTerminalTab');
+			const result = await handler!({} as any, {
+				sessionId: 'abc123-terminal-def456',
+				cwd: '/home/user',
+			});
+
+			expect(mockProcessManager.spawnTerminalTab).toHaveBeenCalledWith(
+				expect.objectContaining({
+					sessionId: 'abc123-terminal-def456',
+				})
+			);
+			expect(result.success).toBe(true);
 		});
 	});
 

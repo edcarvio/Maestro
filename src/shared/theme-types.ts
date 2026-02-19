@@ -67,6 +67,26 @@ export interface ThemeColors {
 	warning: string;
 	/** Error state color (red tones) */
 	error: string;
+
+	// ANSI colors for terminal emulation (optional — XTerminal uses defaults if not provided)
+	ansiBlack?: string;
+	ansiRed?: string;
+	ansiGreen?: string;
+	ansiYellow?: string;
+	ansiBlue?: string;
+	ansiMagenta?: string;
+	ansiCyan?: string;
+	ansiWhite?: string;
+	ansiBrightBlack?: string;
+	ansiBrightRed?: string;
+	ansiBrightGreen?: string;
+	ansiBrightYellow?: string;
+	ansiBrightBlue?: string;
+	ansiBrightMagenta?: string;
+	ansiBrightCyan?: string;
+	ansiBrightWhite?: string;
+	/** Selection highlight color for terminal (typically rgba with transparency) */
+	ansiSelection?: string;
 }
 
 /**

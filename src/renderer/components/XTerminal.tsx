@@ -43,34 +43,49 @@ export interface XTerminalHandle {
 
 /**
  * Map Maestro theme colors to xterm.js ITheme.
- * Uses theme semantic colors with sensible ANSI defaults.
+ * Uses per-theme ANSI colors when available, falling back to sensible defaults.
  */
-function mapMaestroThemeToXterm(theme: Theme) {
+export function mapMaestroThemeToXterm(theme: Theme) {
 	const isDark = theme.mode !== 'light';
+	const c = theme.colors;
+
+	// Default ANSI palette used when theme doesn't define its own colors
+	const defaultAnsi = isDark ? {
+		black: '#282c34', red: '#e06c75', green: '#98c379', yellow: '#e5c07b',
+		blue: '#61afef', magenta: '#c678dd', cyan: '#56b6c2', white: '#abb2bf',
+		brightBlack: '#5c6370', brightRed: '#e06c75', brightGreen: '#98c379', brightYellow: '#e5c07b',
+		brightBlue: '#61afef', brightMagenta: '#c678dd', brightCyan: '#56b6c2', brightWhite: '#ffffff',
+	} : {
+		black: '#073642', red: '#dc322f', green: '#859900', yellow: '#b58900',
+		blue: '#268bd2', magenta: '#d33682', cyan: '#2aa198', white: '#eee8d5',
+		brightBlack: '#586e75', brightRed: '#cb4b16', brightGreen: '#859900', brightYellow: '#b58900',
+		brightBlue: '#268bd2', brightMagenta: '#6c71c4', brightCyan: '#2aa198', brightWhite: '#fdf6e3',
+	};
+
 	return {
-		background: theme.colors.bgMain,
-		foreground: theme.colors.textMain,
-		cursor: theme.colors.textMain,
-		cursorAccent: theme.colors.bgMain,
-		selectionBackground: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)',
+		background: c.bgMain,
+		foreground: c.textMain,
+		cursor: c.accent,
+		cursorAccent: c.bgMain,
+		selectionBackground: c.ansiSelection || (isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)'),
 		selectionForeground: undefined,
-		// ANSI color palette - sensible defaults for both light and dark themes
-		black: isDark ? '#1e1e1e' : '#000000',
-		red: '#e06c75',
-		green: '#98c379',
-		yellow: '#e5c07b',
-		blue: '#61afef',
-		magenta: '#c678dd',
-		cyan: '#56b6c2',
-		white: isDark ? '#abb2bf' : '#d4d4d4',
-		brightBlack: '#5c6370',
-		brightRed: '#e06c75',
-		brightGreen: '#98c379',
-		brightYellow: '#e5c07b',
-		brightBlue: '#61afef',
-		brightMagenta: '#c678dd',
-		brightCyan: '#56b6c2',
-		brightWhite: '#ffffff',
+		// ANSI colors — prefer theme-defined, fall back to defaults
+		black: c.ansiBlack || defaultAnsi.black,
+		red: c.ansiRed || defaultAnsi.red,
+		green: c.ansiGreen || defaultAnsi.green,
+		yellow: c.ansiYellow || defaultAnsi.yellow,
+		blue: c.ansiBlue || defaultAnsi.blue,
+		magenta: c.ansiMagenta || defaultAnsi.magenta,
+		cyan: c.ansiCyan || defaultAnsi.cyan,
+		white: c.ansiWhite || defaultAnsi.white,
+		brightBlack: c.ansiBrightBlack || defaultAnsi.brightBlack,
+		brightRed: c.ansiBrightRed || defaultAnsi.brightRed,
+		brightGreen: c.ansiBrightGreen || defaultAnsi.brightGreen,
+		brightYellow: c.ansiBrightYellow || defaultAnsi.brightYellow,
+		brightBlue: c.ansiBrightBlue || defaultAnsi.brightBlue,
+		brightMagenta: c.ansiBrightMagenta || defaultAnsi.brightMagenta,
+		brightCyan: c.ansiBrightCyan || defaultAnsi.brightCyan,
+		brightWhite: c.ansiBrightWhite || defaultAnsi.brightWhite,
 	};
 }
 

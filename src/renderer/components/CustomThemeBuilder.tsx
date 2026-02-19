@@ -29,8 +29,11 @@ interface CustomThemeBuilderProps {
 	onImportSuccess?: (message: string) => void;
 }
 
+// Required color keys used by the custom theme builder (excludes optional ANSI terminal colors)
+type RequiredColorKey = 'bgMain' | 'bgSidebar' | 'bgActivity' | 'border' | 'textMain' | 'textDim' | 'accent' | 'accentDim' | 'accentText' | 'accentForeground' | 'success' | 'warning' | 'error';
+
 // Color picker labels with descriptions
-const COLOR_CONFIG: { key: keyof ThemeColors; label: string; description: string }[] = [
+const COLOR_CONFIG: { key: RequiredColorKey; label: string; description: string }[] = [
 	{ key: 'bgMain', label: 'Main Background', description: 'Primary content area' },
 	{ key: 'bgSidebar', label: 'Sidebar Background', description: 'Left & right panels' },
 	{ key: 'bgActivity', label: 'Activity Background', description: 'Hover, active states' },

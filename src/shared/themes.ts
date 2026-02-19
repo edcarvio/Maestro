@@ -10,7 +10,341 @@
  * Do NOT duplicate theme definitions elsewhere.
  */
 
-import type { Theme, ThemeId } from './theme-types';
+import type { Theme, ThemeColors, ThemeId } from './theme-types';
+
+// ─── ANSI color palettes for terminal emulation ─────────────────────────────
+// Each palette provides the 16 standard ANSI colors + selection highlight.
+// Themes reference these via spread, so changes propagate automatically.
+
+type AnsiPalette = Pick<ThemeColors,
+	| 'ansiBlack' | 'ansiRed' | 'ansiGreen' | 'ansiYellow'
+	| 'ansiBlue' | 'ansiMagenta' | 'ansiCyan' | 'ansiWhite'
+	| 'ansiBrightBlack' | 'ansiBrightRed' | 'ansiBrightGreen' | 'ansiBrightYellow'
+	| 'ansiBrightBlue' | 'ansiBrightMagenta' | 'ansiBrightCyan' | 'ansiBrightWhite'
+	| 'ansiSelection'
+>;
+
+const draculaAnsi: AnsiPalette = {
+	ansiBlack: '#21222c',
+	ansiRed: '#ff5555',
+	ansiGreen: '#50fa7b',
+	ansiYellow: '#f1fa8c',
+	ansiBlue: '#bd93f9',
+	ansiMagenta: '#ff79c6',
+	ansiCyan: '#8be9fd',
+	ansiWhite: '#f8f8f2',
+	ansiBrightBlack: '#6272a4',
+	ansiBrightRed: '#ff6e6e',
+	ansiBrightGreen: '#69ff94',
+	ansiBrightYellow: '#ffffa5',
+	ansiBrightBlue: '#d6acff',
+	ansiBrightMagenta: '#ff92df',
+	ansiBrightCyan: '#a4ffff',
+	ansiBrightWhite: '#ffffff',
+	ansiSelection: 'rgba(189, 147, 249, 0.3)',
+};
+
+const monokaiAnsi: AnsiPalette = {
+	ansiBlack: '#272822',
+	ansiRed: '#f92672',
+	ansiGreen: '#a6e22e',
+	ansiYellow: '#e6db74',
+	ansiBlue: '#66d9ef',
+	ansiMagenta: '#ae81ff',
+	ansiCyan: '#a1efe4',
+	ansiWhite: '#f8f8f2',
+	ansiBrightBlack: '#75715e',
+	ansiBrightRed: '#f92672',
+	ansiBrightGreen: '#a6e22e',
+	ansiBrightYellow: '#e6db74',
+	ansiBrightBlue: '#66d9ef',
+	ansiBrightMagenta: '#ae81ff',
+	ansiBrightCyan: '#a1efe4',
+	ansiBrightWhite: '#f9f8f5',
+	ansiSelection: 'rgba(253, 151, 31, 0.3)',
+};
+
+const nordAnsi: AnsiPalette = {
+	ansiBlack: '#3b4252',
+	ansiRed: '#bf616a',
+	ansiGreen: '#a3be8c',
+	ansiYellow: '#ebcb8b',
+	ansiBlue: '#81a1c1',
+	ansiMagenta: '#b48ead',
+	ansiCyan: '#88c0d0',
+	ansiWhite: '#e5e9f0',
+	ansiBrightBlack: '#4c566a',
+	ansiBrightRed: '#bf616a',
+	ansiBrightGreen: '#a3be8c',
+	ansiBrightYellow: '#ebcb8b',
+	ansiBrightBlue: '#81a1c1',
+	ansiBrightMagenta: '#b48ead',
+	ansiBrightCyan: '#8fbcbb',
+	ansiBrightWhite: '#eceff4',
+	ansiSelection: 'rgba(136, 192, 208, 0.3)',
+};
+
+const tokyoNightAnsi: AnsiPalette = {
+	ansiBlack: '#15161e',
+	ansiRed: '#f7768e',
+	ansiGreen: '#9ece6a',
+	ansiYellow: '#e0af68',
+	ansiBlue: '#7aa2f7',
+	ansiMagenta: '#bb9af7',
+	ansiCyan: '#7dcfff',
+	ansiWhite: '#a9b1d6',
+	ansiBrightBlack: '#414868',
+	ansiBrightRed: '#f7768e',
+	ansiBrightGreen: '#9ece6a',
+	ansiBrightYellow: '#e0af68',
+	ansiBrightBlue: '#7aa2f7',
+	ansiBrightMagenta: '#bb9af7',
+	ansiBrightCyan: '#7dcfff',
+	ansiBrightWhite: '#c0caf5',
+	ansiSelection: 'rgba(122, 162, 247, 0.3)',
+};
+
+const catppuccinMochaAnsi: AnsiPalette = {
+	ansiBlack: '#45475a',
+	ansiRed: '#f38ba8',
+	ansiGreen: '#a6e3a1',
+	ansiYellow: '#f9e2af',
+	ansiBlue: '#89b4fa',
+	ansiMagenta: '#f5c2e7',
+	ansiCyan: '#94e2d5',
+	ansiWhite: '#bac2de',
+	ansiBrightBlack: '#585b70',
+	ansiBrightRed: '#f38ba8',
+	ansiBrightGreen: '#a6e3a1',
+	ansiBrightYellow: '#f9e2af',
+	ansiBrightBlue: '#89b4fa',
+	ansiBrightMagenta: '#f5c2e7',
+	ansiBrightCyan: '#94e2d5',
+	ansiBrightWhite: '#a6adc8',
+	ansiSelection: 'rgba(148, 226, 213, 0.3)',
+};
+
+const gruvboxDarkAnsi: AnsiPalette = {
+	ansiBlack: '#282828',
+	ansiRed: '#cc241d',
+	ansiGreen: '#98971a',
+	ansiYellow: '#d79921',
+	ansiBlue: '#458588',
+	ansiMagenta: '#b16286',
+	ansiCyan: '#689d6a',
+	ansiWhite: '#a89984',
+	ansiBrightBlack: '#928374',
+	ansiBrightRed: '#fb4934',
+	ansiBrightGreen: '#b8bb26',
+	ansiBrightYellow: '#fabd2f',
+	ansiBrightBlue: '#83a598',
+	ansiBrightMagenta: '#d3869b',
+	ansiBrightCyan: '#8ec07c',
+	ansiBrightWhite: '#ebdbb2',
+	ansiSelection: 'rgba(69, 133, 136, 0.3)',
+};
+
+const githubLightAnsi: AnsiPalette = {
+	ansiBlack: '#24292e',
+	ansiRed: '#d73a49',
+	ansiGreen: '#28a745',
+	ansiYellow: '#dbab09',
+	ansiBlue: '#0366d6',
+	ansiMagenta: '#5a32a3',
+	ansiCyan: '#0598bc',
+	ansiWhite: '#6a737d',
+	ansiBrightBlack: '#959da5',
+	ansiBrightRed: '#cb2431',
+	ansiBrightGreen: '#22863a',
+	ansiBrightYellow: '#b08800',
+	ansiBrightBlue: '#005cc5',
+	ansiBrightMagenta: '#5a32a3',
+	ansiBrightCyan: '#3192aa',
+	ansiBrightWhite: '#d1d5da',
+	ansiSelection: 'rgba(9, 105, 218, 0.2)',
+};
+
+const solarizedLightAnsi: AnsiPalette = {
+	ansiBlack: '#073642',
+	ansiRed: '#dc322f',
+	ansiGreen: '#859900',
+	ansiYellow: '#b58900',
+	ansiBlue: '#268bd2',
+	ansiMagenta: '#d33682',
+	ansiCyan: '#2aa198',
+	ansiWhite: '#eee8d5',
+	ansiBrightBlack: '#586e75',
+	ansiBrightRed: '#cb4b16',
+	ansiBrightGreen: '#859900',
+	ansiBrightYellow: '#b58900',
+	ansiBrightBlue: '#268bd2',
+	ansiBrightMagenta: '#6c71c4',
+	ansiBrightCyan: '#2aa198',
+	ansiBrightWhite: '#fdf6e3',
+	ansiSelection: 'rgba(38, 139, 210, 0.2)',
+};
+
+const oneLightAnsi: AnsiPalette = {
+	ansiBlack: '#383a42',
+	ansiRed: '#e45649',
+	ansiGreen: '#50a14f',
+	ansiYellow: '#c18401',
+	ansiBlue: '#4078f2',
+	ansiMagenta: '#a626a4',
+	ansiCyan: '#0184bc',
+	ansiWhite: '#a0a1a7',
+	ansiBrightBlack: '#696c77',
+	ansiBrightRed: '#e45649',
+	ansiBrightGreen: '#50a14f',
+	ansiBrightYellow: '#c18401',
+	ansiBrightBlue: '#4078f2',
+	ansiBrightMagenta: '#a626a4',
+	ansiBrightCyan: '#0184bc',
+	ansiBrightWhite: '#fafafa',
+	ansiSelection: 'rgba(166, 38, 164, 0.2)',
+};
+
+const gruvboxLightAnsi: AnsiPalette = {
+	ansiBlack: '#3c3836',
+	ansiRed: '#cc241d',
+	ansiGreen: '#98971a',
+	ansiYellow: '#d79921',
+	ansiBlue: '#458588',
+	ansiMagenta: '#b16286',
+	ansiCyan: '#689d6a',
+	ansiWhite: '#7c6f64',
+	ansiBrightBlack: '#928374',
+	ansiBrightRed: '#9d0006',
+	ansiBrightGreen: '#79740e',
+	ansiBrightYellow: '#b57614',
+	ansiBrightBlue: '#076678',
+	ansiBrightMagenta: '#8f3f71',
+	ansiBrightCyan: '#427b58',
+	ansiBrightWhite: '#fbf1c7',
+	ansiSelection: 'rgba(69, 133, 136, 0.2)',
+};
+
+const catppuccinLatteAnsi: AnsiPalette = {
+	ansiBlack: '#5c5f77',
+	ansiRed: '#d20f39',
+	ansiGreen: '#40a02b',
+	ansiYellow: '#df8e1d',
+	ansiBlue: '#1e66f5',
+	ansiMagenta: '#ea76cb',
+	ansiCyan: '#179299',
+	ansiWhite: '#acb0be',
+	ansiBrightBlack: '#6c6f85',
+	ansiBrightRed: '#d20f39',
+	ansiBrightGreen: '#40a02b',
+	ansiBrightYellow: '#df8e1d',
+	ansiBrightBlue: '#1e66f5',
+	ansiBrightMagenta: '#8839ef',
+	ansiBrightCyan: '#179299',
+	ansiBrightWhite: '#eff1f5',
+	ansiSelection: 'rgba(136, 57, 239, 0.2)',
+};
+
+const ayuLightAnsi: AnsiPalette = {
+	ansiBlack: '#1a1a1a',
+	ansiRed: '#f07171',
+	ansiGreen: '#86b300',
+	ansiYellow: '#f2ae49',
+	ansiBlue: '#399ee6',
+	ansiMagenta: '#a37acc',
+	ansiCyan: '#4cbf99',
+	ansiWhite: '#828c99',
+	ansiBrightBlack: '#abb0b6',
+	ansiBrightRed: '#f07171',
+	ansiBrightGreen: '#86b300',
+	ansiBrightYellow: '#f2ae49',
+	ansiBrightBlue: '#399ee6',
+	ansiBrightMagenta: '#a37acc',
+	ansiBrightCyan: '#4cbf99',
+	ansiBrightWhite: '#fafafa',
+	ansiSelection: 'rgba(85, 180, 212, 0.2)',
+};
+
+const pedurpleAnsi: AnsiPalette = {
+	ansiBlack: '#140a1c',
+	ansiRed: '#da70d6',
+	ansiGreen: '#7cb342',
+	ansiYellow: '#d4af37',
+	ansiBlue: '#7b68ee',
+	ansiMagenta: '#ff69b4',
+	ansiCyan: '#00ced1',
+	ansiWhite: '#e8d5f5',
+	ansiBrightBlack: '#6a4a8a',
+	ansiBrightRed: '#ee82ee',
+	ansiBrightGreen: '#9acd32',
+	ansiBrightYellow: '#ffd700',
+	ansiBrightBlue: '#9370db',
+	ansiBrightMagenta: '#ff8dc7',
+	ansiBrightCyan: '#40e0d0',
+	ansiBrightWhite: '#ffffff',
+	ansiSelection: 'rgba(255, 105, 180, 0.3)',
+};
+
+const maestrosChoiceAnsi: AnsiPalette = {
+	ansiBlack: '#141420',
+	ansiRed: '#e05070',
+	ansiGreen: '#66d9a0',
+	ansiYellow: '#f4c430',
+	ansiBlue: '#6699cc',
+	ansiMagenta: '#cc99cc',
+	ansiCyan: '#66cccc',
+	ansiWhite: '#fff8e8',
+	ansiBrightBlack: '#5a5a7a',
+	ansiBrightRed: '#ff6688',
+	ansiBrightGreen: '#88ffbb',
+	ansiBrightYellow: '#ffd54f',
+	ansiBrightBlue: '#88bbee',
+	ansiBrightMagenta: '#eebbee',
+	ansiBrightCyan: '#88eeee',
+	ansiBrightWhite: '#ffffff',
+	ansiSelection: 'rgba(244, 196, 48, 0.3)',
+};
+
+const dreSynthAnsi: AnsiPalette = {
+	ansiBlack: '#0a0118',
+	ansiRed: '#ff2a6d',
+	ansiGreen: '#00ffcc',
+	ansiYellow: '#f3e70e',
+	ansiBlue: '#1b6fff',
+	ansiMagenta: '#df00ff',
+	ansiCyan: '#00d4aa',
+	ansiWhite: '#f0e6ff',
+	ansiBrightBlack: '#2a1a4a',
+	ansiBrightRed: '#ff5588',
+	ansiBrightGreen: '#40ffdd',
+	ansiBrightYellow: '#ffff66',
+	ansiBrightBlue: '#4d8aff',
+	ansiBrightMagenta: '#ff44ff',
+	ansiBrightCyan: '#60e0d0',
+	ansiBrightWhite: '#ffffff',
+	ansiSelection: 'rgba(0, 255, 204, 0.3)',
+};
+
+const inquestAnsi: AnsiPalette = {
+	ansiBlack: '#050505',
+	ansiRed: '#cc0033',
+	ansiGreen: '#b0b0b0',
+	ansiYellow: '#999999',
+	ansiBlue: '#666666',
+	ansiMagenta: '#cc0033',
+	ansiCyan: '#888888',
+	ansiWhite: '#f5f5f5',
+	ansiBrightBlack: '#444444',
+	ansiBrightRed: '#ff3355',
+	ansiBrightGreen: '#cccccc',
+	ansiBrightYellow: '#bbbbbb',
+	ansiBrightBlue: '#888888',
+	ansiBrightMagenta: '#ff3355',
+	ansiBrightCyan: '#aaaaaa',
+	ansiBrightWhite: '#ffffff',
+	ansiSelection: 'rgba(204, 0, 51, 0.3)',
+};
+
+// ─── Theme definitions ──────────────────────────────────────────────────────
 
 export const THEMES: Record<ThemeId, Theme> = {
 	// Dark themes
@@ -32,6 +366,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#50fa7b',
 			warning: '#ffb86c',
 			error: '#ff5555',
+			...draculaAnsi,
 		},
 	},
 	monokai: {
@@ -52,6 +387,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#a6e22e',
 			warning: '#e6db74',
 			error: '#f92672',
+			...monokaiAnsi,
 		},
 	},
 	nord: {
@@ -72,6 +408,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#a3be8c',
 			warning: '#ebcb8b',
 			error: '#bf616a',
+			...nordAnsi,
 		},
 	},
 	'tokyo-night': {
@@ -92,6 +429,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#9ece6a',
 			warning: '#e0af68',
 			error: '#f7768e',
+			...tokyoNightAnsi,
 		},
 	},
 	'catppuccin-mocha': {
@@ -112,6 +450,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#a6e3a1',
 			warning: '#fab387',
 			error: '#f38ba8',
+			...catppuccinMochaAnsi,
 		},
 	},
 	'gruvbox-dark': {
@@ -132,6 +471,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#b8bb26',
 			warning: '#fabd2f',
 			error: '#fb4934',
+			...gruvboxDarkAnsi,
 		},
 	},
 	// Light themes
@@ -153,6 +493,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#1a7f37',
 			warning: '#9a6700',
 			error: '#cf222e',
+			...githubLightAnsi,
 		},
 	},
 	'solarized-light': {
@@ -173,6 +514,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#859900',
 			warning: '#b58900',
 			error: '#dc322f',
+			...solarizedLightAnsi,
 		},
 	},
 	'one-light': {
@@ -193,6 +535,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#50a14f',
 			warning: '#c18401',
 			error: '#e45649',
+			...oneLightAnsi,
 		},
 	},
 	'gruvbox-light': {
@@ -213,6 +556,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#98971a',
 			warning: '#d79921',
 			error: '#cc241d',
+			...gruvboxLightAnsi,
 		},
 	},
 	'catppuccin-latte': {
@@ -233,6 +577,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#40a02b',
 			warning: '#fe640b',
 			error: '#d20f39',
+			...catppuccinLatteAnsi,
 		},
 	},
 	'ayu-light': {
@@ -253,6 +598,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#86b300',
 			warning: '#f2ae49',
 			error: '#f07171',
+			...ayuLightAnsi,
 		},
 	},
 	// Vibe themes
@@ -274,6 +620,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#7cb342',
 			warning: '#d4af37',
 			error: '#da70d6',
+			...pedurpleAnsi,
 		},
 	},
 	'maestros-choice': {
@@ -294,6 +641,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#66d9a0',
 			warning: '#f4c430',
 			error: '#e05070',
+			...maestrosChoiceAnsi,
 		},
 	},
 	'dre-synth': {
@@ -314,6 +662,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#00ffcc',
 			warning: '#ff2a6d',
 			error: '#ff2a6d',
+			...dreSynthAnsi,
 		},
 	},
 	inquest: {
@@ -334,6 +683,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#f5f5f5',
 			warning: '#cc0033',
 			error: '#cc0033',
+			...inquestAnsi,
 		},
 	},
 	// Custom theme - user-configurable, defaults to Dracula
@@ -355,6 +705,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 			success: '#50fa7b',
 			warning: '#ffb86c',
 			error: '#ff5555',
+			// Custom theme intentionally omits ANSI colors — XTerminal falls back to defaults
 		},
 	},
 };

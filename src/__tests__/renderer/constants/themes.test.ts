@@ -113,4 +113,67 @@ describe('THEMES constant', () => {
 			expect(themes.some((t) => t.mode === 'light')).toBe(true);
 		});
 	});
+
+	describe('ANSI terminal colors', () => {
+		// All 16 ANSI color fields
+		const ANSI_COLOR_FIELDS = [
+			'ansiBlack', 'ansiRed', 'ansiGreen', 'ansiYellow',
+			'ansiBlue', 'ansiMagenta', 'ansiCyan', 'ansiWhite',
+			'ansiBrightBlack', 'ansiBrightRed', 'ansiBrightGreen', 'ansiBrightYellow',
+			'ansiBrightBlue', 'ansiBrightMagenta', 'ansiBrightCyan', 'ansiBrightWhite',
+		] as const;
+
+		// Themes that should have ANSI colors (all except custom)
+		const themesWithAnsi = themes.filter((t) => t.id !== 'custom');
+
+		it('should have ANSI colors on all built-in themes (except custom)', () => {
+			for (const theme of themesWithAnsi) {
+				for (const field of ANSI_COLOR_FIELDS) {
+					expect(
+						theme.colors[field],
+						`${theme.id} missing ${field}`
+					).toBeDefined();
+				}
+			}
+		});
+
+		it('should have ansiSelection on all built-in themes (except custom)', () => {
+			for (const theme of themesWithAnsi) {
+				expect(
+					theme.colors.ansiSelection,
+					`${theme.id} missing ansiSelection`
+				).toBeDefined();
+			}
+		});
+
+		it('should have valid CSS color values for all ANSI fields', () => {
+			for (const theme of themesWithAnsi) {
+				for (const field of ANSI_COLOR_FIELDS) {
+					const value = theme.colors[field];
+					if (value !== undefined) {
+						expect(
+							isValidCssColor(value),
+							`${theme.id}.${field}: "${value}" is not a valid CSS color`
+						).toBe(true);
+					}
+				}
+			}
+		});
+
+		it('should have ansiSelection as rgba for transparency', () => {
+			for (const theme of themesWithAnsi) {
+				const sel = theme.colors.ansiSelection;
+				if (sel !== undefined) {
+					expect(sel.startsWith('rgba(')).toBe(true);
+				}
+			}
+		});
+
+		it('custom theme should NOT have ANSI colors (tests fallback path)', () => {
+			const custom = THEMES.custom;
+			for (const field of ANSI_COLOR_FIELDS) {
+				expect(custom.colors[field]).toBeUndefined();
+			}
+		});
+	});
 });

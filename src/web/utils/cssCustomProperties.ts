@@ -33,9 +33,10 @@ export type ThemeCSSProperty =
 	| '--maestro-mode';
 
 /**
- * Maps theme color keys to CSS custom property names
+ * Maps core theme color keys to CSS custom property names.
+ * Optional ANSI terminal colors are excluded — they're only used by xterm.js directly.
  */
-const colorToCSSProperty: Record<keyof ThemeColors, ThemeCSSProperty> = {
+const colorToCSSProperty: Partial<Record<keyof ThemeColors, ThemeCSSProperty>> = {
 	bgMain: '--maestro-bg-main',
 	bgSidebar: '--maestro-bg-sidebar',
 	bgActivity: '--maestro-bg-activity',

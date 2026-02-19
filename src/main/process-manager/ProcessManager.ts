@@ -44,6 +44,46 @@ export class ProcessManager extends EventEmitter {
 	}
 
 	/**
+	 * Spawn a terminal PTY for a specific terminal tab.
+	 * This is a convenience wrapper around spawn() that forces terminal mode
+	 * with appropriate defaults for xterm.js integration.
+	 *
+	 * @param config.sessionId - Full session ID in format {sessionId}-terminal-{tabId}
+	 * @param config.cwd - Working directory for the shell
+	 * @param config.shell - Shell to use (e.g., 'zsh', 'bash', '/usr/local/bin/zsh')
+	 * @param config.shellArgs - Additional shell arguments
+	 * @param config.shellEnvVars - Custom environment variables
+	 * @param config.cols - Initial column count (default: 80)
+	 * @param config.rows - Initial row count (default: 24)
+	 */
+	spawnTerminalTab(config: {
+		sessionId: string;
+		cwd: string;
+		shell?: string;
+		shellArgs?: string;
+		shellEnvVars?: Record<string, string>;
+		cols?: number;
+		rows?: number;
+	}): SpawnResult {
+		const { sessionId, cwd, shell, shellArgs, shellEnvVars } = config;
+
+		// PtySpawner uses the `shell` field (not `command`) for terminal mode.
+		// Default to zsh on Unix, powershell on Windows.
+		const resolvedShell = shell || (process.platform === 'win32' ? 'powershell.exe' : 'zsh');
+
+		return this.spawn({
+			sessionId,
+			toolType: 'terminal',
+			cwd,
+			command: resolvedShell,
+			args: [],
+			shell: resolvedShell,
+			shellArgs,
+			shellEnvVars,
+		});
+	}
+
+	/**
 	 * Spawn a new process for a session
 	 */
 	spawn(config: ProcessConfig): SpawnResult {

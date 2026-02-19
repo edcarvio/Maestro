@@ -651,6 +651,149 @@ describe('process-manager.ts', () => {
 				expect(processManager.get(sessionId)).toBeUndefined();
 			});
 		});
+
+		describe('spawnTerminalTab convenience method', () => {
+			let mockPtyWrite: ReturnType<typeof vi.fn>;
+			let mockPtyKill: ReturnType<typeof vi.fn>;
+			let mockPtyResize: ReturnType<typeof vi.fn>;
+			let dataCallback: ((data: string) => void) | null;
+			let exitCallback: ((exitData: { exitCode: number }) => void) | null;
+
+			function createMockPty() {
+				mockPtyWrite = vi.fn();
+				mockPtyKill = vi.fn();
+				mockPtyResize = vi.fn();
+				dataCallback = null;
+				exitCallback = null;
+
+				return {
+					pid: 42,
+					write: mockPtyWrite,
+					kill: mockPtyKill,
+					resize: mockPtyResize,
+					onData: (cb: (data: string) => void) => { dataCallback = cb; },
+					onExit: (cb: (exitData: { exitCode: number }) => void) => { exitCallback = cb; },
+				};
+			}
+
+			beforeEach(() => {
+				const mockPty = createMockPty();
+				vi.mocked(pty.spawn).mockReturnValue(mockPty as any);
+			});
+
+			afterEach(() => {
+				processManager.killAll();
+			});
+
+			it('should spawn a terminal PTY with the given session ID and cwd', () => {
+				const sessionId = 'abc123-terminal-def456';
+				const result = processManager.spawnTerminalTab({
+					sessionId,
+					cwd: '/home/user/project',
+				});
+
+				expect(result.success).toBe(true);
+				expect(result.pid).toBe(42);
+				expect(pty.spawn).toHaveBeenCalled();
+
+				// Verify the process is registered with the correct session ID
+				const proc = processManager.get(sessionId);
+				expect(proc).toBeDefined();
+				expect(proc?.sessionId).toBe(sessionId);
+				expect(proc?.isTerminal).toBe(true);
+			});
+
+			it('should use custom shell when provided', () => {
+				processManager.spawnTerminalTab({
+					sessionId: 'abc123-terminal-def456',
+					cwd: '/tmp',
+					shell: '/usr/local/bin/fish',
+				});
+
+				expect(pty.spawn).toHaveBeenCalledWith(
+					'/usr/local/bin/fish',
+					expect.any(Array),
+					expect.any(Object)
+				);
+			});
+
+			it('should default to zsh on non-Windows platforms', () => {
+				const originalPlatform = process.platform;
+				Object.defineProperty(process, 'platform', {
+					value: 'darwin',
+					configurable: true,
+				});
+
+				processManager.spawnTerminalTab({
+					sessionId: 'abc123-terminal-def456',
+					cwd: '/tmp',
+				});
+
+				// The command passed to pty.spawn should be 'zsh' (the default)
+				expect(pty.spawn).toHaveBeenCalledWith(
+					'zsh',
+					expect.any(Array),
+					expect.any(Object)
+				);
+
+				Object.defineProperty(process, 'platform', {
+					value: originalPlatform,
+					configurable: true,
+				});
+			});
+
+			it('should pass through shell args and env vars', () => {
+				processManager.spawnTerminalTab({
+					sessionId: 'abc123-terminal-def456',
+					cwd: '/tmp',
+					shellArgs: '--no-rcs',
+					shellEnvVars: { FOO: 'bar' },
+				});
+
+				expect(pty.spawn).toHaveBeenCalled();
+				const proc = processManager.get('abc123-terminal-def456');
+				expect(proc).toBeDefined();
+			});
+
+			it('should emit raw data for spawned terminal tab (xterm.js format)', () => {
+				const sessionId = 'abc123-terminal-def456';
+				const emittedData: string[] = [];
+
+				processManager.on('data', (_sid: string, data: string) => {
+					emittedData.push(data);
+				});
+
+				processManager.spawnTerminalTab({
+					sessionId,
+					cwd: '/tmp',
+				});
+
+				// Simulate raw PTY output with ANSI codes
+				const rawData = '\x1b[1;34muser@host\x1b[0m:~$ ';
+				dataCallback?.(rawData);
+
+				expect(emittedData).toHaveLength(1);
+				expect(emittedData[0]).toBe(rawData); // Raw, no filtering
+			});
+
+			it('should support kill and interrupt on spawned terminal tab', () => {
+				const sessionId = 'abc123-terminal-def456';
+				processManager.spawnTerminalTab({
+					sessionId,
+					cwd: '/tmp',
+				});
+
+				// Interrupt should send Ctrl+C
+				const interruptResult = processManager.interrupt(sessionId);
+				expect(interruptResult).toBe(true);
+				expect(mockPtyWrite).toHaveBeenCalledWith('\x03');
+
+				// Kill should terminate
+				const killResult = processManager.kill(sessionId);
+				expect(killResult).toBe(true);
+				expect(mockPtyKill).toHaveBeenCalled();
+			});
+		});
 	});
 
 	describe('data buffering', () => {

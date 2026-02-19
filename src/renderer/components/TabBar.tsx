@@ -1633,6 +1633,35 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 	const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 	const contextMenuRef = useRef<HTMLDivElement>(null);
 
+	// --- Tab transition animations ---
+	// Entrance: only animate tabs created within the last 500ms (not pre-existing on session switch)
+	const [shouldAnimateEnter] = useState(() => Date.now() - tab.createdAt < 500);
+	// Exit: deferred close so CSS animation can play before DOM removal
+	const [isClosing, setIsClosing] = useState(false);
+	const closedRef = useRef(false);
+
+	const doClose = useCallback(() => {
+		if (closedRef.current) return;
+		closedRef.current = true;
+		onClose(tab.id);
+	}, [onClose, tab.id]);
+
+	const triggerClose = useCallback(() => {
+		if (isClosing || closedRef.current) return;
+		setIsClosing(true);
+		// Fallback: if animation doesn't fire (prefers-reduced-motion), close after timeout
+		setTimeout(doClose, 200);
+	}, [isClosing, doClose]);
+
+	const handleAnimationEnd = useCallback(
+		(e: React.AnimationEvent) => {
+			if (e.animationName === 'tab-exit') {
+				doClose();
+			}
+		},
+		[doClose]
+	);
+
 	const handleClick = useCallback(() => {
 		onSelect(tab.id);
 	}, [onSelect, tab.id]);
@@ -1646,9 +1675,9 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 	const handleClose = useCallback(
 		(e: React.MouseEvent) => {
 			e.stopPropagation();
-			onClose(tab.id);
+			triggerClose();
 		},
-		[onClose, tab.id]
+		[triggerClose]
 	);
 
 	// Middle-click to close
@@ -1656,10 +1685,10 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 		(e: React.MouseEvent) => {
 			if (e.button === 1) {
 				e.preventDefault();
-				onClose(tab.id);
+				triggerClose();
 			}
 		},
-		[onClose, tab.id]
+		[triggerClose]
 	);
 
 	// Right-click to open context menu
@@ -1703,9 +1732,9 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 	}, [onRequestRename, tab.id]);
 
 	const handleContextClose = useCallback(() => {
-		onClose(tab.id);
 		setContextMenu(null);
-	}, [onClose, tab.id]);
+		triggerClose();
+	}, [triggerClose]);
 
 	const handleContextCloseOthers = useCallback(() => {
 		onCloseOthers?.(tab.id);
@@ -1757,7 +1786,7 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 	return (
 		<>
 			<div
-				className={`relative flex items-center gap-1.5 px-3 py-1.5 cursor-pointer select-none shrink-0 transition-colors duration-100 ring-1 ring-inset ${isDragging ? 'opacity-40' : ''}`}
+				className={`relative flex items-center gap-1.5 px-3 py-1.5 cursor-pointer select-none shrink-0 transition-colors duration-100 ring-1 ring-inset ${isDragging ? 'opacity-40' : ''} ${shouldAnimateEnter && !isClosing ? 'animate-tab-enter' : ''} ${isClosing ? 'animate-tab-exit' : ''}`}
 				style={tabStyle}
 				onClick={handleClick}
 				onDoubleClick={handleDoubleClick}
@@ -1765,6 +1794,7 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 				onMouseEnter={() => setIsHovered(true)}
 				onMouseLeave={() => setIsHovered(false)}
 				onContextMenu={handleContextMenu}
+				onAnimationEnd={handleAnimationEnd}
 				draggable
 				onDragStart={(e) => onDragStart(tab.id, e)}
 				onDragOver={(e) => onDragOver(tab.id, e)}

@@ -143,6 +143,13 @@ function findTerminalTab(name: string): HTMLElement {
 	return tabText.closest('[draggable]') as HTMLElement;
 }
 
+/** Complete exit animation on a tab (needed because close is deferred for animation) */
+function completeTabExitAnimation(tabEl: HTMLElement) {
+	const event = new Event('animationend', { bubbles: true });
+	Object.defineProperty(event, 'animationName', { value: 'tab-exit' });
+	tabEl.dispatchEvent(event);
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -303,9 +310,14 @@ describe('Terminal tab context menu', () => {
 			const tab = createTerminalTab({ id: 'term-1', name: 'Shell' });
 			const { props } = renderTabBar([tab]);
 
-			rightClickTab(findTerminalTab('Shell'));
+			const tabEl = findTerminalTab('Shell');
+			rightClickTab(tabEl);
 			act(() => {
 				fireEvent.click(screen.getByTestId('terminal-ctx-close'));
+			});
+			// Close is deferred for exit animation — complete it
+			act(() => {
+				completeTabExitAnimation(tabEl);
 			});
 
 			expect(props.onTerminalTabClose).toHaveBeenCalledWith('term-1');
@@ -748,7 +760,8 @@ describe('Terminal tab context menu', () => {
 			const { props } = renderTabBar([tab]);
 
 			// Right-click and rename
-			rightClickTab(findTerminalTab('Workflow'));
+			const tabEl = findTerminalTab('Workflow');
+			rightClickTab(tabEl);
 			act(() => {
 				fireEvent.click(screen.getByTestId('terminal-ctx-rename'));
 			});
@@ -756,9 +769,13 @@ describe('Terminal tab context menu', () => {
 			expect(screen.queryByTestId('terminal-tab-context-menu')).toBeNull();
 
 			// Right-click again and close
-			rightClickTab(findTerminalTab('Workflow'));
+			rightClickTab(tabEl);
 			act(() => {
 				fireEvent.click(screen.getByTestId('terminal-ctx-close'));
+			});
+			// Close is deferred for exit animation — complete it
+			act(() => {
+				completeTabExitAnimation(tabEl);
 			});
 			expect(props.onTerminalTabClose).toHaveBeenCalledWith('term-1');
 			expect(screen.queryByTestId('terminal-tab-context-menu')).toBeNull();
@@ -791,8 +808,11 @@ describe('Terminal tab context menu', () => {
 			expect(props.onRequestTerminalTabRename).toHaveBeenCalledWith('term-1');
 
 			// Close Tab B
-			rightClickTab(findTerminalTab('Tab B'));
+			const tabBEl = findTerminalTab('Tab B');
+			rightClickTab(tabBEl);
 			act(() => { fireEvent.click(screen.getByTestId('terminal-ctx-close')); });
+			// Close is deferred for exit animation — complete it
+			act(() => { completeTabExitAnimation(tabBEl); });
 			expect(props.onTerminalTabClose).toHaveBeenCalledWith('term-2');
 		});
 	});

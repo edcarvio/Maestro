@@ -1850,6 +1850,14 @@ describe('MainPanel', () => {
 
 			expect(screen.queryByTestId('input-area')).not.toBeInTheDocument();
 		});
+
+		it('should hide input area in terminal mode (xterm handles its own input)', () => {
+			const session = createSession({ inputMode: 'terminal' });
+
+			render(<MainPanel {...defaultProps} activeSession={session} />);
+
+			expect(screen.queryByTestId('input-area')).not.toBeInTheDocument();
+		});
 	});
 
 	describe('Git diff preview', () => {

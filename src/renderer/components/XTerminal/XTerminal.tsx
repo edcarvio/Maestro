@@ -75,6 +75,8 @@ export interface XTerminalHandle {
 	searchNext: () => boolean;
 	/** Return to the previous search match */
 	searchPrevious: () => boolean;
+	/** Clear search decorations/highlights from the terminal */
+	clearSearch: () => void;
 	/** Get the currently selected text in the terminal */
 	getSelection: () => string;
 	/** Re-fit the terminal to its container dimensions */
@@ -171,6 +173,7 @@ const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({
 	const searchAddonRef = useRef<SearchAddon | null>(null);
 	const initRef = useRef(false);
 	const cleanupFnsRef = useRef<Array<() => void>>([]);
+	const lastSearchQueryRef = useRef<string>('');
 	const [isFocused, setIsFocused] = useState(false);
 
 	// Write batching: accumulates PTY data and flushes once per animation frame
@@ -186,9 +189,25 @@ const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({
 		focus: () => terminalRef.current?.focus(),
 		clear: () => terminalRef.current?.clear(),
 		scrollToBottom: () => terminalRef.current?.scrollToBottom(),
-		search: (query: string) => searchAddonRef.current?.findNext(query) ?? false,
-		searchNext: () => searchAddonRef.current?.findNext('') ?? false,
-		searchPrevious: () => searchAddonRef.current?.findPrevious('') ?? false,
+		search: (query: string) => {
+			if (!searchAddonRef.current || !query) return false;
+			lastSearchQueryRef.current = query;
+			return searchAddonRef.current.findNext(query, {
+				caseSensitive: false,
+				wholeWord: false,
+				regex: false,
+				incremental: true,
+			});
+		},
+		searchNext: () => {
+			if (!searchAddonRef.current || !lastSearchQueryRef.current) return false;
+			return searchAddonRef.current.findNext(lastSearchQueryRef.current);
+		},
+		searchPrevious: () => {
+			if (!searchAddonRef.current || !lastSearchQueryRef.current) return false;
+			return searchAddonRef.current.findPrevious(lastSearchQueryRef.current);
+		},
+		clearSearch: () => searchAddonRef.current?.clearDecorations(),
 		getSelection: () => terminalRef.current?.getSelection() ?? '',
 		resize: () => {
 			try {

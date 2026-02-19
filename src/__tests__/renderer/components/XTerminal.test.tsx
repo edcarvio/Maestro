@@ -286,11 +286,12 @@ describe('XTerminal', () => {
 		expect(typeof ref.current!.search).toBe('function');
 		expect(typeof ref.current!.searchNext).toBe('function');
 		expect(typeof ref.current!.searchPrevious).toBe('function');
+		expect(typeof ref.current!.clearSearch).toBe('function');
 		expect(typeof ref.current!.getSelection).toBe('function');
 		expect(typeof ref.current!.resize).toBe('function');
 	});
 
-	it('imperative search delegates to SearchAddon', () => {
+	it('imperative search delegates to SearchAddon with incremental options', () => {
 		const ref = createRef<XTerminalHandle>();
 
 		render(
@@ -303,10 +304,86 @@ describe('XTerminal', () => {
 		);
 
 		ref.current!.search('hello');
-		expect(searchMethods.findNext).toHaveBeenCalledWith('hello');
+		expect(searchMethods.findNext).toHaveBeenCalledWith('hello', {
+			caseSensitive: false,
+			wholeWord: false,
+			regex: false,
+			incremental: true,
+		});
+	});
+
+	it('search returns false for empty query without calling SearchAddon', () => {
+		const ref = createRef<XTerminalHandle>();
+
+		render(
+			<XTerminal
+				ref={ref}
+				sessionId="test-session-search-empty"
+				theme={defaultTheme}
+				fontFamily="Menlo"
+			/>
+		);
+
+		const result = ref.current!.search('');
+		expect(result).toBe(false);
+		expect(searchMethods.findNext).not.toHaveBeenCalled();
+	});
+
+	it('searchNext and searchPrevious re-use the last search query', () => {
+		const ref = createRef<XTerminalHandle>();
+
+		render(
+			<XTerminal
+				ref={ref}
+				sessionId="test-session-search-nav"
+				theme={defaultTheme}
+				fontFamily="Menlo"
+			/>
+		);
+
+		// First perform a search to set the stored query
+		ref.current!.search('world');
+		searchMethods.findNext.mockClear();
+
+		ref.current!.searchNext();
+		expect(searchMethods.findNext).toHaveBeenCalledWith('world');
 
 		ref.current!.searchPrevious();
-		expect(searchMethods.findPrevious).toHaveBeenCalled();
+		expect(searchMethods.findPrevious).toHaveBeenCalledWith('world');
+	});
+
+	it('searchNext and searchPrevious return false when no prior search', () => {
+		const ref = createRef<XTerminalHandle>();
+
+		render(
+			<XTerminal
+				ref={ref}
+				sessionId="test-session-search-no-query"
+				theme={defaultTheme}
+				fontFamily="Menlo"
+			/>
+		);
+
+		expect(ref.current!.searchNext()).toBe(false);
+		expect(ref.current!.searchPrevious()).toBe(false);
+		expect(searchMethods.findNext).not.toHaveBeenCalled();
+		expect(searchMethods.findPrevious).not.toHaveBeenCalled();
+	});
+
+	it('clearSearch delegates to SearchAddon.clearDecorations', () => {
+		const ref = createRef<XTerminalHandle>();
+
+		render(
+			<XTerminal
+				ref={ref}
+				sessionId="test-session-search-clear"
+				theme={defaultTheme}
+				fontFamily="Menlo"
+			/>
+		);
+
+		ref.current!.clearSearch();
+		expect(searchMethods.clearDecorations).toHaveBeenCalled();
 	});
 
 	it('imperative getSelection delegates to Terminal', () => {

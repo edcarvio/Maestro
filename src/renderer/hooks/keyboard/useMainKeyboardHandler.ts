@@ -261,6 +261,12 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 				trackShortcut('toggleMode');
 			} else if (ctx.isShortcut(e, 'quickAction')) {
 				e.preventDefault();
+				// In terminal mode, Cmd+K clears the terminal instead of opening Quick Actions
+				if (ctx.activeSession?.inputMode === 'terminal') {
+					ctx.incrementTerminalClearSignal();
+					trackShortcut('clearTerminal');
+					return;
+				}
 				// Only open quick actions if there are agents
 				if (ctx.sessions.length > 0) {
 					ctx.setQuickActionInitialMode('main');

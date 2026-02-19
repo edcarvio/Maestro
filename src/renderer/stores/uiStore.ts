@@ -45,6 +45,9 @@ export interface UIStoreState {
 	// Terminal search (xterm.js scrollback search)
 	terminalSearchOpen: boolean;
 
+	// Terminal clear signal (incremented to trigger active terminal clear)
+	terminalClearSignal: number;
+
 	// Session filter (sidebar agent search)
 	sessionFilterOpen: boolean;
 
@@ -101,6 +104,9 @@ export interface UIStoreActions {
 	// Terminal search
 	setTerminalSearchOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
 
+	// Terminal clear
+	incrementTerminalClearSignal: () => void;
+
 	// Session filter (sidebar agent search)
 	setSessionFilterOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
 
@@ -144,6 +150,7 @@ export const useUIStore = create<UIStore>()((set) => ({
 	outputSearchOpen: false,
 	outputSearchQuery: '',
 	terminalSearchOpen: false,
+	terminalClearSignal: 0,
 	sessionFilterOpen: false,
 	historySearchFilterOpen: false,
 	groupChatHistorySearchFilterOpen: false,
@@ -182,6 +189,7 @@ export const useUIStore = create<UIStore>()((set) => ({
 	setOutputSearchOpen: (v) => set((s) => ({ outputSearchOpen: resolve(v, s.outputSearchOpen) })),
 	setOutputSearchQuery: (v) => set((s) => ({ outputSearchQuery: resolve(v, s.outputSearchQuery) })),
 	setTerminalSearchOpen: (v) => set((s) => ({ terminalSearchOpen: resolve(v, s.terminalSearchOpen) })),
+	incrementTerminalClearSignal: () => set((s) => ({ terminalClearSignal: s.terminalClearSignal + 1 })),
 
 	setSessionFilterOpen: (v) => set((s) => ({ sessionFilterOpen: resolve(v, s.sessionFilterOpen) })),
 	setHistorySearchFilterOpen: (v) =>

@@ -22,6 +22,7 @@ import {
 	getTerminalSessionId,
 	parseTerminalSessionId,
 } from '../utils/terminalTabHelpers';
+import { useUIStore } from '../stores/uiStore';
 
 interface TerminalViewProps {
 	session: Session;
@@ -122,6 +123,15 @@ export const TerminalView = memo(function TerminalView({
 			return () => clearTimeout(timer);
 		}
 	}, [activeTab?.id]);
+
+	// Clear active terminal when Cmd+K signal is received
+	const terminalClearSignal = useUIStore((s) => s.terminalClearSignal);
+	useEffect(() => {
+		if (terminalClearSignal > 0 && activeTab) {
+			const handle = terminalRefs.current.get(activeTab.id);
+			handle?.clear();
+		}
+	}, [terminalClearSignal, activeTab?.id]);
 
 	// Handle PTY exit for ALL tabs using session ID parsing
 	useEffect(() => {

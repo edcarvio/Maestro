@@ -7,6 +7,7 @@
  * - IPC communication with main process PTY
  * - Resize handling with debouncing
  * - Theme synchronization with Maestro themes
+ * - RAF-based write batching for high-throughput PTY data
  */
 
 import React, { useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
@@ -19,11 +20,22 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
 import type { Theme } from '../types';
 
+/** Default scrollback buffer size (lines). Balances memory usage vs. history retention. */
+export const DEFAULT_SCROLLBACK_LINES = 10000;
+
+/**
+ * Maximum write buffer size (bytes) before forcing a synchronous flush.
+ * Prevents unbounded memory growth when PTY emits faster than the display refreshes.
+ * At ~80 chars/line, 512KB ≈ 6,500 lines of buffered output.
+ */
+export const WRITE_BUFFER_FORCE_FLUSH_SIZE = 512 * 1024;
+
 interface XTerminalProps {
 	sessionId: string;
 	theme: Theme;
 	fontFamily: string;
 	fontSize?: number;
+	scrollbackLines?: number;
 	onData?: (data: string) => void;
 	onResize?: (cols: number, rows: number) => void;
 	onTitleChange?: (title: string) => void;
@@ -91,7 +103,7 @@ export function mapMaestroThemeToXterm(theme: Theme) {
 }
 
 export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XTerminal(
-	{ sessionId, theme, fontFamily, fontSize = 14, onData, onResize, onTitleChange },
+	{ sessionId, theme, fontFamily, fontSize = 14, scrollbackLines, onData, onResize, onTitleChange },
 	ref
 ) {
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -100,6 +112,13 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 	const searchAddonRef = useRef<SearchAddon | null>(null);
 	const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const sessionIdRef = useRef(sessionId);
+
+	// RAF write batching: accumulate PTY data chunks, flush once per animation frame.
+	// This dramatically reduces terminal.write() call frequency during high-throughput
+	// output (e.g. build logs, `cat` of large files) from potentially thousands/sec
+	// to ~60/sec (matching display refresh rate).
+	const writeBufferRef = useRef<string>('');
+	const rafIdRef = useRef<number>(0);
 
 	// Keep sessionId ref current for IPC callbacks
 	useEffect(() => {
@@ -117,7 +136,7 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 			fontSize,
 			theme: mapMaestroThemeToXterm(theme),
 			allowProposedApi: true,
-			scrollback: 10000,
+			scrollback: scrollbackLines || DEFAULT_SCROLLBACK_LINES,
 		});
 
 		// Load addons
@@ -157,6 +176,12 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 		searchAddonRef.current = searchAddon;
 
 		return () => {
+			// Cancel any pending write-batch RAF before disposing the terminal
+			if (rafIdRef.current) {
+				cancelAnimationFrame(rafIdRef.current);
+				rafIdRef.current = 0;
+			}
+			writeBufferRef.current = '';
 			webglAddon?.dispose();
 			term.dispose();
 			terminalRef.current = null;
@@ -204,15 +229,51 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 		return () => resizeObserver.disconnect();
 	}, [handleResize]);
 
-	// Handle PTY data from main process
+	// Flush accumulated write buffer to xterm.js terminal
+	const flushWriteBuffer = useCallback(() => {
+		rafIdRef.current = 0;
+		if (writeBufferRef.current && terminalRef.current) {
+			terminalRef.current.write(writeBufferRef.current);
+			writeBufferRef.current = '';
+		}
+	}, []);
+
+	// Handle PTY data from main process with RAF batching.
+	// Multiple IPC data events arriving within a single animation frame are coalesced
+	// into one terminal.write() call, reducing parse/render overhead during heavy output.
 	useEffect(() => {
 		const unsubscribe = window.maestro.process.onData((sid: string, data: string) => {
-			if (sid === sessionIdRef.current && terminalRef.current) {
-				terminalRef.current.write(data);
+			if (sid !== sessionIdRef.current) return;
+
+			writeBufferRef.current += data;
+
+			// Force-flush if buffer exceeds safety threshold (prevents unbounded growth)
+			if (writeBufferRef.current.length >= WRITE_BUFFER_FORCE_FLUSH_SIZE) {
+				if (rafIdRef.current) {
+					cancelAnimationFrame(rafIdRef.current);
+				}
+				flushWriteBuffer();
+				return;
+			}
+
+			// Schedule RAF flush if not already pending
+			if (!rafIdRef.current) {
+				rafIdRef.current = requestAnimationFrame(flushWriteBuffer);
 			}
 		});
-		return unsubscribe;
-	}, []);
+		return () => {
+			unsubscribe();
+			// Cancel pending RAF and flush remaining data synchronously on unmount
+			if (rafIdRef.current) {
+				cancelAnimationFrame(rafIdRef.current);
+				rafIdRef.current = 0;
+			}
+			if (writeBufferRef.current && terminalRef.current) {
+				terminalRef.current.write(writeBufferRef.current);
+				writeBufferRef.current = '';
+			}
+		};
+	}, [flushWriteBuffer]);
 
 	// Handle user input -> main process PTY
 	useEffect(() => {

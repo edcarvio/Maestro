@@ -357,4 +357,6 @@ export const PERFORMANCE_THRESHOLDS = {
 	LAYOUT_ALGORITHM: 500,
 	/** React render should be under 16ms for 60fps */
 	REACT_RENDER: 16,
+	/** Terminal write batch should flush within one animation frame (~16ms) */
+	TERMINAL_WRITE_BATCH: 16,
 } as const;

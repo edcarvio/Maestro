@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
 	createTerminalTab,
 	getTerminalTabDisplayName,
@@ -327,6 +327,104 @@ describe('terminalTabHelpers', () => {
 			const result = migrateSessionsTerminalTabs([session]);
 
 			expect(result[0].closedTerminalTabHistory).toEqual([]);
+		});
+
+		it('migrates legacy session with shellLogs but no terminalTabs', () => {
+			const legacyShellLogs = [
+				{ id: 'log-1', timestamp: 1000, source: 'user' as const, text: 'ls -la' },
+				{ id: 'log-2', timestamp: 1001, source: 'stdout' as const, text: 'total 8\ndrwxr-xr-x  2 user user 4096 ...' },
+				{ id: 'log-3', timestamp: 1002, source: 'system' as const, text: 'Process exited with code 0' },
+			];
+			const session = createMinimalSession({
+				id: 'legacy-session',
+				cwd: '/old-project',
+				shellLogs: legacyShellLogs,
+				// No terminalTabs - this is a pre-terminal-tabs session
+			});
+
+			const result = migrateSessionsTerminalTabs([session], 'bash');
+
+			// Should create terminal tabs
+			expect(result[0].terminalTabs).toHaveLength(1);
+			expect(result[0].terminalTabs![0].shellType).toBe('bash');
+			expect(result[0].terminalTabs![0].cwd).toBe('/old-project');
+			expect(result[0].activeTerminalTabId).toBe(result[0].terminalTabs![0].id);
+			expect(result[0].closedTerminalTabHistory).toEqual([]);
+			// shellLogs should be preserved (not removed by migration)
+			expect(result[0].shellLogs).toEqual(legacyShellLogs);
+		});
+
+		it('preserves shellLogs when creating terminal tabs for backwards compatibility', () => {
+			const shellLogs = [
+				{ id: 'log-1', timestamp: 1000, source: 'stdout' as const, text: 'npm test output' },
+			];
+			const session = createMinimalSession({
+				id: 'compat-session',
+				shellLogs,
+			});
+
+			const result = migrateSessionsTerminalTabs([session]);
+
+			// shellLogs are not modified during migration - they're separate from terminalTabs
+			expect(result[0].shellLogs).toBe(shellLogs); // Same reference preserved
+			expect(result[0].terminalTabs).toHaveLength(1);
+		});
+
+		it('migrates session with empty shellLogs and no terminalTabs', () => {
+			const session = createMinimalSession({
+				id: 'empty-shell-session',
+				cwd: '/project',
+				shellLogs: [],
+				// No terminalTabs
+			});
+
+			const result = migrateSessionsTerminalTabs([session], 'zsh');
+
+			expect(result[0].terminalTabs).toHaveLength(1);
+			expect(result[0].terminalTabs![0].cwd).toBe('/project');
+			expect(result[0].shellLogs).toEqual([]);
+		});
+
+		it('logs migration for sessions with legacy shellLogs', () => {
+			const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+			const session = createMinimalSession({
+				id: 'log-test-session',
+				shellLogs: [
+					{ id: 'log-1', timestamp: 1000, source: 'stdout' as const, text: 'output' },
+					{ id: 'log-2', timestamp: 1001, source: 'stdout' as const, text: 'more output' },
+				],
+			});
+
+			migrateSessionsTerminalTabs([session]);
+
+			expect(consoleSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Migrated session log-test-session to terminal tabs')
+			);
+			expect(consoleSpy).toHaveBeenCalledWith(
+				expect.stringContaining('2 legacy shellLogs entries')
+			);
+
+			consoleSpy.mockRestore();
+		});
+
+		it('does not mention shellLogs in log when session had empty shellLogs', () => {
+			const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+			const session = createMinimalSession({
+				id: 'no-logs-session',
+				shellLogs: [],
+			});
+
+			migrateSessionsTerminalTabs([session]);
+
+			const logCall = consoleSpy.mock.calls.find(
+				call => typeof call[0] === 'string' && call[0].includes('no-logs-session')
+			);
+			expect(logCall).toBeDefined();
+			expect(logCall![0]).not.toContain('legacy shellLogs');
+
+			consoleSpy.mockRestore();
 		});
 	});
 

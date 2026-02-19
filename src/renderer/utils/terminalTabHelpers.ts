@@ -117,13 +117,26 @@ export function ensureTerminalTabs(session: Session, defaultShell: string = 'zsh
  * Migrate an array of sessions to ensure all have terminal tabs.
  * Used at app startup when loading sessions from storage to handle
  * sessions created before terminal tabs support was added.
+ *
+ * Handles two migration scenarios:
+ * 1. Sessions with shellLogs but no terminalTabs (legacy terminal users) -
+ *    creates a default terminal tab. shellLogs are preserved for backwards
+ *    compatibility but are no longer written to; terminal output now flows
+ *    through xterm.js PTY buffers.
+ * 2. Sessions with neither shellLogs nor terminalTabs (new or AI-only) -
+ *    creates a default terminal tab for on-demand use.
+ *
  * Returns the migrated sessions (unchanged sessions are returned as-is).
  */
 export function migrateSessionsTerminalTabs(sessions: Session[], defaultShell: string = 'zsh'): Session[] {
 	return sessions.map(session => {
 		const migrated = ensureTerminalTabs(session, defaultShell);
 		if (migrated !== session) {
-			console.log(`[migrateSessionsTerminalTabs] Migrated session ${session.id} to terminal tabs`);
+			const hadShellLogs = session.shellLogs && session.shellLogs.length > 0;
+			console.log(
+				`[migrateSessionsTerminalTabs] Migrated session ${session.id} to terminal tabs` +
+				(hadShellLogs ? ` (had ${session.shellLogs.length} legacy shellLogs entries)` : '')
+			);
 		}
 		return migrated;
 	});

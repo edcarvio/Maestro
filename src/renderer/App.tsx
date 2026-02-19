@@ -1393,7 +1393,10 @@ function MaestroConsoleInner() {
 					liveUrl: undefined, // Clear any stale URL
 					aiLogs: [], // Deprecated - logs are now in aiTabs
 					aiTabs: resetAiTabs, // Reset tab states
-					shellLogs: correctedSession.shellLogs, // Preserve existing Command Terminal logs
+					// DEPRECATED: shellLogs is no longer used for terminal output
+				// Terminal mode uses xterm.js with direct PTY streaming
+				// Keeping field for session persistence backwards compatibility
+				shellLogs: correctedSession.shellLogs,
 					executionQueue: correctedSession.executionQueue || [], // Ensure backwards compatibility
 					activeTimeMs: correctedSession.activeTimeMs || 0, // Ensure backwards compatibility
 					// Clear runtime-only error state - no agent is running yet so there can't be an error
@@ -1842,14 +1845,7 @@ function MaestroConsoleInner() {
 							parentSessionId: parentSession.id,
 							worktreeBranch: subdir.branch || undefined,
 							aiLogs: [],
-							shellLogs: [
-								{
-									id: generateId(),
-									timestamp: Date.now(),
-									source: 'system',
-									text: 'Worktree Session Ready.',
-								},
-							],
+							shellLogs: [], // DEPRECATED: terminal uses xterm.js now
 							workLog: [],
 							contextUsage: 0,
 							inputMode: parentSession.toolType === 'terminal' ? 'terminal' : 'ai',
@@ -4372,6 +4368,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		const isAIMode = currentSession.inputMode === 'ai';
 
 		// For AI mode, use the active tab's logs; for terminal mode, use shellLogs
+		// DEPRECATED: shellLogs read for terminal mode - terminal now uses xterm.js buffer
 		const currentActiveTab = isAIMode ? getActiveTab(currentSession) : null;
 		const logs = isAIMode ? currentActiveTab?.logs || [] : currentSession.shellLogs;
 
@@ -4456,7 +4453,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 				})
 			);
 		} else {
-			// Terminal mode - update shellLogs and shellCommandHistory
+			// DEPRECATED: Terminal mode now uses xterm.js, shellLogs are no longer updated
+			// Still update shellCommandHistory for command history feature
 			const commandText = log.text.trim();
 
 			setSessions((prev) =>
@@ -4467,7 +4465,6 @@ You are taking over this conversation. Based on the context above, provide a bri
 					);
 					return {
 						...s,
-						shellLogs: newLogs,
 						shellCommandHistory: newShellCommandHistory,
 					};
 				})
@@ -6461,14 +6458,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 				parentSessionId: sessionId,
 				worktreeBranch: worktree.branch || undefined,
 				aiLogs: [],
-				shellLogs: [
-					{
-						id: generateId(),
-						timestamp: Date.now(),
-						source: 'system',
-						text: 'Worktree Session Ready.',
-					},
-				],
+				shellLogs: [], // DEPRECATED: terminal uses xterm.js now
 				workLog: [],
 				contextUsage: 0,
 				inputMode: parentSession.toolType === 'terminal' ? 'terminal' : 'ai',
@@ -6653,14 +6643,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 								// Inherit SSH configuration from parent session
 								sessionSshRemoteConfig: session.sessionSshRemoteConfig,
 								aiLogs: [],
-								shellLogs: [
-									{
-										id: generateId(),
-										timestamp: Date.now(),
-										source: 'system',
-										text: 'Shell Session Ready.',
-									},
-								],
+								shellLogs: [], // DEPRECATED: terminal uses xterm.js now
 								workLog: [],
 								contextUsage: 0,
 								inputMode: session.inputMode,
@@ -8064,14 +8047,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 				gitTags,
 				gitRefsCacheTime,
 				aiLogs: [], // Deprecated - logs are now in aiTabs
-				shellLogs: [
-					{
-						id: generateId(),
-						timestamp: Date.now(),
-						source: 'system',
-						text: 'Shell Session Ready.',
-					},
-				],
+				// DEPRECATED: shellLogs is no longer used for terminal output
+				// Terminal mode uses xterm.js with direct PTY streaming
+				// Keeping field for session persistence backwards compatibility
+				shellLogs: [],
 				workLog: [],
 				contextUsage: 0,
 				inputMode: agentId === 'terminal' ? 'terminal' : 'ai',
@@ -8247,14 +8226,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 				gitTags,
 				gitRefsCacheTime,
 				aiLogs: [],
-				shellLogs: [
-					{
-						id: generateId(),
-						timestamp: Date.now(),
-						source: 'system',
-						text: 'Shell Session Ready.',
-					},
-				],
+				shellLogs: [], // DEPRECATED: terminal uses xterm.js now
 				workLog: [],
 				contextUsage: 0,
 				inputMode: 'ai',
@@ -8790,7 +8762,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 			if (effectiveInputMode === 'terminal') {
 				console.log('[Remote] Terminal mode - using runCommand for clean output');
 
-				// Add user message to shell logs and set state to busy
+				// Set state to busy (shellLogs mutation removed - terminal uses xterm.js now)
 				setSessions((prev) =>
 					prev.map((s) => {
 						if (s.id !== sessionId) return s;
@@ -8798,15 +8770,6 @@ You are taking over this conversation. Based on the context above, provide a bri
 							...s,
 							state: 'busy' as SessionState,
 							busySource: 'terminal',
-							shellLogs: [
-								...s.shellLogs,
-								{
-									id: generateId(),
-									timestamp: Date.now(),
-									source: 'user',
-									text: command,
-								},
-							],
 						};
 					})
 				);
@@ -8830,7 +8793,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 					console.log('[Remote] Terminal command completed successfully');
 				} catch (error: unknown) {
 					console.error('[Remote] Terminal command failed:', error);
-					const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+					// shellLogs error mutation removed - terminal uses xterm.js now
 					setSessions((prev) =>
 						prev.map((s) => {
 							if (s.id !== sessionId) return s;
@@ -8839,15 +8802,6 @@ You are taking over this conversation. Based on the context above, provide a bri
 								state: 'idle' as SessionState,
 								busySource: undefined,
 								thinkingStartTime: undefined,
-								shellLogs: [
-									...s.shellLogs,
-									{
-										id: generateId(),
-										timestamp: Date.now(),
-										source: 'system',
-										text: `Error: Failed to run command - ${errorMessage}`,
-									},
-								],
 							};
 						})
 					);
@@ -9457,9 +9411,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 										return t;
 									});
 								}
-							} else {
-								updatedSession.shellLogs = [...s.shellLogs, killLog];
 							}
+							// DEPRECATED: shellLogs kill log removed - terminal uses xterm.js now
 
 							// If there are queued items, start processing the next one
 							if (s.executionQueue.length > 0) {
@@ -9618,9 +9571,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 									}),
 								};
 							}
+							// DEPRECATED: shellLogs error log removed - terminal uses xterm.js now
 							return {
 								...s,
-								shellLogs: [...s.shellLogs, errorLog],
 								state: 'idle',
 								busySource: undefined,
 								thinkingStartTime: undefined,
@@ -10129,14 +10082,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 							// Inherit SSH configuration from parent session
 							sessionSshRemoteConfig: activeSession.sessionSshRemoteConfig,
 							aiLogs: [],
-							shellLogs: [
-								{
-									id: generateId(),
-									timestamp: Date.now(),
-									source: 'system',
-									text: 'Worktree Session Ready.',
-								},
-							],
+							shellLogs: [], // DEPRECATED: terminal uses xterm.js now
 							workLog: [],
 							contextUsage: 0,
 							inputMode: activeSession.toolType === 'terminal' ? 'terminal' : 'ai',
@@ -10315,14 +10261,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 					parentSessionId: activeSession.id,
 					worktreeBranch: branchName,
 					aiLogs: [],
-					shellLogs: [
-						{
-							id: generateId(),
-							timestamp: Date.now(),
-							source: 'system',
-							text: 'Worktree Session Ready.',
-						},
-					],
+					shellLogs: [], // DEPRECATED: terminal uses xterm.js now
 					workLog: [],
 					contextUsage: 0,
 					inputMode: activeSession.toolType === 'terminal' ? 'terminal' : 'ai',
@@ -10479,14 +10418,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 				parentSessionId: createWorktreeSession.id,
 				worktreeBranch: branchName,
 				aiLogs: [],
-				shellLogs: [
-					{
-						id: generateId(),
-						timestamp: Date.now(),
-						source: 'system',
-						text: 'Worktree Session Ready.',
-					},
-				],
+				shellLogs: [], // DEPRECATED: terminal uses xterm.js now
 				workLog: [],
 				contextUsage: 0,
 				inputMode: createWorktreeSession.toolType === 'terminal' ? 'terminal' : 'ai',
@@ -12559,14 +12491,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 									gitTags,
 									gitRefsCacheTime,
 									aiLogs: [],
-									shellLogs: [
-										{
-											id: generateId(),
-											timestamp: Date.now(),
-											source: 'system',
-											text: 'Shell Session Ready.',
-										},
-									],
+									shellLogs: [], // DEPRECATED: terminal uses xterm.js now
 									workLog: [],
 									contextUsage: 0,
 									inputMode: 'ai',

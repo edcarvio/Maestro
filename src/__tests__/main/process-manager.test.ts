@@ -23,6 +23,7 @@ vi.mock('../../main/utils/logger', () => ({
 }));
 
 import * as fs from 'fs';
+import * as pty from 'node-pty';
 
 import {
 	aggregateModelUsage,
@@ -427,6 +428,158 @@ describe('process-manager.ts', () => {
 			it('should return null for unknown session', () => {
 				const event = processManager.parseLine('non-existent-session', '{"type":"test"}');
 				expect(event).toBeNull();
+			});
+		});
+
+		describe('write and interrupt for xterm.js terminal tabs', () => {
+			let mockPtyWrite: ReturnType<typeof vi.fn>;
+			let mockPtyKill: ReturnType<typeof vi.fn>;
+			let mockPtyResize: ReturnType<typeof vi.fn>;
+			let dataCallback: ((data: string) => void) | null;
+			let exitCallback: ((exitData: { exitCode: number }) => void) | null;
+
+			function createMockPty() {
+				mockPtyWrite = vi.fn();
+				mockPtyKill = vi.fn();
+				mockPtyResize = vi.fn();
+				dataCallback = null;
+				exitCallback = null;
+
+				return {
+					pid: 42,
+					write: mockPtyWrite,
+					kill: mockPtyKill,
+					resize: mockPtyResize,
+					onData: (cb: (data: string) => void) => { dataCallback = cb; },
+					onExit: (cb: (exitData: { exitCode: number }) => void) => { exitCallback = cb; },
+				};
+			}
+
+			beforeEach(() => {
+				const mockPty = createMockPty();
+				vi.mocked(pty.spawn).mockReturnValue(mockPty as any);
+			});
+
+			afterEach(() => {
+				processManager.killAll();
+			});
+
+			it('should write raw data to PTY for xterm.js terminal tabs', () => {
+				// Spawn a terminal tab with xterm.js session ID format
+				const sessionId = 'session-1-terminal-tab-1';
+				processManager.spawn({
+					sessionId,
+					toolType: 'terminal',
+					cwd: '/test',
+					command: 'zsh',
+					args: [],
+				});
+
+				// Write data (simulates xterm.js onData forwarding user input)
+				const result = processManager.write(sessionId, 'ls -la\r');
+				expect(result).toBe(true);
+				expect(mockPtyWrite).toHaveBeenCalledWith('ls -la\r');
+			});
+
+			it('should write Ctrl+C (\\x03) to PTY for xterm.js terminal tabs', () => {
+				const sessionId = 'session-1-terminal-tab-1';
+				processManager.spawn({
+					sessionId,
+					toolType: 'terminal',
+					cwd: '/test',
+					command: 'zsh',
+					args: [],
+				});
+
+				// Ctrl+C in xterm.js is sent as \x03 ETX character
+				const result = processManager.write(sessionId, '\x03');
+				expect(result).toBe(true);
+				expect(mockPtyWrite).toHaveBeenCalledWith('\x03');
+			});
+
+			it('should not track last command for xterm.js terminal tabs', () => {
+				const sessionId = 'session-1-terminal-tab-1';
+				processManager.spawn({
+					sessionId,
+					toolType: 'terminal',
+					cwd: '/test',
+					command: 'zsh',
+					args: [],
+				});
+
+				// Write a command to an xterm.js tab
+				processManager.write(sessionId, 'npm run dev\r');
+
+				// Verify lastCommand is not set (xterm handles echoing)
+				const proc = processManager.get(sessionId);
+				expect(proc?.lastCommand).toBeUndefined();
+			});
+
+			it('should send interrupt (\\x03) via interrupt method for PTY processes', () => {
+				const sessionId = 'session-1-terminal-tab-1';
+				processManager.spawn({
+					sessionId,
+					toolType: 'terminal',
+					cwd: '/test',
+					command: 'zsh',
+					args: [],
+				});
+
+				const result = processManager.interrupt(sessionId);
+				expect(result).toBe(true);
+				expect(mockPtyWrite).toHaveBeenCalledWith('\x03');
+			});
+
+			it('should return false for interrupt on non-existent session', () => {
+				const result = processManager.interrupt('non-existent-session');
+				expect(result).toBe(false);
+			});
+
+			it('should return false for write on non-existent session', () => {
+				const result = processManager.write('non-existent-session', 'hello');
+				expect(result).toBe(false);
+			});
+
+			it('should emit raw data for xterm.js terminal tabs (no filtering)', () => {
+				const sessionId = 'session-1-terminal-tab-1';
+				const emittedData: string[] = [];
+
+				processManager.on('data', (_sid: string, data: string) => {
+					emittedData.push(data);
+				});
+
+				processManager.spawn({
+					sessionId,
+					toolType: 'terminal',
+					cwd: '/test',
+					command: 'zsh',
+					args: [],
+				});
+
+				// Simulate PTY data output (ANSI escape sequences should pass through)
+				const ansiData = '\x1b[32mgreen text\x1b[0m\r\n';
+				dataCallback?.(ansiData);
+
+				expect(emittedData).toHaveLength(1);
+				expect(emittedData[0]).toBe(ansiData);
+			});
+
+			it('should handle kill for xterm.js terminal tab', () => {
+				const sessionId = 'session-1-terminal-tab-1';
+				processManager.spawn({
+					sessionId,
+					toolType: 'terminal',
+					cwd: '/test',
+					command: 'zsh',
+					args: [],
+				});
+
+				const result = processManager.kill(sessionId);
+				expect(result).toBe(true);
+				expect(mockPtyKill).toHaveBeenCalled();
+
+				// Process should be removed from the map
+				expect(processManager.get(sessionId)).toBeUndefined();
 			});
 		});
 	});

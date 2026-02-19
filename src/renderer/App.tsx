@@ -7746,10 +7746,22 @@ You are taking over this conversation. Based on the context above, provide a bri
 				console.error('Failed to kill AI process:', error);
 			}
 
+			// Kill legacy terminal process
 			try {
 				await window.maestro.process.kill(`${id}-terminal`);
 			} catch (error) {
 				console.error('Failed to kill terminal process:', error);
+			}
+
+			// Kill all xterm.js terminal tab PTYs
+			if (session.terminalTabs) {
+				for (const tab of session.terminalTabs) {
+					try {
+						await window.maestro.process.kill(getTerminalSessionId(id, tab.id));
+					} catch (error) {
+						// Ignore - tab PTY may already be dead
+					}
+				}
 			}
 
 			// Delete associated playbooks
@@ -7814,10 +7826,22 @@ You are taking over this conversation. Based on the context above, provide a bri
 						console.error('Failed to kill AI process:', error);
 					}
 
+					// Kill legacy terminal process
 					try {
 						await window.maestro.process.kill(`${session.id}-terminal`);
 					} catch (error) {
 						console.error('Failed to kill terminal process:', error);
+					}
+
+					// Kill all xterm.js terminal tab PTYs
+					if (session.terminalTabs) {
+						for (const tab of session.terminalTabs) {
+							try {
+								await window.maestro.process.kill(getTerminalSessionId(session.id, tab.id));
+							} catch (error) {
+								// Ignore - tab PTY may already be dead
+							}
+						}
 					}
 
 					try {
@@ -8979,10 +9003,15 @@ You are taking over this conversation. Based on the context above, provide a bri
 
 		const currentMode = activeSession.inputMode;
 		const activeTab = getActiveTab(activeSession);
+		// For AI mode: target the active AI tab's PTY session
+		// For terminal mode: target the active xterm.js terminal tab's PTY session
+		const activeTermTab = getActiveTerminalTab(activeSession);
 		const targetSessionId =
 			currentMode === 'ai'
 				? `${activeSession.id}-ai-${activeTab?.id || 'default'}`
-				: `${activeSession.id}-terminal`;
+				: activeTermTab
+					? getTerminalSessionId(activeSession.id, activeTermTab.id)
+					: `${activeSession.id}-terminal`;
 
 		try {
 			// Cancel any pending synopsis processes for this session

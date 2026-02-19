@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Session, SessionState, ThinkingMode } from '../../types';
 import { createTab, closeTab } from '../../utils/tabHelpers';
+import { getActiveTerminalTab, getTerminalSessionId } from '../../utils/terminalTabHelpers';
 
 /**
  * Dependencies for the useRemoteIntegration hook.
@@ -179,8 +180,13 @@ export function useRemoteIntegration(deps: UseRemoteIntegrationDeps): UseRemoteI
 
 				// Use the same logic as handleInterrupt
 				const currentMode = session.inputMode;
+				const activeTermTab = getActiveTerminalTab(session);
 				const targetSessionId =
-					currentMode === 'ai' ? `${session.id}-ai` : `${session.id}-terminal`;
+					currentMode === 'ai'
+						? `${session.id}-ai`
+						: activeTermTab
+							? getTerminalSessionId(session.id, activeTermTab.id)
+							: `${session.id}-terminal`;
 
 				try {
 					// Send interrupt signal (Ctrl+C)

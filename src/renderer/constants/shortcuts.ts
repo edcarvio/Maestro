@@ -119,6 +119,16 @@ export const FIXED_SHORTCUTS: Record<string, Shortcut> = {
 		label: 'Search Terminal (in Terminal Mode)',
 		keys: ['Meta', 'f'],
 	},
+	searchTerminalNext: {
+		id: 'searchTerminalNext',
+		label: 'Find Next (in Terminal Mode)',
+		keys: ['Meta', 'g'],
+	},
+	searchTerminalPrevious: {
+		id: 'searchTerminalPrevious',
+		label: 'Find Previous (in Terminal Mode)',
+		keys: ['Meta', 'Shift', 'g'],
+	},
 	filePreviewBack: {
 		id: 'filePreviewBack',
 		label: 'File Preview: Go Back',

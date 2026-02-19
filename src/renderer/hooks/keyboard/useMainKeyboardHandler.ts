@@ -295,6 +295,19 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 					trackShortcut('searchTerminal');
 					return;
 				}
+
+				// Cmd+G / Cmd+Shift+G - Find next/previous in terminal search
+				if ((e.metaKey || e.ctrlKey) && e.key === 'g' && !e.altKey) {
+					e.preventDefault();
+					if (e.shiftKey) {
+						ctx.terminalViewRef?.current?.searchPrevious?.();
+						trackShortcut('searchTerminalPrevious');
+					} else {
+						ctx.terminalViewRef?.current?.searchNext?.();
+						trackShortcut('searchTerminalNext');
+					}
+					return;
+				}
 			}
 
 			// General shortcuts

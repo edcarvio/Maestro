@@ -101,7 +101,7 @@ function makeTerminalCtx(overrides: Record<string, unknown> = {}) {
 		cycleSession: vi.fn(),
 		toggleInputMode: vi.fn(),
 		setSessions: vi.fn(),
-		terminalViewRef: { current: { clearActiveTerminal: vi.fn() } },
+		terminalViewRef: { current: { clearActiveTerminal: vi.fn(), searchNext: vi.fn(), searchPrevious: vi.fn() } },
 		visibleSessions: [],
 
 		// Override with caller-provided values
@@ -294,6 +294,80 @@ describe('useMainKeyboardHandler — terminal mode shortcuts', () => {
 				fireKey('4', { meta: true });
 			});
 			expect(ctx.handleTerminalTabSelect).not.toHaveBeenCalled();
+		});
+	});
+
+	describe('Cmd+G — Find next in terminal search', () => {
+		it('should call searchNext on terminalViewRef', () => {
+			const ctx = setup();
+			act(() => {
+				fireKey('g', { meta: true });
+			});
+			expect(ctx.terminalViewRef.current.searchNext).toHaveBeenCalledOnce();
+			expect(ctx.terminalViewRef.current.searchPrevious).not.toHaveBeenCalled();
+		});
+
+		it('should preventDefault to block browser default', () => {
+			setup();
+			let event: KeyboardEvent;
+			act(() => {
+				event = fireKey('g', { meta: true });
+			});
+			expect(event!.defaultPrevented).toBe(true);
+		});
+
+		it('should NOT fire when not in terminal mode', () => {
+			const ctx = setup({
+				activeSession: {
+					id: 'session-1',
+					inputMode: 'ai',
+					terminalTabs: [],
+					activeTerminalTabId: null,
+					aiTabs: [],
+					activeTabId: null,
+				},
+			});
+			act(() => {
+				fireKey('g', { meta: true });
+			});
+			expect(ctx.terminalViewRef.current.searchNext).not.toHaveBeenCalled();
+		});
+	});
+
+	describe('Cmd+Shift+G — Find previous in terminal search', () => {
+		it('should call searchPrevious on terminalViewRef', () => {
+			const ctx = setup();
+			act(() => {
+				fireKey('g', { meta: true, shift: true });
+			});
+			expect(ctx.terminalViewRef.current.searchPrevious).toHaveBeenCalledOnce();
+			expect(ctx.terminalViewRef.current.searchNext).not.toHaveBeenCalled();
+		});
+
+		it('should preventDefault to block browser default', () => {
+			setup();
+			let event: KeyboardEvent;
+			act(() => {
+				event = fireKey('g', { meta: true, shift: true });
+			});
+			expect(event!.defaultPrevented).toBe(true);
+		});
+
+		it('should NOT fire when not in terminal mode', () => {
+			const ctx = setup({
+				activeSession: {
+					id: 'session-1',
+					inputMode: 'ai',
+					terminalTabs: [],
+					activeTerminalTabId: null,
+					aiTabs: [],
+					activeTabId: null,
+				},
+			});
+			act(() => {
+				fireKey('g', { meta: true, shift: true });
+			});
+			expect(ctx.terminalViewRef.current.searchPrevious).not.toHaveBeenCalled();
 		});
 	});
 

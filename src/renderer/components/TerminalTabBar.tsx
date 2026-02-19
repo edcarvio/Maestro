@@ -224,7 +224,6 @@ export const TerminalTabBar = memo(function TerminalTabBar({
 			style={{
 				backgroundColor: theme.colors.bgSidebar,
 				borderColor: theme.colors.border,
-				scrollbarWidth: 'thin',
 			}}
 		>
 			{/* Tabs */}

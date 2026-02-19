@@ -257,4 +257,23 @@ describe('TerminalTabBar', () => {
 
 		expect(onTabReorder).toHaveBeenCalledWith(0, 2);
 	});
+
+	it('applies horizontal scroll CSS to the tab bar container', () => {
+		const tabs = makeTabs(2);
+		const { container } = render(
+			<TerminalTabBar
+				tabs={tabs}
+				activeTabId={tabs[0].id}
+				theme={theme}
+				onTabSelect={vi.fn()}
+				onTabClose={vi.fn()}
+				onNewTab={vi.fn()}
+			/>
+		);
+
+		// The outermost container div should have overflow-x-auto and no-scrollbar classes
+		const tabBarContainer = container.firstElementChild as HTMLElement;
+		expect(tabBarContainer.className).toContain('overflow-x-auto');
+		expect(tabBarContainer.className).toContain('no-scrollbar');
+	});
 });

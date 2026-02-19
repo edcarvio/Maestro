@@ -4,7 +4,7 @@ import {
 	useDebouncedPersistence,
 	DEFAULT_DEBOUNCE_DELAY,
 } from '../../../../renderer/hooks/utils/useDebouncedPersistence';
-import type { Session, AITab, LogEntry, FilePreviewTab, TerminalTab, UnifiedTabRef } from '../../../../renderer/types';
+import type { Session, AITab, LogEntry, FilePreviewTab, TerminalTab, ClosedTerminalTab, UnifiedTabRef } from '../../../../renderer/types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -560,6 +560,25 @@ describe('useDebouncedPersistence', () => {
 
 				const persisted = vi.mocked(window.maestro.sessions.setAll).mock.calls[0][0] as Session[];
 				expect(persisted[0].sshConnectionFailed).toBeUndefined();
+			});
+
+			it('should remove closedTerminalTabHistory', () => {
+				const closedTerminalTab = makeTerminalTab({ id: 'closed-term' });
+				const session = makeSession({
+					closedTerminalTabHistory: [{ tab: closedTerminalTab, index: 0, closedAt: Date.now() }],
+				});
+
+				const initialLoadRef = makeInitialLoadRef(true);
+				const { result } = renderHook(() =>
+					useDebouncedPersistence([session], initialLoadRef)
+				);
+
+				act(() => {
+					result.current.flushNow();
+				});
+
+				const persisted = vi.mocked(window.maestro.sessions.setAll).mock.calls[0][0] as Session[];
+				expect(persisted[0].closedTerminalTabHistory).toBeUndefined();
 			});
 		});
 

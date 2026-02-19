@@ -84,6 +84,7 @@ const prepareSessionForPersistence = (session: Session): Session => {
 	const {
 		closedTabHistory: _closedTabHistory,
 		unifiedClosedTabHistory: _unifiedClosedTabHistory,
+		closedTerminalTabHistory: _closedTerminalTabHistory,
 		agentError: _agentError,
 		agentErrorPaused: _agentErrorPaused,
 		agentErrorTabId: _agentErrorTabId,

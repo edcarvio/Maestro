@@ -1777,6 +1777,33 @@ describe('useDebouncedPersistence', () => {
 				expect(persisted[0].terminalTabs).toEqual([]);
 			});
 
+			it('should clean terminal tabs even when aiTabs is missing (early return path)', () => {
+				// Edge case: corrupted/legacy session with no aiTabs but has terminal tabs
+				const session = makeSession({
+					terminalTabs: [
+						makeTerminalTab({ id: 't1', pid: 99999, state: 'busy' }),
+					],
+					activeTerminalTabId: 't1',
+				});
+				// Remove aiTabs to trigger the early return path
+				delete (session as Partial<Session>).aiTabs;
+
+				const initialLoadRef = makeInitialLoadRef(true);
+				const { result } = renderHook(() =>
+					useDebouncedPersistence([session], initialLoadRef)
+				);
+
+				act(() => {
+					result.current.flushNow();
+				});
+
+				const persisted = vi.mocked(window.maestro.sessions.setAll).mock.calls[0][0] as Session[];
+				// Terminal tabs should still be cleaned even though aiTabs triggered early return
+				expect(persisted[0].terminalTabs).toHaveLength(1);
+				expect(persisted[0].terminalTabs![0].pid).toBe(0);
+				expect(persisted[0].terminalTabs![0].state).toBe('idle');
+			});
+
 			it('should handle empty terminalTabs array', () => {
 				const session = makeSession({
 					terminalTabs: [],

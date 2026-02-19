@@ -37,9 +37,13 @@ const MAX_PERSISTED_LOGS_PER_TAB = 100;
  * This is a local copy to avoid circular imports in session persistence logic.
  */
 const prepareSessionForPersistence = (session: Session): Session => {
-	// If no aiTabs, return as-is (shouldn't happen after migration)
+	// If no aiTabs, still clean terminal tabs but skip AI tab processing
+	// (shouldn't happen after migration, but defensive for corrupted/legacy sessions)
 	if (!session.aiTabs || session.aiTabs.length === 0) {
-		return session;
+		return {
+			...session,
+			terminalTabs: cleanTerminalTabsForPersistence(session.terminalTabs),
+		} as Session;
 	}
 
 	// Filter out tabs with active wizard state - incomplete wizards should not persist

@@ -33,7 +33,7 @@ import type {
 	EncoreFeatureFlags,
 } from '../types';
 import { DEFAULT_CUSTOM_THEME_COLORS } from '../constants/themes';
-import { DEFAULT_SHORTCUTS, TAB_SHORTCUTS, FIXED_SHORTCUTS } from '../constants/shortcuts';
+import { DEFAULT_SHORTCUTS, TAB_SHORTCUTS, FIXED_SHORTCUTS, TERMINAL_TAB_SHORTCUTS } from '../constants/shortcuts';
 import { getLevelIndex } from '../constants/keyboardMastery';
 import { commitCommandPrompt } from '../../prompts';
 
@@ -92,7 +92,8 @@ export const DEFAULT_KEYBOARD_MASTERY_STATS: KeyboardMasteryStats = {
 const TOTAL_SHORTCUTS_COUNT =
 	Object.keys(DEFAULT_SHORTCUTS).length +
 	Object.keys(TAB_SHORTCUTS).length +
-	Object.keys(FIXED_SHORTCUTS).length;
+	Object.keys(FIXED_SHORTCUTS).length +
+	Object.keys(TERMINAL_TAB_SHORTCUTS).length;
 
 export const DEFAULT_ONBOARDING_STATS: OnboardingStats = {
 	wizardStartCount: 0,

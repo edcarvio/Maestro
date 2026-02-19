@@ -86,6 +86,11 @@ export interface RenameTabModalData {
 	initialName: string;
 }
 
+/** Terminal tab rename modal data */
+export interface TerminalTabRenameModalData {
+	tabId: string;
+}
+
 /** Rename group modal data */
 export interface RenameGroupModalData {
 	groupId: string;
@@ -162,6 +167,7 @@ export type ModalId =
 	| 'promptComposer'
 	// Tab Management
 	| 'renameTab'
+	| 'terminalTabRename'
 	// Group Management
 	| 'renameGroup'
 	// Session Operations
@@ -226,6 +232,7 @@ export interface ModalDataMap {
 	confirm: ConfirmModalData;
 	renameInstance: RenameInstanceModalData;
 	renameTab: RenameTabModalData;
+	terminalTabRename: TerminalTabRenameModalData;
 	renameGroup: RenameGroupModalData;
 	agentSessions: AgentSessionsModalData;
 	wizardResume: WizardResumeModalData;
@@ -603,6 +610,23 @@ export function getModalActions() {
 			}
 		},
 
+		// Terminal Tab Rename Modal
+		setTerminalRenameModalOpen: (open: boolean) => {
+			if (!open) {
+				closeModal('terminalTabRename');
+				return;
+			}
+			const current = useModalStore.getState().getData('terminalTabRename');
+			openModal('terminalTabRename', current ?? { tabId: '' });
+		},
+		setTerminalRenameTabId: (tabId: string | null) => {
+			if (!tabId) {
+				closeModal('terminalTabRename');
+				return;
+			}
+			openModal('terminalTabRename', { tabId });
+		},
+
 		// Rename Group Modal
 		setRenameGroupModalOpen: (open: boolean) => {
 			if (!open) {
@@ -796,6 +820,8 @@ export function useModalActions() {
 	const renameInstanceData = useModalStore(selectModalData('renameInstance'));
 	const renameTabModalOpen = useModalStore(selectModalOpen('renameTab'));
 	const renameTabData = useModalStore(selectModalData('renameTab'));
+	const terminalRenameModalOpen = useModalStore(selectModalOpen('terminalTabRename'));
+	const terminalRenameTabId = useModalStore(selectModalData('terminalTabRename'));
 	const renameGroupModalOpen = useModalStore(selectModalOpen('renameGroup'));
 	const renameGroupData = useModalStore(selectModalData('renameGroup'));
 	const agentSessionsOpen = useModalStore(selectModalOpen('agentSessions'));
@@ -915,6 +941,10 @@ export function useModalActions() {
 		renameTabModalOpen,
 		renameTabId: renameTabData?.tabId ?? null,
 		renameTabInitialName: renameTabData?.initialName ?? '',
+
+		// Terminal Tab Rename Modal
+		terminalRenameModalOpen,
+		terminalRenameTabId: terminalRenameTabId?.tabId ?? null,
 
 		// Rename Group Modal
 		renameGroupModalOpen,

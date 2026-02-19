@@ -317,6 +317,11 @@ function MaestroConsoleInner() {
 		setRenameTabId,
 		renameTabInitialName,
 		setRenameTabInitialName,
+		// Terminal Tab Rename Modal
+		terminalRenameModalOpen,
+		setTerminalRenameModalOpen,
+		terminalRenameTabId,
+		setTerminalRenameTabId,
 		// Rename Group Modal
 		renameGroupModalOpen,
 		setRenameGroupModalOpen,
@@ -999,6 +1004,12 @@ function MaestroConsoleInner() {
 		setRenameTabModalOpen(false);
 		setRenameTabId(null);
 	}, []);
+
+	// Get the terminal tab currently being renamed (derived from modal state)
+	const terminalTabBeingRenamed = useMemo(() => {
+		if (!terminalRenameTabId || !activeSession) return null;
+		return activeSession.terminalTabs?.find(t => t.id === terminalRenameTabId) ?? null;
+	}, [terminalRenameTabId, activeSession]);
 
 	// Note: All modal states (confirmation, rename, queue browser, batch runner, etc.)
 	// are now managed by modalStore - see useModalActions() destructuring above

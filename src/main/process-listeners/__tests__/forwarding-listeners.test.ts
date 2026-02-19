@@ -34,6 +34,7 @@ describe('Forwarding Listeners', () => {
 		expect(mockProcessManager.on).toHaveBeenCalledWith('tool-execution', expect.any(Function));
 		expect(mockProcessManager.on).toHaveBeenCalledWith('stderr', expect.any(Function));
 		expect(mockProcessManager.on).toHaveBeenCalledWith('command-exit', expect.any(Function));
+		expect(mockProcessManager.on).toHaveBeenCalledWith('raw-pty-data', expect.any(Function));
 	});
 
 	it('should forward slash-commands events to renderer', () => {
@@ -102,5 +103,34 @@ describe('Forwarding Listeners', () => {
 		handler?.(testSessionId, testExitCode);
 
 		expect(mockSafeSend).toHaveBeenCalledWith('process:command-exit', testSessionId, testExitCode);
+	});
+
+	it('should forward raw-pty-data events to renderer', () => {
+		setupForwardingListeners(mockProcessManager, { safeSend: mockSafeSend });
+
+		const handler = eventHandlers.get('raw-pty-data');
+		const testSessionId = 'test-session-123';
+		const testData = 'raw terminal output';
+
+		handler?.(testSessionId, testData);
+
+		expect(mockSafeSend).toHaveBeenCalledWith('process:raw-pty-data', testSessionId, testData);
+	});
+
+	it('should forward raw-pty-data with terminal tab session ID format', () => {
+		setupForwardingListeners(mockProcessManager, { safeSend: mockSafeSend });
+
+		const handler = eventHandlers.get('raw-pty-data');
+		// Terminal tab session IDs use format: {sessionId}-terminal-{tabId}
+		const terminalTabSessionId = 'abc123-terminal-def456';
+		const ansiData = '\x1b[32mgreen text\x1b[0m\r\n';
+
+		handler?.(terminalTabSessionId, ansiData);
+
+		expect(mockSafeSend).toHaveBeenCalledWith(
+			'process:raw-pty-data',
+			terminalTabSessionId,
+			ansiData
+		);
 	});
 });

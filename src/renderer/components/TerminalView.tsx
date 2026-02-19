@@ -16,7 +16,7 @@
  * (not destroyed on switch), preserving scrollback and cursor state.
  */
 
-import React, { useState, useRef, useCallback, useEffect, memo } from 'react';
+import React, { useState, useRef, useCallback, useEffect, memo, forwardRef, useImperativeHandle } from 'react';
 import { EmbeddedTerminal, TerminalSearchBar } from './EmbeddedTerminal';
 import type { EmbeddedTerminalHandle } from './EmbeddedTerminal';
 import { TerminalTabBar } from './TerminalTabBar';
@@ -39,7 +39,15 @@ interface TerminalViewProps {
 	onCloseTabsToRight?: (tabId: string) => void;
 }
 
-export const TerminalView = memo(function TerminalView({
+export interface TerminalViewHandle {
+	clearActiveTerminal: () => void;
+	focusActiveTerminal: () => void;
+	searchActiveTerminal: (query: string) => boolean;
+	searchNext: () => boolean;
+	searchPrevious: () => boolean;
+}
+
+export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({
 	session,
 	theme,
 	fontFamily,
@@ -52,7 +60,7 @@ export const TerminalView = memo(function TerminalView({
 	onTabReorder,
 	onCloseOtherTabs,
 	onCloseTabsToRight,
-}: TerminalViewProps) {
+}: TerminalViewProps, ref) {
 	// Refs for terminal instances (one per tab)
 	const terminalRefsMap = useRef<Map<string, React.RefObject<EmbeddedTerminalHandle>>>(new Map());
 
@@ -69,6 +77,30 @@ export const TerminalView = memo(function TerminalView({
 		}
 		return ref;
 	}, []);
+
+	// Expose imperative methods to parent via ref
+	useImperativeHandle(ref, () => ({
+		clearActiveTerminal: () => {
+			const activeRef = terminalRefsMap.current.get(session.activeTerminalTabId ?? '');
+			activeRef?.current?.clear();
+		},
+		focusActiveTerminal: () => {
+			const activeRef = terminalRefsMap.current.get(session.activeTerminalTabId ?? '');
+			activeRef?.current?.focus();
+		},
+		searchActiveTerminal: (query: string) => {
+			const activeRef = terminalRefsMap.current.get(session.activeTerminalTabId ?? '');
+			return activeRef?.current?.search(query) ?? false;
+		},
+		searchNext: () => {
+			const activeRef = terminalRefsMap.current.get(session.activeTerminalTabId ?? '');
+			return activeRef?.current?.searchNext() ?? false;
+		},
+		searchPrevious: () => {
+			const activeRef = terminalRefsMap.current.get(session.activeTerminalTabId ?? '');
+			return activeRef?.current?.searchPrevious() ?? false;
+		},
+	}), [session.activeTerminalTabId]);
 
 	// Close terminal search when no active terminal tab
 	useEffect(() => {
@@ -165,4 +197,4 @@ export const TerminalView = memo(function TerminalView({
 			</div>
 		</div>
 	);
-});
+}));

@@ -87,6 +87,10 @@ interface TabBarProps {
 	onNewTerminalTab?: () => void;
 	/** Handler to open rename modal for a terminal tab */
 	onRequestTerminalTabRename?: (tabId: string) => void;
+	/** Handler to close all terminal tabs except the specified one */
+	onCloseOtherTerminalTabs?: (tabId: string) => void;
+	/** Handler to close all terminal tabs to the right of the specified one */
+	onCloseTerminalTabsToRight?: (tabId: string) => void;
 
 	// === Accessibility ===
 	/** Whether colorblind-friendly colors should be used for extension badges */
@@ -1589,12 +1593,18 @@ interface TerminalTabProps {
 	onSelect: (tabId: string) => void;
 	onClose: (tabId: string) => void;
 	onRequestRename?: (tabId: string) => void;
+	onCloseOthers?: (tabId: string) => void;
+	onCloseToRight?: (tabId: string) => void;
 	onDragStart: (tabId: string, e: React.DragEvent) => void;
 	onDragOver: (tabId: string, e: React.DragEvent) => void;
 	onDragEnd: () => void;
 	onDrop: (tabId: string, e: React.DragEvent) => void;
 	isDragging: boolean;
 	isDragOver: boolean;
+	/** Total number of terminal tabs (for disabling Close Others when only 1) */
+	totalTerminalTabs?: number;
+	/** Index of this tab among terminal tabs (for disabling Close to Right when last) */
+	terminalTabIndex?: number;
 }
 
 /**
@@ -1608,14 +1618,20 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 	onSelect,
 	onClose,
 	onRequestRename,
+	onCloseOthers,
+	onCloseToRight,
 	onDragStart,
 	onDragOver,
 	onDragEnd,
 	onDrop,
 	isDragging,
 	isDragOver,
+	totalTerminalTabs,
+	terminalTabIndex,
 }: TerminalTabProps) {
 	const [isHovered, setIsHovered] = useState(false);
+	const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+	const contextMenuRef = useRef<HTMLDivElement>(null);
 
 	const handleClick = useCallback(() => {
 		onSelect(tab.id);
@@ -1646,6 +1662,61 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 		[onClose, tab.id]
 	);
 
+	// Right-click to open context menu
+	const handleContextMenu = useCallback((e: React.MouseEvent) => {
+		e.preventDefault();
+		setContextMenu({ x: e.clientX, y: e.clientY });
+	}, []);
+
+	const dismissContextMenu = useCallback(() => {
+		setContextMenu(null);
+	}, []);
+
+	// Close context menu on click outside
+	useEffect(() => {
+		if (!contextMenu) return;
+		const handleClickOutside = (e: MouseEvent) => {
+			if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+				setContextMenu(null);
+			}
+		};
+		document.addEventListener('mousedown', handleClickOutside);
+		return () => document.removeEventListener('mousedown', handleClickOutside);
+	}, [contextMenu]);
+
+	// Close context menu on Escape
+	useEffect(() => {
+		if (!contextMenu) return;
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				setContextMenu(null);
+			}
+		};
+		document.addEventListener('keydown', handleKeyDown);
+		return () => document.removeEventListener('keydown', handleKeyDown);
+	}, [contextMenu]);
+
+	// Context menu action handlers
+	const handleContextRename = useCallback(() => {
+		onRequestRename?.(tab.id);
+		setContextMenu(null);
+	}, [onRequestRename, tab.id]);
+
+	const handleContextClose = useCallback(() => {
+		onClose(tab.id);
+		setContextMenu(null);
+	}, [onClose, tab.id]);
+
+	const handleContextCloseOthers = useCallback(() => {
+		onCloseOthers?.(tab.id);
+		setContextMenu(null);
+	}, [onCloseOthers, tab.id]);
+
+	const handleContextCloseToRight = useCallback(() => {
+		onCloseToRight?.(tab.id);
+		setContextMenu(null);
+	}, [onCloseToRight, tab.id]);
+
 	const hoverBgColor = `${theme.colors.textDim}15`;
 
 	const tabStyle = useMemo(
@@ -1672,65 +1743,162 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 			? '#22c55e'
 			: theme.colors.textDim;
 
+	// Context menu position adjusted for viewport bounds
+	const contextMenuPosition = contextMenu
+		? {
+				left: Math.min(contextMenu.x, window.innerWidth - 200),
+				top: Math.min(contextMenu.y, window.innerHeight - 180),
+			}
+		: null;
+
+	const isOnlyTab = (totalTerminalTabs ?? 1) <= 1;
+	const isLastTab = terminalTabIndex != null && totalTerminalTabs != null && terminalTabIndex >= totalTerminalTabs - 1;
+
 	return (
-		<div
-			className={`relative flex items-center gap-1.5 px-3 py-1.5 cursor-pointer select-none shrink-0 transition-colors duration-100 ring-1 ring-inset ${isDragging ? 'opacity-40' : ''}`}
-			style={tabStyle}
-			onClick={handleClick}
-			onDoubleClick={handleDoubleClick}
-			onMouseDown={handleMouseDown}
-			onMouseEnter={() => setIsHovered(true)}
-			onMouseLeave={() => setIsHovered(false)}
-			draggable
-			onDragStart={(e) => onDragStart(tab.id, e)}
-			onDragOver={(e) => onDragOver(tab.id, e)}
-			onDragEnd={onDragEnd}
-			onDrop={(e) => onDrop(tab.id, e)}
-			title={tab.name || 'Terminal'}
-		>
-			{/* Terminal icon */}
-			<TerminalSquare
-				className="w-3 h-3 shrink-0"
-				style={{ color: isActive ? theme.colors.textMain : theme.colors.textDim }}
-			/>
-
-			{/* Status indicator: spinner while PTY is spawning, dot when running/exited */}
-			{isSpawning ? (
-				<span data-testid="terminal-tab-spinner" className="shrink-0 flex items-center">
-					<Loader2
-						className="w-3 h-3 animate-spin"
-						style={{ color: theme.colors.accent }}
-					/>
-				</span>
-			) : (
-				<span
-					className="w-1.5 h-1.5 rounded-full shrink-0"
-					data-testid="terminal-tab-status-dot"
-					style={{ backgroundColor: statusColor }}
-				/>
-			)}
-
-			{/* Tab name */}
-			<span
-				className="text-xs truncate max-w-[120px]"
-				style={{
-					color: isActive ? theme.colors.textMain : theme.colors.textDim,
-				}}
+		<>
+			<div
+				className={`relative flex items-center gap-1.5 px-3 py-1.5 cursor-pointer select-none shrink-0 transition-colors duration-100 ring-1 ring-inset ${isDragging ? 'opacity-40' : ''}`}
+				style={tabStyle}
+				onClick={handleClick}
+				onDoubleClick={handleDoubleClick}
+				onMouseDown={handleMouseDown}
+				onMouseEnter={() => setIsHovered(true)}
+				onMouseLeave={() => setIsHovered(false)}
+				onContextMenu={handleContextMenu}
+				draggable
+				onDragStart={(e) => onDragStart(tab.id, e)}
+				onDragOver={(e) => onDragOver(tab.id, e)}
+				onDragEnd={onDragEnd}
+				onDrop={(e) => onDrop(tab.id, e)}
+				title={tab.name || 'Terminal'}
 			>
-				{tab.name || 'Terminal'}
-			</span>
+				{/* Terminal icon */}
+				<TerminalSquare
+					className="w-3 h-3 shrink-0"
+					style={{ color: isActive ? theme.colors.textMain : theme.colors.textDim }}
+				/>
 
-			{/* Close button (visible on hover or when active) */}
-			{(isHovered || isActive) && (
-				<button
-					onClick={handleClose}
-					className="ml-0.5 p-0.5 rounded hover:bg-white/10 transition-colors shrink-0"
-					style={{ color: theme.colors.textDim }}
+				{/* Status indicator: spinner while PTY is spawning, dot when running/exited */}
+				{isSpawning ? (
+					<span data-testid="terminal-tab-spinner" className="shrink-0 flex items-center">
+						<Loader2
+							className="w-3 h-3 animate-spin"
+							style={{ color: theme.colors.accent }}
+						/>
+					</span>
+				) : (
+					<span
+						className="w-1.5 h-1.5 rounded-full shrink-0"
+						data-testid="terminal-tab-status-dot"
+						style={{ backgroundColor: statusColor }}
+					/>
+				)}
+
+				{/* Tab name */}
+				<span
+					className="text-xs truncate max-w-[120px]"
+					style={{
+						color: isActive ? theme.colors.textMain : theme.colors.textDim,
+					}}
 				>
-					<X className="w-3 h-3" />
-				</button>
-			)}
-		</div>
+					{tab.name || 'Terminal'}
+				</span>
+
+				{/* Close button (visible on hover or when active) */}
+				{(isHovered || isActive) && (
+					<button
+						onClick={handleClose}
+						className="ml-0.5 p-0.5 rounded hover:bg-white/10 transition-colors shrink-0"
+						style={{ color: theme.colors.textDim }}
+					>
+						<X className="w-3 h-3" />
+					</button>
+				)}
+			</div>
+
+			{/* Context menu rendered via portal */}
+			{contextMenu &&
+				contextMenuPosition &&
+				createPortal(
+					<div
+						ref={contextMenuRef}
+						className="fixed z-[10000] py-1 rounded-md shadow-xl border"
+						data-testid="terminal-tab-context-menu"
+						style={{
+							left: contextMenuPosition.left,
+							top: contextMenuPosition.top,
+							backgroundColor: theme.colors.bgSidebar,
+							borderColor: theme.colors.border,
+							minWidth: '160px',
+						}}
+					>
+						{/* Rename */}
+						{onRequestRename && (
+							<button
+								onClick={handleContextRename}
+								className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors flex items-center gap-2"
+								style={{ color: theme.colors.textMain }}
+								data-testid="terminal-ctx-rename"
+							>
+								<Pencil className="w-3.5 h-3.5" style={{ color: theme.colors.textDim }} />
+								Rename
+							</button>
+						)}
+
+						{/* Close */}
+						<button
+							onClick={handleContextClose}
+							className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors flex items-center gap-2"
+							style={{ color: theme.colors.textMain }}
+							data-testid="terminal-ctx-close"
+						>
+							<X className="w-3.5 h-3.5" style={{ color: theme.colors.textDim }} />
+							Close
+						</button>
+
+						{/* Divider */}
+						{(onCloseOthers || onCloseToRight) && (
+							<div className="my-1 border-t" style={{ borderColor: theme.colors.border }} />
+						)}
+
+						{/* Close Others */}
+						{onCloseOthers && (
+							<button
+								onClick={handleContextCloseOthers}
+								className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 ${
+									isOnlyTab ? 'opacity-40 cursor-default' : 'hover:bg-white/5'
+								}`}
+								style={{ color: theme.colors.textMain }}
+								disabled={isOnlyTab}
+								data-testid="terminal-ctx-close-others"
+							>
+								<X className="w-3.5 h-3.5" style={{ color: theme.colors.textDim }} />
+								Close Others
+							</button>
+						)}
+
+						{/* Close to the Right */}
+						{onCloseToRight && (
+							<button
+								onClick={handleContextCloseToRight}
+								className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 ${
+									isLastTab ? 'opacity-40 cursor-default' : 'hover:bg-white/5'
+								}`}
+								style={{ color: theme.colors.textMain }}
+								disabled={isLastTab}
+								data-testid="terminal-ctx-close-to-right"
+							>
+								<ChevronsRight
+									className="w-3.5 h-3.5"
+									style={{ color: theme.colors.textDim }}
+								/>
+								Close to the Right
+							</button>
+						)}
+					</div>,
+					document.body
+				)}
+		</>
 	);
 });
 
@@ -1776,6 +1944,8 @@ function TabBarInner({
 	onTerminalTabClose,
 	onNewTerminalTab,
 	onRequestTerminalTabRename,
+	onCloseOtherTerminalTabs,
+	onCloseTerminalTabsToRight,
 	// Accessibility
 	colorBlindMode,
 }: TabBarProps) {
@@ -1863,6 +2033,15 @@ function TabBarInner({
 			return ut.id === activeFileTabId;
 		});
 	}, [unifiedTabs, showUnreadOnly, activeTabId, activeFileTabId, activeTerminalTabId]);
+
+	// Compute terminal tab count and index map for context menu disabled states
+	const { terminalTabCount, terminalTabIndexMap } = useMemo(() => {
+		if (!unifiedTabs) return { terminalTabCount: 0, terminalTabIndexMap: new Map<string, number>() };
+		const termTabs = unifiedTabs.filter((ut) => ut.type === 'terminal');
+		const indexMap = new Map<string, number>();
+		termTabs.forEach((ut, i) => indexMap.set(ut.id, i));
+		return { terminalTabCount: termTabs.length, terminalTabIndexMap: indexMap };
+	}, [unifiedTabs]);
 
 	const handleDragStart = useCallback((tabId: string, e: React.DragEvent) => {
 		e.dataTransfer.effectAllowed = 'move';
@@ -2289,12 +2468,16 @@ function TabBarInner({
 										onSelect={onTerminalTabSelect || (() => {})}
 										onClose={onTerminalTabClose || (() => {})}
 										onRequestRename={onRequestTerminalTabRename}
+										onCloseOthers={onCloseOtherTerminalTabs}
+										onCloseToRight={onCloseTerminalTabsToRight}
 										onDragStart={handleDragStart}
 										onDragOver={handleDragOver}
 										onDragEnd={handleDragEnd}
 										onDrop={handleDrop}
 										isDragging={draggingTabId === termTab.id}
 										isDragOver={dragOverTabId === termTab.id}
+										totalTerminalTabs={terminalTabCount}
+										terminalTabIndex={terminalTabIndexMap.get(termTab.id)}
 									/>
 								</React.Fragment>
 							);

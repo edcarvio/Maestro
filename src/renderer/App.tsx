@@ -10463,6 +10463,58 @@ You are taking over this conversation. Based on the context above, provide a bri
 		[activeSession]
 	);
 
+	const handleCloseOtherTerminalTabs = useCallback(
+		(keepTabId: string) => {
+			if (!activeSession) return;
+			const tabsToClose = activeSession.terminalTabs.filter((t) => t.id !== keepTabId);
+			if (tabsToClose.length === 0) return;
+
+			// Iteratively close each tab, chaining the updated session
+			let currentSession: Session = activeSession;
+			for (const tab of tabsToClose) {
+				const result = closeTerminalTab(currentSession, tab.id);
+				if (result) {
+					currentSession = result.session;
+				}
+				processService.kill(tab.id);
+			}
+
+			// Ensure the kept tab is active
+			setSessions((prev) =>
+				prev.map((s) =>
+					s.id === activeSession.id
+						? { ...currentSession, activeTerminalTabId: keepTabId, activeFileTabId: null }
+						: s
+				)
+			);
+		},
+		[activeSession]
+	);
+
+	const handleCloseTerminalTabsToRight = useCallback(
+		(tabId: string) => {
+			if (!activeSession) return;
+			const tabIndex = activeSession.terminalTabs.findIndex((t) => t.id === tabId);
+			if (tabIndex === -1) return;
+			const tabsToClose = activeSession.terminalTabs.slice(tabIndex + 1);
+			if (tabsToClose.length === 0) return;
+
+			let currentSession: Session = activeSession;
+			for (const tab of tabsToClose) {
+				const result = closeTerminalTab(currentSession, tab.id);
+				if (result) {
+					currentSession = result.session;
+				}
+				processService.kill(tab.id);
+			}
+
+			setSessions((prev) =>
+				prev.map((s) => (s.id === activeSession.id ? currentSession : s))
+			);
+		},
+		[activeSession]
+	);
+
 	const handleTerminalTabExit = useCallback(
 		(tabId: string, exitCode: number) => {
 			if (!activeSession) return;
@@ -11521,6 +11573,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 		handleTerminalTabExit,
 		handleTerminalTabSpawned,
 		handleRequestTerminalTabRename,
+		handleCloseOtherTerminalTabs,
+		handleCloseTerminalTabsToRight,
 
 		handleScrollPositionChange,
 		handleAtBottomChange,

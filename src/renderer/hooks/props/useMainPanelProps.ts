@@ -242,6 +242,8 @@ export interface UseMainPanelPropsDeps {
 	handleTerminalTabExit: (tabId: string, exitCode: number) => void;
 	handleTerminalTabSpawned: (tabId: string) => void;
 	handleRequestTerminalTabRename: (tabId: string) => void;
+	handleCloseOtherTerminalTabs: (tabId: string) => void;
+	handleCloseTerminalTabsToRight: (tabId: string) => void;
 
 	handleScrollPositionChange: (scrollTop: number) => void;
 	handleAtBottomChange: (isAtBottom: boolean) => void;
@@ -452,6 +454,8 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			onTerminalTabExit: deps.handleTerminalTabExit,
 			onTerminalTabSpawned: deps.handleTerminalTabSpawned,
 			onRequestTerminalTabRename: deps.handleRequestTerminalTabRename,
+			onCloseOtherTerminalTabs: deps.handleCloseOtherTerminalTabs,
+			onCloseTerminalTabsToRight: deps.handleCloseTerminalTabsToRight,
 			onToggleTabSaveToHistory: deps.handleToggleTabSaveToHistory,
 			onToggleTabShowThinking: deps.handleToggleTabShowThinking,
 			onScrollPositionChange: deps.handleScrollPositionChange,
@@ -701,6 +705,8 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			deps.handleTerminalTabExit,
 			deps.handleTerminalTabSpawned,
 			deps.handleRequestTerminalTabRename,
+			deps.handleCloseOtherTerminalTabs,
+			deps.handleCloseTerminalTabsToRight,
 			deps.handleScrollPositionChange,
 			deps.handleAtBottomChange,
 			deps.handleMainPanelInputBlur,

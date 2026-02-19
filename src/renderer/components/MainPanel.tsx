@@ -249,6 +249,8 @@ interface MainPanelProps {
 	onTerminalTabExit?: (tabId: string, exitCode: number) => void;
 	onTerminalTabSpawned?: (tabId: string) => void;
 	onRequestTerminalTabRename?: (tabId: string) => void;
+	onCloseOtherTerminalTabs?: (tabId: string) => void;
+	onCloseTerminalTabsToRight?: (tabId: string) => void;
 
 	// Scroll position persistence
 	onScrollPositionChange?: (scrollTop: number) => void;
@@ -1651,6 +1653,8 @@ export const MainPanel = React.memo(
 									onTerminalTabClose={props.onTerminalTabClose}
 									onNewTerminalTab={props.onNewTerminalTab}
 									onRequestTerminalTabRename={props.onRequestTerminalTabRename}
+									onCloseOtherTerminalTabs={props.onCloseOtherTerminalTabs}
+									onCloseTerminalTabsToRight={props.onCloseTerminalTabsToRight}
 									// Accessibility
 									colorBlindMode={colorBlindMode}
 								/>

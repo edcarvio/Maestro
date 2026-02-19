@@ -1540,14 +1540,9 @@ export function createMergedSession(
 		projectRoot, // Never changes, used for session storage
 		isGitRepo: false, // Will be updated by caller if needed
 		aiLogs: [], // Deprecated - logs are in aiTabs
-		shellLogs: [
-			{
-				id: generateId(),
-				timestamp: Date.now(),
-				source: 'system',
-				text: 'Merged Context Session Ready.',
-			},
-		],
+		// DEPRECATED: shellLogs no longer used for terminal output
+		// Terminal mode uses xterm.js with direct PTY streaming
+		shellLogs: [],
 		workLog: [],
 		contextUsage: 0,
 		inputMode: toolType === 'terminal' ? 'terminal' : 'ai',

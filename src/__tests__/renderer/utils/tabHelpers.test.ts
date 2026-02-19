@@ -1641,7 +1641,7 @@ describe('tabHelpers', () => {
 			expect(session.autoRunFolderPath).toBe('/project/Auto Run Docs');
 		});
 
-		it('creates shell log with merged context message', () => {
+		it('creates empty shellLogs (deprecated field)', () => {
 			const { session } = createMergedSession({
 				name: 'Shell Log Test',
 				projectRoot: '/project',
@@ -1649,9 +1649,8 @@ describe('tabHelpers', () => {
 				mergedLogs: [],
 			});
 
-			expect(session.shellLogs).toHaveLength(1);
-			expect(session.shellLogs[0].source).toBe('system');
-			expect(session.shellLogs[0].text).toBe('Merged Context Session Ready.');
+			// shellLogs is deprecated — terminal mode uses xterm.js
+			expect(session.shellLogs).toHaveLength(0);
 		});
 
 		it('creates tab in idle state', () => {

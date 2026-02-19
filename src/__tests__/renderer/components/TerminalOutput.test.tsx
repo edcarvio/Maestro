@@ -164,15 +164,6 @@ describe('TerminalOutput', () => {
 			expect(outputDiv).toHaveStyle({ backgroundColor: defaultTheme.colors.bgMain });
 		});
 
-		it('renders with terminal mode background color', () => {
-			const session = createDefaultSession({ inputMode: 'terminal' });
-			const props = createDefaultProps({ session });
-			const { container } = render(<TerminalOutput {...props} />);
-
-			const outputDiv = container.firstChild as HTMLElement;
-			expect(outputDiv).toHaveStyle({ backgroundColor: defaultTheme.colors.bgActivity });
-		});
-
 		it('is focusable with tabIndex 0', () => {
 			const { container } = render(<TerminalOutput {...createDefaultProps()} />);
 			const outputDiv = container.firstChild as HTMLElement;
@@ -196,23 +187,6 @@ describe('TerminalOutput', () => {
 			render(<TerminalOutput {...props} />);
 
 			expect(screen.getByText('First message')).toBeInTheDocument();
-		});
-
-		it('renders shell logs in terminal mode', () => {
-			const shellLogs: LogEntry[] = [
-				createLogEntry({ text: 'ls -la', source: 'user' }),
-				createLogEntry({ text: 'total 100', source: 'stdout' }),
-			];
-
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs,
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			expect(screen.getByText(/total 100/)).toBeInTheDocument();
 		});
 
 		it('displays user messages with different styling', () => {
@@ -251,8 +225,8 @@ describe('TerminalOutput', () => {
 			const logs: LogEntry[] = [createLogEntry({ text: 'Error output', source: 'stderr' })];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({ session });
@@ -350,17 +324,17 @@ describe('TerminalOutput', () => {
 			expect(setOutputSearchOpen).toHaveBeenCalledWith(true);
 		});
 
-		it('filters logs case-insensitively (in terminal mode)', async () => {
-			// Use terminal mode to avoid log collapsing
+		it('filters logs case-insensitively', async () => {
+			// Use user-sourced entries to avoid AI-mode response collapsing
 			const logs: LogEntry[] = [
-				createLogEntry({ text: 'This contains HELLO world', source: 'stdout' }),
-				createLogEntry({ text: 'This contains hello world', source: 'stdout' }),
-				createLogEntry({ text: 'This does not match', source: 'stdout' }),
+				createLogEntry({ text: 'This contains HELLO world', source: 'user' }),
+				createLogEntry({ text: 'This contains hello world', source: 'user' }),
+				createLogEntry({ text: 'This does not match', source: 'user' }),
 			];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({
@@ -380,16 +354,17 @@ describe('TerminalOutput', () => {
 			expect(logItems.length).toBe(2);
 		});
 
-		it('shows all logs when search query is empty (terminal mode)', async () => {
+		it('shows all logs when search query is empty', async () => {
+			// Use user-sourced entries to avoid AI-mode response collapsing
 			const logs: LogEntry[] = [
-				createLogEntry({ text: 'First log', source: 'stdout' }),
-				createLogEntry({ text: 'Second log', source: 'stdout' }),
-				createLogEntry({ text: 'Third log', source: 'stdout' }),
+				createLogEntry({ text: 'First log', source: 'user' }),
+				createLogEntry({ text: 'Second log', source: 'user' }),
+				createLogEntry({ text: 'Third log', source: 'user' }),
 			];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({
@@ -474,16 +449,17 @@ describe('TerminalOutput', () => {
 			expect(mockUnregisterLayer).toHaveBeenCalled();
 		});
 
-		it('matches logs containing partial words (terminal mode)', async () => {
+		it('matches logs containing partial words', async () => {
+			// Use user-sourced entries to avoid AI-mode response collapsing
 			const logs: LogEntry[] = [
-				createLogEntry({ text: 'authentication failed', source: 'stdout' }),
-				createLogEntry({ text: 'unauthorized access', source: 'stdout' }),
-				createLogEntry({ text: 'success', source: 'stdout' }),
+				createLogEntry({ text: 'authentication failed', source: 'user' }),
+				createLogEntry({ text: 'unauthorized access', source: 'user' }),
+				createLogEntry({ text: 'success', source: 'user' }),
 			];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({
@@ -651,8 +627,8 @@ describe('TerminalOutput', () => {
 			const logs: LogEntry[] = [createLogEntry({ text: longText, source: 'stdout' })];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({
@@ -670,8 +646,8 @@ describe('TerminalOutput', () => {
 			const logs: LogEntry[] = [createLogEntry({ text: longText, source: 'stdout' })];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({
@@ -696,35 +672,6 @@ describe('TerminalOutput', () => {
 
 			// After expanding, should show "Show less"
 			expect(screen.getByText('Show less')).toBeInTheDocument();
-		});
-	});
-
-	describe('busy state indicators', () => {
-		it('shows busy indicator for terminal mode when state is busy', () => {
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				state: 'busy',
-				busySource: 'terminal',
-				statusMessage: 'Running command...',
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			expect(screen.getByText('Running command...')).toBeInTheDocument();
-		});
-
-		it('shows default message when no statusMessage provided', () => {
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				state: 'busy',
-				busySource: 'terminal',
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			expect(screen.getByText('Executing command...')).toBeInTheDocument();
 		});
 	});
 
@@ -1173,27 +1120,6 @@ describe('TerminalOutput', () => {
 			expect(screen.queryByTitle(/Delete command/)).not.toBeInTheDocument();
 		});
 
-		it('shows delete button with correct tooltip in terminal mode (legacy fallback)', () => {
-			const logs: LogEntry[] = [createLogEntry({ text: 'ls -la', source: 'user' })];
-
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
-				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs: [], isUnread: false }],
-				activeTabId: 'tab-1',
-			});
-
-			const props = createDefaultProps({
-				session,
-				onDeleteLog: vi.fn(),
-			});
-
-			render(<TerminalOutput {...props} />);
-
-			// Terminal-specific rendering removed; component now uses AI-mode tooltip
-			expect(screen.getByTitle(/Delete message and response/)).toBeInTheDocument();
-		});
-
 		it('shows delete button for each user message in a conversation', () => {
 			const logs: LogEntry[] = [
 				createLogEntry({ id: 'log-1', text: 'First user message', source: 'user' }),
@@ -1379,25 +1305,6 @@ describe('TerminalOutput', () => {
 			const session = createDefaultSession({
 				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
 				activeTabId: 'tab-1',
-			});
-
-			const props = createDefaultProps({
-				session,
-				markdownEditMode: false,
-			});
-
-			render(<TerminalOutput {...props} />);
-
-			expect(screen.queryByTitle(/Show plain text/)).not.toBeInTheDocument();
-			expect(screen.queryByTitle(/Show formatted/)).not.toBeInTheDocument();
-		});
-
-		it('does not show markdown toggle button in terminal mode', () => {
-			const logs: LogEntry[] = [createLogEntry({ text: 'Terminal output', source: 'stdout' })];
-
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
 			});
 
 			const props = createDefaultProps({
@@ -1754,39 +1661,8 @@ describe('TerminalOutput', () => {
 			expect(screen.getByTestId('react-markdown')).toBeInTheDocument();
 		});
 
-		it('renders thinking logs as plain text in terminal mode', () => {
-			const logs: LogEntry[] = [createLogEntry({ text: '**bold** thinking', source: 'thinking' })];
-
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			// Terminal mode = not AI mode, so plain text
-			expect(screen.queryByTestId('react-markdown')).not.toBeInTheDocument();
-			expect(screen.getByText(/\*\*bold\*\* thinking/)).toBeInTheDocument();
-		});
 	});
 
-	describe('local filter functionality', () => {
-		it('does not show filter button (terminal-only feature moved to XTerminal)', () => {
-			// LogFilterControls were a terminal-only feature, now removed from TerminalOutput
-			const logs: LogEntry[] = [createLogEntry({ text: 'Terminal output', source: 'stdout' })];
-
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			expect(screen.queryByTitle('Filter this output')).not.toBeInTheDocument();
-		});
-	});
 
 	describe('image display', () => {
 		it('renders images in log entries', () => {
@@ -1864,51 +1740,6 @@ describe('TerminalOutput', () => {
 		});
 	});
 
-	describe('elapsed time display', () => {
-		it('shows elapsed time for busy terminal state with thinkingStartTime', () => {
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				state: 'busy',
-				busySource: 'terminal',
-				thinkingStartTime: Date.now() - 65000, // 1 minute 5 seconds ago
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			// Should show elapsed time
-			expect(screen.getByText('1:05')).toBeInTheDocument();
-		});
-
-		it('updates elapsed time every second', async () => {
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				state: 'busy',
-				busySource: 'terminal',
-				thinkingStartTime: Date.now(),
-			});
-
-			const props = createDefaultProps({ session });
-			const { container } = render(<TerminalOutput {...props} />);
-
-			// Mock scrollTo on scroll container (needed for terminal auto-scroll)
-			const scrollContainer = container.querySelector('.overflow-y-auto') as HTMLElement;
-			if (scrollContainer) {
-				scrollContainer.scrollTo = vi.fn();
-				scrollContainer.scrollBy = vi.fn();
-			}
-
-			// Initial time
-			expect(screen.getByText('0:00')).toBeInTheDocument();
-
-			// Advance by 1 second
-			await act(async () => {
-				vi.advanceTimersByTime(1000);
-			});
-
-			expect(screen.getByText('0:01')).toBeInTheDocument();
-		});
-	});
 
 	describe('scroll position persistence', () => {
 		it('calls onScrollPositionChange when scrolling (throttled)', async () => {
@@ -1939,24 +1770,6 @@ describe('TerminalOutput', () => {
 		});
 	});
 
-	describe('terminal mode specific behaviors', () => {
-		it('renders terminal mode logs with AI-mode styling (terminal rendering moved to XTerminal)', () => {
-			// Terminal-specific rendering ($ prefix, ANSI conversion) was removed.
-			// TerminalOutput now renders all logs with AI-mode styling.
-			const logs: LogEntry[] = [createLogEntry({ text: 'ls -la', source: 'user' })];
-
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			// User command should render as plain text without $ prefix
-			expect(screen.getByText('ls -la')).toBeInTheDocument();
-		});
-	});
 
 	describe('edge cases', () => {
 		it('handles empty logs gracefully', () => {
@@ -2016,14 +1829,14 @@ describe('TerminalOutput', () => {
 			];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({ session });
 			const { container } = render(<TerminalOutput {...props} />);
 
-			// Should only render the valid output
+			// Should only render the valid output (empty stderr + valid stdout collapse to 1 entry)
 			const logItems = container.querySelectorAll('[data-log-index]');
 			expect(logItems.length).toBe(1);
 		});
@@ -2041,14 +1854,14 @@ describe('helper function behaviors (tested via component)', () => {
 	});
 
 	describe('processCarriageReturns behavior', () => {
-		it('handles carriage returns in terminal output', () => {
+		it('handles carriage returns in output', () => {
 			// Text with carriage return - should show last segment
 			const textWithCR = 'Loading...\rDone!';
 			const logs: LogEntry[] = [createLogEntry({ text: textWithCR, source: 'stdout' })];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({ session });
@@ -2064,8 +1877,8 @@ describe('helper function behaviors (tested via component)', () => {
 			const logs: LogEntry[] = [createLogEntry({ text, source: 'stdout' })];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({ session });
@@ -2077,33 +1890,31 @@ describe('helper function behaviors (tested via component)', () => {
 	});
 
 	describe('processLogTextHelper behavior', () => {
-		it('preserves empty lines (terminal-specific filtering removed)', () => {
-			// Terminal-specific prompt filtering was removed from TerminalOutput.
-			// processLogTextHelper no longer accepts an isTerminal parameter.
+		it('preserves empty lines in output', () => {
 			const textWithEmptyLines = 'line1\n\n\nline2';
 			const logs: LogEntry[] = [createLogEntry({ text: textWithEmptyLines, source: 'stdout' })];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({ session });
 			render(<TerminalOutput {...props} />);
 
-			// Both lines should be present (empty lines preserved in non-terminal mode)
+			// Both lines should be present (empty lines preserved)
 			expect(screen.getByText(/line1/)).toBeInTheDocument();
 		});
 
-		it('preserves bash prompts (terminal-specific filtering removed)', () => {
+		it('preserves bash prompts in output', () => {
 			// processLogTextHelper only applies carriage return processing now.
 			// Bash prompt removal is handled by XTerminal for terminal mode.
 			const textWithPrompt = 'output\nbash-3.2$ \nmore output';
 			const logs: LogEntry[] = [createLogEntry({ text: textWithPrompt, source: 'stdout' })];
 
 			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
+				tabs: [{ id: 'tab-1', agentSessionId: 'claude-123', logs, isUnread: false }],
+				activeTabId: 'tab-1',
 			});
 
 			const props = createDefaultProps({ session });

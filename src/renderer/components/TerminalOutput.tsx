@@ -1091,15 +1091,17 @@ export const TerminalOutput = memo(
 		}, [outputSearchOpen]);
 
 		// PERF: Memoize active tab lookup to avoid O(n) .find() on every render
+		// TerminalOutput is only rendered in AI mode (terminal mode uses XTerminal/TerminalView)
 		const activeTab = useMemo(
-			() => (session.inputMode === 'ai' ? getActiveTab(session) : undefined),
-			[session.inputMode, session.aiTabs, session.activeTabId]
+			() => getActiveTab(session),
+			[session.aiTabs, session.activeTabId]
 		);
 
 		// PERF: Memoize activeLogs to provide stable reference for collapsedLogs dependency
+		// DEPRECATED: shellLogs fallback removed — TerminalOutput only renders in AI mode
 		const activeLogs = useMemo(
-			(): LogEntry[] => (session.inputMode === 'ai' ? (activeTab?.logs ?? []) : session.shellLogs),
-			[session.inputMode, activeTab?.logs, session.shellLogs]
+			(): LogEntry[] => activeTab?.logs ?? [],
+			[activeTab?.logs]
 		);
 
 		// In AI mode, collapse consecutive non-user entries into single response blocks

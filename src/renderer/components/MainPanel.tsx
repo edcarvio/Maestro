@@ -364,6 +364,9 @@ interface MainPanelProps {
 	onTerminalTabReopen?: (sessionId: string) => void;
 	onTerminalTabReorder?: (sessionId: string, fromIndex: number, toIndex: number) => void;
 	onTerminalTabRename?: (sessionId: string, tabId: string, newName: string | null) => void;
+	onTerminalTabStateChange?: (sessionId: string, tabId: string, state: 'idle' | 'busy' | 'exited', exitCode?: number) => void;
+	onTerminalTabCwdChange?: (sessionId: string, tabId: string, cwd: string) => void;
+	onTerminalTabPidChange?: (sessionId: string, tabId: string, pid: number) => void;
 }
 
 // PERFORMANCE: Wrap with React.memo to prevent re-renders when parent (App.tsx) re-renders
@@ -1786,7 +1789,7 @@ export const MainPanel = React.memo(
 									) : activeSession.inputMode === 'terminal' &&
 									  activeSession.terminalTabs &&
 									  activeSession.terminalTabs.length > 0 &&
-									  props.onTerminalTabUpdate ? (
+									  props.onTerminalTabStateChange ? (
 										/* xterm.js terminal emulator for terminal mode with multi-tab support */
 										<TerminalView
 											session={activeSession}
@@ -1800,9 +1803,9 @@ export const MainPanel = React.memo(
 											onNewTab={() => props.onTerminalNewTab?.(activeSession.id)}
 											onTabRename={(tabId, name) => props.onTerminalTabRename?.(activeSession.id, tabId, name)}
 											onTabReorder={(from, to) => props.onTerminalTabReorder?.(activeSession.id, from, to)}
-											onTabStateChange={(tabId, state, exitCode) => props.onTerminalTabUpdate?.(activeSession.id, tabId, { state, exitCode })}
-											onTabCwdChange={(tabId, cwd) => props.onTerminalTabUpdate?.(activeSession.id, tabId, { cwd })}
-											onTabPidChange={(tabId, pid) => props.onTerminalTabUpdate?.(activeSession.id, tabId, { pid })}
+											onTabStateChange={(tabId, state, exitCode) => props.onTerminalTabStateChange?.(activeSession.id, tabId, state, exitCode)}
+											onTabCwdChange={(tabId, cwd) => props.onTerminalTabCwdChange?.(activeSession.id, tabId, cwd)}
+											onTabPidChange={(tabId, pid) => props.onTerminalTabPidChange?.(activeSession.id, tabId, pid)}
 											onRequestRename={(tabId) => {
 												const tab = activeSession.terminalTabs?.find((t) => t.id === tabId);
 												const currentName = tab?.name || '';

@@ -8395,6 +8395,19 @@ You are taking over this conversation. Based on the context above, provide a bri
 		);
 	}, []);
 
+	// Specific terminal tab callbacks for state, cwd, and pid changes
+	const handleTerminalTabStateChange = useCallback((sessionId: string, tabId: string, state: 'idle' | 'busy' | 'exited', exitCode?: number) => {
+		handleTerminalTabUpdate(sessionId, tabId, { state, exitCode });
+	}, [handleTerminalTabUpdate]);
+
+	const handleTerminalTabCwdChange = useCallback((sessionId: string, tabId: string, cwd: string) => {
+		handleTerminalTabUpdate(sessionId, tabId, { cwd });
+	}, [handleTerminalTabUpdate]);
+
+	const handleTerminalTabPidChange = useCallback((sessionId: string, tabId: string, pid: number) => {
+		handleTerminalTabUpdate(sessionId, tabId, { pid });
+	}, [handleTerminalTabUpdate]);
+
 	// Create a new terminal tab for a session
 	const handleTerminalNewTab = useCallback((sessionId: string) => {
 		setSessions((prev) =>
@@ -12935,6 +12948,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 						onTerminalTabReopen={handleTerminalTabReopen}
 						onTerminalTabReorder={handleTerminalTabReorder}
 						onTerminalTabRename={handleTerminalTabRename}
+						onTerminalTabStateChange={handleTerminalTabStateChange}
+						onTerminalTabCwdChange={handleTerminalTabCwdChange}
+						onTerminalTabPidChange={handleTerminalTabPidChange}
 					/>
 				)}
 

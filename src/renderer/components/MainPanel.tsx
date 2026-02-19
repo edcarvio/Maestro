@@ -512,6 +512,7 @@ export const MainPanel = React.memo(
 
 		// Terminal search state and refs
 		const [terminalSearchOpen, setTerminalSearchOpen] = useState(false);
+		const [terminalSearchQuery, setTerminalSearchQuery] = useState('');
 		const embeddedTerminalRefsMap = useRef<Map<string, React.RefObject<EmbeddedTerminalHandle>>>(new Map());
 
 		// Get or create a stable ref for an EmbeddedTerminal by tab ID

@@ -8,7 +8,7 @@
  */
 
 import React, { createRef } from 'react';
-import { render, act } from '@testing-library/react';
+import { render, act, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Theme } from '../../../shared/theme-types';
 
@@ -650,7 +650,7 @@ describe('EmbeddedTerminal', () => {
 		expect(keyHandler!(ctrlF)).toBe(false);
 	});
 
-	it('shows error message when spawn fails', async () => {
+	it('shows error overlay when spawn fails (not inline text)', async () => {
 		mockSpawn.mockResolvedValueOnce({ success: false, pid: 0, error: 'No shell found' });
 
 		await act(async () => {
@@ -665,8 +665,13 @@ describe('EmbeddedTerminal', () => {
 			);
 		});
 
-		expect(terminalMethods.writeln).toHaveBeenCalledWith(
-			expect.stringContaining('Failed to spawn terminal process')
-		);
+		// Should show an error overlay with retry button instead of inline writeln
+		expect(screen.getByTestId('spawn-error-overlay')).toBeTruthy();
+		expect(screen.getByText('Failed to start terminal')).toBeTruthy();
+		expect(screen.getByText('No shell found')).toBeTruthy();
+		expect(screen.getByTestId('spawn-retry-button')).toBeTruthy();
+
+		// Terminal should be disposed (error overlay replaces the xterm instance)
+		expect(terminalMethods.dispose).toHaveBeenCalled();
 	});
 });

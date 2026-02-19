@@ -26,12 +26,13 @@
  * - On unmount: disposes terminal, unsubscribes listeners, kills process
  */
 
-import React, { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { AlertCircle, RotateCcw } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 
 import type { Theme } from '../../types';
@@ -148,11 +149,16 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 	onProcessExit,
 }, ref) => {
 	const containerRef = useRef<HTMLDivElement>(null);
+	const xtermContainerRef = useRef<HTMLDivElement>(null);
 	const terminalRef = useRef<Terminal | null>(null);
 	const fitAddonRef = useRef<FitAddon | null>(null);
 	const searchAddonRef = useRef<SearchAddon | null>(null);
 	const spawnedRef = useRef(false);
 	const cleanupFnsRef = useRef<Array<() => void>>([]);
+
+	// Spawn failure state — shown as overlay when PTY fails to start
+	const [spawnError, setSpawnError] = useState<string | null>(null);
+	const [isRetrying, setIsRetrying] = useState(false);
 
 	// Write batching: accumulates PTY data and flushes once per animation frame
 	// to avoid flooding xterm.js with individual write() calls during high-throughput output
@@ -179,10 +185,37 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 		},
 	}), []);
 
+	// Clean up existing terminal instance (used before retry)
+	const cleanupTerminal = useCallback(() => {
+		// Cancel pending write RAF
+		if (writeRafRef.current !== null) {
+			cancelAnimationFrame(writeRafRef.current);
+			writeRafRef.current = null;
+		}
+		writeBufferRef.current = '';
+
+		// Cleanup all subscriptions
+		for (const cleanup of cleanupFnsRef.current) {
+			cleanup();
+		}
+		cleanupFnsRef.current = [];
+
+		// Dispose xterm.js terminal
+		if (terminalRef.current) {
+			terminalRef.current.dispose();
+			terminalRef.current = null;
+		}
+
+		fitAddonRef.current = null;
+		searchAddonRef.current = null;
+		spawnedRef.current = false;
+	}, []);
+
 	// Spawn PTY and wire up data flow
 	const setupTerminal = useCallback(async () => {
-		if (!containerRef.current || spawnedRef.current) return;
+		if (!xtermContainerRef.current || spawnedRef.current) return;
 		spawnedRef.current = true;
+		setSpawnError(null);
 
 		const term = new Terminal({
 			scrollback: 10000,
@@ -217,7 +250,7 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 			// WebGL not available — canvas renderer is the default fallback
 		}
 
-		term.open(containerRef.current);
+		term.open(xtermContainerRef.current);
 		fitAddon.fit();
 
 		terminalRef.current = term;
@@ -241,12 +274,13 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 		});
 
 		if (!result.success) {
-			term.writeln('\r\n\x1b[31mFailed to spawn terminal process.\x1b[0m');
-			if (result.error) {
-				term.writeln(`\x1b[90m${result.error}\x1b[0m`);
-			}
-			term.writeln(`\x1b[90mcwd: ${cwd}\x1b[0m`);
 			console.error('[EmbeddedTerminal] Spawn failed:', { terminalTabId, cwd, result });
+			// Dispose the terminal — we'll show an error overlay instead
+			term.dispose();
+			terminalRef.current = null;
+			fitAddonRef.current = null;
+			searchAddonRef.current = null;
+			setSpawnError(result.error || 'Failed to start terminal process');
 			return;
 		}
 
@@ -294,7 +328,7 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 				}
 			}
 		});
-		resizeObserver.observe(containerRef.current);
+		resizeObserver.observe(xtermContainerRef.current);
 		cleanupFnsRef.current.push(() => resizeObserver.disconnect());
 
 		// Handle process exit
@@ -307,39 +341,29 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 		cleanupFnsRef.current.push(unsubExit);
 	}, [terminalTabId, cwd, theme, fontFamily, onProcessExit]);
 
+	// Retry handler — clean up old state and re-attempt spawn
+	const handleRetry = useCallback(async () => {
+		setIsRetrying(true);
+		cleanupTerminal();
+		// Small delay to allow DOM cleanup before re-initializing
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		await setupTerminal();
+		setIsRetrying(false);
+	}, [cleanupTerminal, setupTerminal]);
+
 	// Initialize on mount
 	useEffect(() => {
 		setupTerminal();
 
 		return () => {
-			// Cancel pending write RAF and flush remaining data
-			if (writeRafRef.current !== null) {
-				cancelAnimationFrame(writeRafRef.current);
-				writeRafRef.current = null;
-			}
-			// Flush any remaining buffered data before disposing
+			// Flush remaining buffered data before disposing
 			if (writeBufferRef.current && terminalRef.current) {
 				terminalRef.current.write(writeBufferRef.current);
 			}
-			writeBufferRef.current = '';
+			cleanupTerminal();
 
-			// Cleanup all subscriptions
-			for (const cleanup of cleanupFnsRef.current) {
-				cleanup();
-			}
-			cleanupFnsRef.current = [];
-
-			// Dispose xterm.js terminal
-			if (terminalRef.current) {
-				terminalRef.current.dispose();
-				terminalRef.current = null;
-			}
-
-			// Kill the PTY process
-			if (spawnedRef.current) {
-				processService.kill(terminalTabId);
-				spawnedRef.current = false;
-			}
+			// Kill the PTY process (only if spawn succeeded)
+			processService.kill(terminalTabId);
 		};
 		// Only run on mount/unmount — terminalTabId is stable
 	}, [terminalTabId]);
@@ -380,9 +404,97 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 				width: '100%',
 				height: '100%',
 				overflow: 'hidden',
-				padding: '8px',
+				position: 'relative',
 			}}
-		/>
+		>
+			{/* xterm.js container — hidden when spawn error is active */}
+			<div
+				ref={xtermContainerRef}
+				style={{
+					width: '100%',
+					height: '100%',
+					padding: '8px',
+					display: spawnError ? 'none' : 'block',
+				}}
+			/>
+
+			{/* Spawn failure overlay */}
+			{spawnError && (
+				<div
+					data-testid="spawn-error-overlay"
+					style={{
+						position: 'absolute',
+						inset: 0,
+						display: 'flex',
+						alignItems: 'center',
+						justifyContent: 'center',
+						backgroundColor: theme.colors.bgMain,
+					}}
+				>
+					<div style={{ textAlign: 'center', maxWidth: 320 }}>
+						<AlertCircle
+							style={{
+								width: 32,
+								height: 32,
+								margin: '0 auto 8px',
+								color: theme.colors.error,
+							}}
+						/>
+						<p
+							style={{
+								color: theme.colors.textMain,
+								fontSize: 14,
+								fontWeight: 500,
+								margin: '0 0 4px',
+							}}
+						>
+							Failed to start terminal
+						</p>
+						<p
+							style={{
+								color: theme.colors.textDim,
+								fontSize: 12,
+								margin: '0 0 4px',
+							}}
+						>
+							{spawnError}
+						</p>
+						<p
+							style={{
+								color: theme.colors.textDim,
+								fontSize: 11,
+								margin: '0 0 16px',
+								fontFamily: 'monospace',
+							}}
+						>
+							cwd: {cwd}
+						</p>
+						<button
+							data-testid="spawn-retry-button"
+							onClick={handleRetry}
+							disabled={isRetrying}
+							style={{
+								display: 'inline-flex',
+								alignItems: 'center',
+								gap: 6,
+								padding: '6px 16px',
+								fontSize: 13,
+								fontWeight: 500,
+								borderRadius: 6,
+								border: `1px solid ${theme.colors.border}`,
+								backgroundColor: theme.colors.accent,
+								color: theme.colors.accentForeground || '#ffffff',
+								cursor: isRetrying ? 'not-allowed' : 'pointer',
+								opacity: isRetrying ? 0.6 : 1,
+							}}
+						>
+							<RotateCcw style={{ width: 14, height: 14 }} />
+							{isRetrying ? 'Retrying…' : 'Retry'}
+						</button>
+					</div>
+				</div>
+			)}
+		</div>
 	);
 });
 

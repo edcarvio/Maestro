@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TerminalView, TerminalViewHandle } from '../../../renderer/components/TerminalView';
-import { createTerminalTab } from '../../../renderer/utils/terminalTabHelpers';
+import { createTerminalTab, ensureTerminalTabs } from '../../../renderer/utils/terminalTabHelpers';
 import type { Session, Theme, TerminalTab } from '../../../renderer/types';
 
 // Mock XTerminal - we test TerminalView's container logic, not xterm.js internals
@@ -417,6 +417,103 @@ describe('TerminalView', () => {
 				'exited',
 				1
 			);
+		});
+	});
+
+	describe('Terminal spawn on session creation', () => {
+		it('spawns PTY when session is freshly created via ensureTerminalTabs', async () => {
+			// Simulate a new session without terminal tabs (session creation flow)
+			const bareSession = {
+				id: 'new-session',
+				name: 'New Session',
+				mode: 'terminal' as const,
+				fullPath: '/project',
+				cwd: '/project',
+				inputMode: 'terminal',
+				logs: [],
+				isThinking: false,
+				agentType: 'terminal' as const,
+			} as Session;
+
+			// ensureTerminalTabs adds terminal tabs (what App.tsx does on session creation)
+			const session = ensureTerminalTabs(bareSession, 'zsh');
+
+			expect(session.terminalTabs).toHaveLength(1);
+			expect(session.activeTerminalTabId).toBeTruthy();
+
+			const onTabPidChange = vi.fn();
+			const onTabStateChange = vi.fn();
+			const props = defaultProps({ session, onTabPidChange, onTabStateChange });
+
+			render(<TerminalView {...props} />);
+
+			// PTY should be spawned for the auto-created terminal tab
+			await waitFor(() => {
+				expect(mockSpawnTerminalTab).toHaveBeenCalledWith(
+					expect.objectContaining({
+						sessionId: `new-session-terminal-${session.terminalTabs![0].id}`,
+						cwd: '/project',
+						shell: 'zsh',
+					})
+				);
+			});
+
+			await waitFor(() => {
+				expect(onTabPidChange).toHaveBeenCalledWith(session.terminalTabs![0].id, 1234);
+				expect(onTabStateChange).toHaveBeenCalledWith(session.terminalTabs![0].id, 'idle');
+			});
+		});
+
+		it('falls back to session cwd when tab cwd is empty', async () => {
+			const session = makeSession([{ cwd: '' }]);
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			await waitFor(() => {
+				expect(mockSpawnTerminalTab).toHaveBeenCalledWith(
+					expect.objectContaining({
+						cwd: '/test', // Falls back to session.cwd
+					})
+				);
+			});
+		});
+
+		it('passes shell args and env vars to spawned PTY', async () => {
+			const session = makeSession([{}]);
+			const props = defaultProps({
+				session,
+				defaultShell: 'bash',
+				shellArgs: '--login',
+				shellEnvVars: { TERM_PROGRAM: 'Maestro' },
+			});
+
+			render(<TerminalView {...props} />);
+
+			await waitFor(() => {
+				expect(mockSpawnTerminalTab).toHaveBeenCalledWith(
+					expect.objectContaining({
+						shell: 'bash',
+						shellArgs: '--login',
+						shellEnvVars: { TERM_PROGRAM: 'Maestro' },
+					})
+				);
+			});
+		});
+
+		it('generates correct terminal session ID format for spawn', async () => {
+			const session = makeSession([{}]);
+			const tabId = session.terminalTabs![0].id;
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			await waitFor(() => {
+				const call = mockSpawnTerminalTab.mock.calls[0][0];
+				expect(call.sessionId).toBe(`test-session-terminal-${tabId}`);
+				// Verify it matches the expected format: {sessionId}-terminal-{tabId}
+				expect(call.sessionId).toMatch(/^test-session-terminal-.+$/);
+			});
 		});
 	});
 

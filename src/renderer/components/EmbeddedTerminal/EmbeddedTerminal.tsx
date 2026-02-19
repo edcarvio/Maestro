@@ -46,6 +46,7 @@ interface EmbeddedTerminalProps {
 	fontFamily: string;
 	isVisible: boolean;
 	onProcessExit?: (tabId: string, exitCode: number) => void;
+	onRequestClose?: (tabId: string) => void;
 }
 
 /**
@@ -147,6 +148,7 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 	fontFamily,
 	isVisible,
 	onProcessExit,
+	onRequestClose,
 }, ref) => {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const xtermContainerRef = useRef<HTMLDivElement>(null);
@@ -154,6 +156,7 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 	const fitAddonRef = useRef<FitAddon | null>(null);
 	const searchAddonRef = useRef<SearchAddon | null>(null);
 	const spawnedRef = useRef(false);
+	const hasExitedRef = useRef(false);
 	const cleanupFnsRef = useRef<Array<() => void>>([]);
 
 	// Spawn failure state — shown as overlay when PTY fails to start
@@ -209,6 +212,7 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 		fitAddonRef.current = null;
 		searchAddonRef.current = null;
 		spawnedRef.current = false;
+		hasExitedRef.current = false;
 	}, []);
 
 	// Spawn PTY and wire up data flow
@@ -306,8 +310,13 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 		});
 		cleanupFnsRef.current.push(unsubData);
 
-		// Forward keystrokes from xterm.js → PTY stdin
+		// Forward keystrokes from xterm.js → PTY stdin.
+		// After shell exit, any keypress triggers tab close instead.
 		const dataDisposable = term.onData((data) => {
+			if (hasExitedRef.current) {
+				onRequestClose?.(terminalTabId);
+				return;
+			}
 			processService.write(terminalTabId, data);
 		});
 		cleanupFnsRef.current.push(() => dataDisposable.dispose());
@@ -331,15 +340,17 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 		resizeObserver.observe(xtermContainerRef.current);
 		cleanupFnsRef.current.push(() => resizeObserver.disconnect());
 
-		// Handle process exit
+		// Handle process exit — show message and enable "press any key to close"
 		const unsubExit = processService.onExit((sessionId, code) => {
 			if (sessionId === terminalTabId) {
-				term.writeln(`\r\n\x1b[90m[Process exited with code ${code}]\x1b[0m`);
+				hasExitedRef.current = true;
+				const codeMsg = code !== 0 ? ` with code ${code}` : '';
+				term.write(`\r\n\x1b[33mShell exited${codeMsg}.\x1b[0m \x1b[90mPress any key to close, or Ctrl+Shift+\` for new terminal.\x1b[0m\r\n`);
 				onProcessExit?.(terminalTabId, code);
 			}
 		});
 		cleanupFnsRef.current.push(unsubExit);
-	}, [terminalTabId, cwd, theme, fontFamily, onProcessExit]);
+	}, [terminalTabId, cwd, theme, fontFamily, onProcessExit, onRequestClose]);
 
 	// Retry handler — clean up old state and re-attempt spawn
 	const handleRetry = useCallback(async () => {

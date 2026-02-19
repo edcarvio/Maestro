@@ -1720,6 +1720,7 @@ export const MainPanel = React.memo(
 										fontFamily={props.fontFamily}
 										isVisible={isActive}
 										onProcessExit={props.onTerminalTabExit}
+										onRequestClose={props.onTerminalTabClose}
 									/>
 									{isActive && terminalSearchOpen && (
 										<TerminalSearchBar

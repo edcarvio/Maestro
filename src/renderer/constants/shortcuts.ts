@@ -114,6 +114,11 @@ export const FIXED_SHORTCUTS: Record<string, Shortcut> = {
 		label: "Search Director's Notes",
 		keys: ['Meta', 'f'],
 	},
+	searchTerminal: {
+		id: 'searchTerminal',
+		label: 'Search Terminal (in Terminal Mode)',
+		keys: ['Meta', 'f'],
+	},
 	filePreviewBack: {
 		id: 'filePreviewBack',
 		label: 'File Preview: Go Back',

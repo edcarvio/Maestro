@@ -287,6 +287,15 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 						return;
 					}
 				}
+
+				// Cmd+F - Open terminal search (handled by TerminalView's own listener)
+				// We preventDefault to block browser Find dialog and return early so the
+				// general Cmd+F section below doesn't track it as 'searchOutput'
+				if ((e.metaKey || e.ctrlKey) && e.key === 'f' && !e.shiftKey && !e.altKey) {
+					e.preventDefault();
+					trackShortcut('searchTerminal');
+					return;
+				}
 			}
 
 			// General shortcuts

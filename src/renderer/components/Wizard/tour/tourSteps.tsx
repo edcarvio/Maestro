@@ -208,9 +208,9 @@ export const tourSteps: TourStepConfig[] = [
 		id: 'terminal-mode',
 		title: 'Terminal Mode',
 		description:
-			'Press {{toggleMode}} to switch between AI mode and Terminal mode. Terminal mode gives you a direct shell for running commands yourself.',
+			'Press {{toggleMode}} to switch between AI mode and Terminal mode. Terminal mode gives you a full xterm.js shell. Use {{newTerminalTab}} to open multiple terminal tabs, and navigate them with the same tab shortcuts as AI mode.',
 		descriptionGeneric:
-			'Press {{toggleMode}} to switch between AI mode and Terminal mode. Terminal mode gives you a direct shell for running commands yourself.',
+			'Press {{toggleMode}} to switch between AI mode and Terminal mode. Terminal mode gives you a full xterm.js shell. Use {{newTerminalTab}} to open multiple terminal tabs, and navigate them with the same tab shortcuts as AI mode.',
 		selector: '[data-tour="input-area"]',
 		position: 'top',
 		uiActions: [],

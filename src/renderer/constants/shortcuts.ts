@@ -19,7 +19,7 @@ export const DEFAULT_SHORTCUTS: Record<string, Shortcut> = {
 	newGroupChat: { id: 'newGroupChat', label: 'New Group Chat', keys: ['Alt', 'Meta', 'c'] },
 	killInstance: { id: 'killInstance', label: 'Remove', keys: ['Meta', 'Shift', 'Backspace'] },
 	moveToGroup: { id: 'moveToGroup', label: 'Move Session to Group', keys: ['Meta', 'Shift', 'm'] },
-	toggleMode: { id: 'toggleMode', label: 'Switch AI/Shell Mode', keys: ['Meta', 'j'] },
+	toggleMode: { id: 'toggleMode', label: 'Switch AI/Terminal Mode', keys: ['Meta', 'j'] },
 	quickAction: { id: 'quickAction', label: 'Quick Actions', keys: ['Meta', 'k'] },
 	help: { id: 'help', label: 'Show Shortcuts', keys: ['Meta', '/'] },
 	settings: { id: 'settings', label: 'Open Settings', keys: ['Meta', ','] },
@@ -119,11 +119,6 @@ export const FIXED_SHORTCUTS: Record<string, Shortcut> = {
 		label: 'File Preview: Go Forward',
 		keys: ['Meta', 'ArrowRight'],
 	},
-	newTerminalTab: {
-		id: 'newTerminalTab',
-		label: 'New Terminal Tab',
-		keys: ['Control', 'Shift', '`'],
-	},
 };
 
 // Tab navigation shortcuts (AI mode only)
@@ -182,7 +177,9 @@ export const TAB_SHORTCUTS: Record<string, Shortcut> = {
 	goToLastTab: { id: 'goToLastTab', label: 'Go to Last Tab', keys: ['Meta', '0'] },
 };
 
-// Terminal tab shortcuts (when in terminal mode)
+// Terminal tab shortcuts (when in terminal mode, rendered via xterm.js)
+// Terminal mode also reuses AI tab shortcuts contextually:
+// nextTab/prevTab for tab navigation, closeTab, reopenClosedTab, goToTab1-9
 export const TERMINAL_TAB_SHORTCUTS: Record<string, Shortcut> = {
 	newTerminalTab: { id: 'newTerminalTab', label: 'New Terminal Tab', keys: ['Control', 'Shift', '`'] },
 	clearTerminal: { id: 'clearTerminal', label: 'Clear Terminal', keys: ['Meta', 'k'] },

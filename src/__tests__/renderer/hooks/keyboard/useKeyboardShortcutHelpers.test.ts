@@ -664,7 +664,7 @@ describe('useKeyboardShortcutHelpers', () => {
 			cycleNext: { id: 'cycleNext', label: 'Next Agent', keys: ['Meta', ']'] },
 			newInstance: { id: 'newInstance', label: 'New Agent', keys: ['Meta', 'n'] },
 			killInstance: { id: 'killInstance', label: 'Remove', keys: ['Meta', 'Shift', 'Backspace'] },
-			toggleMode: { id: 'toggleMode', label: 'Switch AI/Shell Mode', keys: ['Meta', 'j'] },
+			toggleMode: { id: 'toggleMode', label: 'Switch AI/Terminal Mode', keys: ['Meta', 'j'] },
 			quickAction: { id: 'quickAction', label: 'Quick Actions', keys: ['Meta', 'k'] },
 			help: { id: 'help', label: 'Show Shortcuts', keys: ['Meta', '/'] },
 			settings: { id: 'settings', label: 'Open Settings', keys: ['Meta', ','] },

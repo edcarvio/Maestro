@@ -211,6 +211,7 @@ import { validateNewSession } from './utils/sessionValidation';
 import { formatLogsForClipboard } from './utils/contextExtractor';
 import { getSlashCommandDescription } from './constants/app';
 import { useUIStore } from './stores/uiStore';
+import { TERMINAL_TAB_SHORTCUTS } from './constants/shortcuts';
 import { useTabStore } from './stores/tabStore';
 import { useFileExplorerStore } from './stores/fileExplorerStore';
 
@@ -13098,7 +13099,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 						theme={theme}
 						isOpen={tourOpen}
 						fromWizard={tourFromWizard}
-						shortcuts={{ ...shortcuts, ...tabShortcuts }}
+						shortcuts={{ ...shortcuts, ...tabShortcuts, ...TERMINAL_TAB_SHORTCUTS }}
 						onClose={() => {
 							setTourOpen(false);
 							setTourCompleted(true);

@@ -198,6 +198,7 @@ import {
 	getTerminalSessionId,
 	getActiveTerminalTab,
 	ensureTerminalTabs,
+	migrateSessionsTerminalTabs,
 	cleanTerminalTabsForPersistence,
 	MAX_CLOSED_TERMINAL_TABS,
 } from './utils/terminalTabHelpers';
@@ -1433,7 +1434,10 @@ function MaestroConsoleInner() {
 
 				// Handle sessions
 				if (savedSessions && savedSessions.length > 0) {
-					const restoredSessions = await Promise.all(savedSessions.map((s) => restoreSession(s)));
+					// Migrate sessions that need terminal tabs (pre-terminal-tabs sessions from storage)
+					const migratedSessions = migrateSessionsTerminalTabs(savedSessions, defaultShell || 'zsh');
+
+					const restoredSessions = await Promise.all(migratedSessions.map((s) => restoreSession(s)));
 					setSessions(restoredSessions);
 					// Set active session to first session if current activeSessionId is invalid
 					if (

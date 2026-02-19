@@ -6,6 +6,7 @@ import {
 	parseTerminalSessionId,
 	getActiveTerminalTab,
 	ensureTerminalTabs,
+	migrateSessionsTerminalTabs,
 	cleanTerminalTabsForPersistence,
 	createClosedTerminalTab,
 	hasRunningTerminalProcess,
@@ -221,6 +222,82 @@ describe('terminalTabHelpers', () => {
 			expect(closed.tab.state).toBe('idle');
 			expect(closed.index).toBe(2);
 			expect(closed.closedAt).toBeGreaterThan(0);
+		});
+	});
+
+	describe('migrateSessionsTerminalTabs', () => {
+		it('migrates sessions without terminal tabs', () => {
+			const session1 = createMinimalSession({ id: 'sess-1', cwd: '/project1' });
+			const session2 = createMinimalSession({ id: 'sess-2', cwd: '/project2' });
+
+			const result = migrateSessionsTerminalTabs([session1, session2], 'bash');
+
+			expect(result).toHaveLength(2);
+			expect(result[0].terminalTabs).toHaveLength(1);
+			expect(result[0].terminalTabs![0].shellType).toBe('bash');
+			expect(result[0].terminalTabs![0].cwd).toBe('/project1');
+			expect(result[0].activeTerminalTabId).toBe(result[0].terminalTabs![0].id);
+			expect(result[0].closedTerminalTabHistory).toEqual([]);
+			expect(result[1].terminalTabs).toHaveLength(1);
+			expect(result[1].terminalTabs![0].cwd).toBe('/project2');
+		});
+
+		it('leaves sessions with existing terminal tabs unchanged', () => {
+			const tab = createTerminalTab('zsh', '/test');
+			const session = createMinimalSession({
+				id: 'sess-1',
+				terminalTabs: [tab],
+				activeTerminalTabId: tab.id,
+				closedTerminalTabHistory: [],
+			});
+
+			const result = migrateSessionsTerminalTabs([session]);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toBe(session); // Same reference - unchanged
+		});
+
+		it('handles mixed sessions (some with tabs, some without)', () => {
+			const tab = createTerminalTab('zsh', '/existing');
+			const withTabs = createMinimalSession({
+				id: 'has-tabs',
+				terminalTabs: [tab],
+				activeTerminalTabId: tab.id,
+				closedTerminalTabHistory: [],
+			});
+			const withoutTabs = createMinimalSession({ id: 'no-tabs', cwd: '/new' });
+
+			const result = migrateSessionsTerminalTabs([withTabs, withoutTabs], 'fish');
+
+			expect(result[0]).toBe(withTabs); // Unchanged
+			expect(result[1].terminalTabs).toHaveLength(1);
+			expect(result[1].terminalTabs![0].shellType).toBe('fish');
+		});
+
+		it('handles empty sessions array', () => {
+			const result = migrateSessionsTerminalTabs([]);
+			expect(result).toEqual([]);
+		});
+
+		it('defaults to zsh when no shell specified', () => {
+			const session = createMinimalSession({ id: 'sess-1' });
+			const result = migrateSessionsTerminalTabs([session]);
+
+			expect(result[0].terminalTabs![0].shellType).toBe('zsh');
+		});
+
+		it('ensures closedTerminalTabHistory for sessions with tabs but missing history', () => {
+			const tab = createTerminalTab('zsh', '/test');
+			const session = createMinimalSession({
+				id: 'sess-1',
+				terminalTabs: [tab],
+				activeTerminalTabId: tab.id,
+				// closedTerminalTabHistory intentionally omitted
+			});
+
+			const result = migrateSessionsTerminalTabs([session]);
+
+			expect(result[0].closedTerminalTabHistory).toEqual([]);
 		});
 	});
 

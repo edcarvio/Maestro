@@ -174,6 +174,35 @@ describe('terminalTabHelpers', () => {
 			expect(cleaned[0].cwd).toBe('/project');
 		});
 
+		it('strips exitCode, scrollTop, and searchQuery (runtime-only fields)', () => {
+			const tab: TerminalTab = {
+				id: 'tab-1',
+				name: null,
+				shellType: 'bash',
+				pid: 9999,
+				cwd: '/home',
+				createdAt: 2000,
+				state: 'exited',
+				exitCode: 1,
+				scrollTop: 500,
+				searchQuery: 'error',
+			};
+
+			const cleaned = cleanTerminalTabsForPersistence([tab]);
+			expect(cleaned).toHaveLength(1);
+			// Identity and settings preserved
+			expect(cleaned[0].id).toBe('tab-1');
+			expect(cleaned[0].shellType).toBe('bash');
+			expect(cleaned[0].cwd).toBe('/home');
+			expect(cleaned[0].createdAt).toBe(2000);
+			// Runtime state stripped
+			expect(cleaned[0].pid).toBe(0);
+			expect(cleaned[0].state).toBe('idle');
+			expect(cleaned[0].exitCode).toBeUndefined();
+			expect(cleaned[0].scrollTop).toBeUndefined();
+			expect(cleaned[0].searchQuery).toBeUndefined();
+		});
+
 		it('handles undefined input', () => {
 			expect(cleanTerminalTabsForPersistence(undefined)).toEqual([]);
 		});

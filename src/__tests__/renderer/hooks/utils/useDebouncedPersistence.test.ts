@@ -1674,6 +1674,36 @@ describe('useDebouncedPersistence', () => {
 				expect(persisted[0].terminalTabs![2].state).toBe('idle');
 			});
 
+			it('should strip exitCode, scrollTop, and searchQuery (xterm buffer/runtime state)', () => {
+				const tab = makeTerminalTab({
+					id: 't1',
+					pid: 12345,
+					state: 'exited',
+					exitCode: 127,
+					scrollTop: 1500,
+					searchQuery: 'error pattern',
+				});
+				const session = makeSession({
+					terminalTabs: [tab],
+					activeTerminalTabId: 't1',
+				});
+
+				const initialLoadRef = makeInitialLoadRef(true);
+				const { result } = renderHook(() =>
+					useDebouncedPersistence([session], initialLoadRef)
+				);
+
+				act(() => {
+					result.current.flushNow();
+				});
+
+				const persisted = vi.mocked(window.maestro.sessions.setAll).mock.calls[0][0] as Session[];
+				const persistedTab = persisted[0].terminalTabs![0];
+				expect(persistedTab.exitCode).toBeUndefined();
+				expect(persistedTab.scrollTop).toBeUndefined();
+				expect(persistedTab.searchQuery).toBeUndefined();
+			});
+
 			it('should remove closedTerminalTabHistory (runtime-only undo stack)', () => {
 				const closedTab = makeTerminalTab({ id: 'closed-t' });
 				const activeTab = makeTerminalTab({ id: 'active-t' });

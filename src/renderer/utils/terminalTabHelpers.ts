@@ -131,7 +131,17 @@ export function migrateSessionsTerminalTabs(sessions: Session[], defaultShell: s
 
 /**
  * Clean terminal tab runtime state for persistence.
- * PIDs and state shouldn't be saved - they won't be valid after restart.
+ * Only persists identity and settings (id, name, shellType, cwd, createdAt).
+ * Strips all runtime state:
+ * - pid: PTY process IDs don't survive app restart
+ * - state: busy/exited are runtime-only; reset to 'idle'
+ * - exitCode: runtime exit status
+ * - scrollTop: xterm.js viewport position (buffer content is never persisted)
+ * - searchQuery: transient Cmd+F search state
+ *
+ * Note: The xterm.js terminal buffer (visible output) is never stored in session
+ * state — it exists only in the XTerminal component's xterm.js instance and is
+ * rebuilt from the PTY stream on each terminal spawn.
  */
 export function cleanTerminalTabsForPersistence(tabs: TerminalTab[] | undefined): TerminalTab[] {
 	if (!tabs) return [];

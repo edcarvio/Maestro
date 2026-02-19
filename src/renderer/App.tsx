@@ -1193,20 +1193,25 @@ function MaestroConsoleInner() {
 				session = { ...session, fileTreeAutoRefreshInterval: 180 };
 			}
 
-			// Migration: sessions with shellLogs but no terminalTabs (pre-xterm.js era)
-			// These sessions used runCommand for discrete command execution.
+			// Migration: sessions without terminal tabs (backwards compatibility)
+			// Covers pre-xterm.js sessions (shellLogs era) and any sessions missing terminalTabs.
 			// Terminal mode now uses persistent PTY via terminalTabs + xterm.js.
-			// We initialize terminalTabs as empty — shellLogs content is not convertible
-			// to terminal tabs because they represent different paradigms (log entries vs live PTY).
-			if (session.shellLogs?.length > 0 && !session.terminalTabs?.length) {
-				console.warn(
-					`[restoreSession] Session ${session.id} has shellLogs but no terminalTabs — migrating to new terminal structure`
+			if (!session.terminalTabs || session.terminalTabs.length === 0) {
+				const defaultTerminalTab = createDefaultTerminalTab(session.cwd);
+				console.log(
+					`[restoreSession] Migrated session ${session.id} to terminal tabs`
 				);
 				session = {
 					...session,
-					terminalTabs: [],
-					activeTerminalTabId: null,
+					terminalTabs: [defaultTerminalTab],
+					activeTerminalTabId: defaultTerminalTab.id,
+					closedTerminalTabHistory: [],
 				};
+			}
+
+			// Ensure closedTerminalTabHistory exists (runtime-only, not persisted)
+			if (!session.closedTerminalTabHistory) {
+				session = { ...session, closedTerminalTabHistory: [] };
 			}
 
 			// Sessions must have aiTabs - if missing, this is a data corruption issue

@@ -13,7 +13,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import type { Session, TerminalTab, UnifiedTabRef, AITab, LogEntry } from '../../../renderer/types';
+import type { Session, TerminalTab, UnifiedTabRef, AITab, LogEntry, ClosedTerminalTab } from '../../../renderer/types';
+import { createDefaultTerminalTab } from '../../../renderer/utils/terminalTabHelpers';
 
 // Mock the generateId function for predictable test IDs
 vi.mock('../../../renderer/utils/ids', () => ({
@@ -319,6 +320,172 @@ describe('terminal tab persistence', () => {
 			expect(result.unifiedTabOrder).toEqual(sessionUnifiedTabOrder);
 			const termRefs = result.unifiedTabOrder.filter((r) => r.type === 'terminal');
 			expect(termRefs).toHaveLength(2);
+		});
+	});
+
+	describe('restoreSession terminal tab migration', () => {
+		/**
+		 * Simulate the broadened migration logic from App.tsx restoreSession.
+		 * ANY session without terminal tabs (or with empty array) gets a default tab.
+		 * Also ensures closedTerminalTabHistory is initialized.
+		 */
+		function migrateSessionTerminalTabs(session: Partial<Session>): Partial<Session> {
+			let result = { ...session };
+
+			if (!result.terminalTabs || result.terminalTabs.length === 0) {
+				const defaultTerminalTab = createDefaultTerminalTab(result.cwd || '');
+				result = {
+					...result,
+					terminalTabs: [defaultTerminalTab],
+					activeTerminalTabId: defaultTerminalTab.id,
+					closedTerminalTabHistory: [],
+				};
+			}
+
+			if (!result.closedTerminalTabHistory) {
+				result = { ...result, closedTerminalTabHistory: [] };
+			}
+
+			return result;
+		}
+
+		it('creates a default terminal tab for session with no terminalTabs', () => {
+			const session: Partial<Session> = {
+				id: 'session-1',
+				cwd: '/home/user/project',
+			};
+
+			const migrated = migrateSessionTerminalTabs(session);
+
+			expect(migrated.terminalTabs).toHaveLength(1);
+			expect(migrated.terminalTabs![0].id).toBe('mock-generated-id');
+			expect(migrated.terminalTabs![0].cwd).toBe('/home/user/project');
+			expect(migrated.activeTerminalTabId).toBe('mock-generated-id');
+		});
+
+		it('creates a default terminal tab for session with empty terminalTabs array', () => {
+			const session: Partial<Session> = {
+				id: 'session-2',
+				cwd: '/test/dir',
+				terminalTabs: [],
+			};
+
+			const migrated = migrateSessionTerminalTabs(session);
+
+			expect(migrated.terminalTabs).toHaveLength(1);
+			expect(migrated.activeTerminalTabId).toBe('mock-generated-id');
+		});
+
+		it('does not modify session that already has terminal tabs', () => {
+			const existingTab = createMockTerminalTab({ id: 'existing-tab', cwd: '/existing' });
+			const session: Partial<Session> = {
+				id: 'session-3',
+				cwd: '/home/user',
+				terminalTabs: [existingTab],
+				activeTerminalTabId: 'existing-tab',
+				closedTerminalTabHistory: [],
+			};
+
+			const migrated = migrateSessionTerminalTabs(session);
+
+			expect(migrated.terminalTabs).toHaveLength(1);
+			expect(migrated.terminalTabs![0].id).toBe('existing-tab');
+			expect(migrated.activeTerminalTabId).toBe('existing-tab');
+		});
+
+		it('initializes closedTerminalTabHistory as empty array', () => {
+			const session: Partial<Session> = {
+				id: 'session-4',
+				cwd: '/test',
+			};
+
+			const migrated = migrateSessionTerminalTabs(session);
+
+			expect(migrated.closedTerminalTabHistory).toEqual([]);
+		});
+
+		it('ensures closedTerminalTabHistory exists even when terminal tabs are present', () => {
+			const tab = createMockTerminalTab({ id: 'tab-1' });
+			const session: Partial<Session> = {
+				terminalTabs: [tab],
+				activeTerminalTabId: 'tab-1',
+				// closedTerminalTabHistory is missing
+			};
+
+			const migrated = migrateSessionTerminalTabs(session);
+
+			expect(migrated.closedTerminalTabHistory).toEqual([]);
+		});
+
+		it('preserves existing closedTerminalTabHistory when present', () => {
+			const tab = createMockTerminalTab({ id: 'tab-1' });
+			const closedTab: ClosedTerminalTab = {
+				tab: createMockTerminalTab({ id: 'closed-tab' }),
+				index: 0,
+				closedAt: Date.now(),
+			};
+			const session: Partial<Session> = {
+				terminalTabs: [tab],
+				activeTerminalTabId: 'tab-1',
+				closedTerminalTabHistory: [closedTab],
+			};
+
+			const migrated = migrateSessionTerminalTabs(session);
+
+			expect(migrated.closedTerminalTabHistory).toHaveLength(1);
+			expect(migrated.closedTerminalTabHistory![0].tab.id).toBe('closed-tab');
+		});
+
+		it('uses session cwd for the default terminal tab', () => {
+			const session: Partial<Session> = {
+				cwd: '/custom/path/to/project',
+			};
+
+			const migrated = migrateSessionTerminalTabs(session);
+
+			expect(migrated.terminalTabs![0].cwd).toBe('/custom/path/to/project');
+		});
+
+		it('handles session with undefined cwd gracefully', () => {
+			const session: Partial<Session> = {};
+
+			const migrated = migrateSessionTerminalTabs(session);
+
+			expect(migrated.terminalTabs).toHaveLength(1);
+			expect(migrated.terminalTabs![0].cwd).toBe('');
+		});
+
+		it('migrates legacy session with shellLogs and no terminalTabs', () => {
+			const session: Partial<Session> = {
+				id: 'legacy-session',
+				cwd: '/legacy/project',
+				shellLogs: [
+					{ id: 'log-1', timestamp: Date.now(), source: 'stdout', text: 'npm start' } as LogEntry,
+				],
+			};
+
+			const migrated = migrateSessionTerminalTabs(session);
+
+			// Should create a default tab (broader migration catches this)
+			expect(migrated.terminalTabs).toHaveLength(1);
+			expect(migrated.activeTerminalTabId).toBe('mock-generated-id');
+			// shellLogs preserved for backwards compatibility
+			expect(migrated.shellLogs).toHaveLength(1);
+		});
+
+		it('preserves all other session fields during migration', () => {
+			const session: Partial<Session> = {
+				id: 'session-preserve',
+				cwd: '/project',
+				inputMode: 'ai',
+				projectRoot: '/project',
+			};
+
+			const migrated = migrateSessionTerminalTabs(session);
+
+			expect(migrated.id).toBe('session-preserve');
+			expect(migrated.inputMode).toBe('ai');
+			expect(migrated.projectRoot).toBe('/project');
 		});
 	});
 

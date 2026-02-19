@@ -82,6 +82,9 @@ vi.mock('lucide-react', () => ({
 	ChevronDown: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
 		<span className={className} style={style}>Down</span>
 	),
+	AlertCircle: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+		<span data-testid="alert-circle-icon" className={className} style={style}>!</span>
+	),
 }));
 
 // Minimal theme
@@ -628,6 +631,231 @@ describe('TerminalView', () => {
 			expect(searchResult!).toBe(false);
 			expect(nextResult!).toBe(false);
 			expect(prevResult!).toBe(false);
+		});
+	});
+
+	describe('PTY spawn failure error UI', () => {
+		it('shows error overlay when tab spawn failed (state=exited, pid=0, exitCode!=0)', () => {
+			const tabId = 'fail-tab';
+			const session = makeSession([{
+				id: tabId,
+				state: 'exited' as const,
+				exitCode: -1,
+				pid: 0,
+			}]);
+			(session as Record<string, unknown>).activeTerminalTabId = tabId;
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			// Error overlay should be visible
+			expect(screen.getByTestId(`spawn-error-${tabId}`)).toBeTruthy();
+			expect(screen.getByText('Failed to start terminal')).toBeTruthy();
+			expect(screen.getByText('Retry')).toBeTruthy();
+			expect(screen.getByTestId('alert-circle-icon')).toBeTruthy();
+
+			// XTerminal should NOT be rendered for this tab
+			expect(screen.queryByTestId(`xterminal-test-session-terminal-${tabId}`)).toBeNull();
+		});
+
+		it('does not show error overlay for normally exited tab (pid > 0)', () => {
+			const session = makeSession([{
+				state: 'exited' as const,
+				exitCode: 1,
+				pid: 5678,
+			}]);
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			// No error overlay — XTerminal should still be rendered
+			const tabId = session.terminalTabs![0].id;
+			expect(screen.queryByTestId(`spawn-error-${tabId}`)).toBeNull();
+			expect(screen.getByTestId(`xterminal-test-session-terminal-${tabId}`)).toBeTruthy();
+		});
+
+		it('does not show error overlay for idle tab (not yet spawned)', () => {
+			const session = makeSession([{
+				state: 'idle' as const,
+				pid: 0,
+			}]);
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			const tabId = session.terminalTabs![0].id;
+			expect(screen.queryByTestId(`spawn-error-${tabId}`)).toBeNull();
+			expect(screen.getByTestId(`xterminal-test-session-terminal-${tabId}`)).toBeTruthy();
+		});
+
+		it('does not show error overlay for exited tab with exitCode 0 (clean exit)', () => {
+			const session = makeSession([{
+				state: 'exited' as const,
+				exitCode: 0,
+				pid: 0,
+			}]);
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			const tabId = session.terminalTabs![0].id;
+			expect(screen.queryByTestId(`spawn-error-${tabId}`)).toBeNull();
+		});
+
+		it('calls onTabStateChange with idle when retry button is clicked', () => {
+			const tabId = 'fail-tab';
+			const onTabStateChange = vi.fn();
+			const session = makeSession([{
+				id: tabId,
+				state: 'exited' as const,
+				exitCode: -1,
+				pid: 0,
+			}]);
+			(session as Record<string, unknown>).activeTerminalTabId = tabId;
+			const props = defaultProps({ session, onTabStateChange });
+
+			render(<TerminalView {...props} />);
+
+			fireEvent.click(screen.getByText('Retry'));
+			expect(onTabStateChange).toHaveBeenCalledWith(tabId, 'idle');
+		});
+
+		it('transitions from error overlay to XTerminal after successful retry', async () => {
+			const tabId = 'fail-tab';
+			const onTabStateChange = vi.fn();
+			const session = makeSession([{
+				id: tabId,
+				state: 'exited' as const,
+				exitCode: -1,
+				pid: 0,
+			}]);
+			(session as Record<string, unknown>).activeTerminalTabId = tabId;
+			const props = defaultProps({ session, onTabStateChange });
+
+			const { rerender } = render(<TerminalView {...props} />);
+
+			// Error overlay should be visible
+			expect(screen.getByTestId(`spawn-error-${tabId}`)).toBeTruthy();
+
+			// Simulate retry: parent resets state to 'idle' (as handleRetrySpawn requests)
+			const retriedSession = makeSession([{
+				id: tabId,
+				state: 'idle' as const,
+				exitCode: undefined,
+				pid: 0,
+			}]);
+			(retriedSession as Record<string, unknown>).activeTerminalTabId = tabId;
+			rerender(<TerminalView {...defaultProps({ session: retriedSession })} />);
+
+			// Error overlay should be gone, XTerminal should be rendered
+			expect(screen.queryByTestId(`spawn-error-${tabId}`)).toBeNull();
+			expect(screen.getByTestId(`xterminal-test-session-terminal-${tabId}`)).toBeTruthy();
+		});
+
+		it('shows error overlay with spawn rejection (exitCode=1)', () => {
+			const tabId = 'reject-tab';
+			const session = makeSession([{
+				id: tabId,
+				state: 'exited' as const,
+				exitCode: 1,
+				pid: 0,
+			}]);
+			(session as Record<string, unknown>).activeTerminalTabId = tabId;
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			expect(screen.getByTestId(`spawn-error-${tabId}`)).toBeTruthy();
+			expect(screen.getByText('Failed to start terminal')).toBeTruthy();
+		});
+
+		it('renders error overlay only for spawn-failed tab, not sibling tabs', () => {
+			const failTab = {
+				id: 'fail-tab',
+				state: 'exited' as const,
+				exitCode: -1,
+				pid: 0,
+			};
+			const okTab = {
+				id: 'ok-tab',
+				state: 'idle' as const,
+				pid: 1234,
+			};
+			const session = makeSession([failTab, okTab]);
+			(session as Record<string, unknown>).activeTerminalTabId = 'fail-tab';
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			// Failed tab shows error overlay
+			expect(screen.getByTestId('spawn-error-fail-tab')).toBeTruthy();
+			// OK tab shows XTerminal
+			expect(screen.getByTestId('xterminal-test-session-terminal-ok-tab')).toBeTruthy();
+			expect(screen.queryByTestId('spawn-error-ok-tab')).toBeNull();
+		});
+
+		it('styles error overlay with theme colors', () => {
+			const tabId = 'fail-tab';
+			const session = makeSession([{
+				id: tabId,
+				state: 'exited' as const,
+				exitCode: -1,
+				pid: 0,
+			}]);
+			(session as Record<string, unknown>).activeTerminalTabId = tabId;
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			// jsdom converts hex to rgb in computed style, so use toHaveStyle
+			// which handles color format normalization
+			const icon = screen.getByTestId('alert-circle-icon');
+			expect(icon).toHaveStyle({ color: theme.colors.error });
+
+			const message = screen.getByText('Failed to start terminal');
+			expect(message).toHaveStyle({ color: theme.colors.textMain });
+
+			const retryButton = screen.getByText('Retry');
+			expect(retryButton).toHaveStyle({ backgroundColor: theme.colors.accent });
+			expect(retryButton).toHaveStyle({ color: theme.colors.accentForeground });
+
+			const overlay = screen.getByTestId(`spawn-error-${tabId}`);
+			expect(overlay).toHaveStyle({ backgroundColor: theme.colors.bgMain });
+		});
+
+		it('auto-spawns PTY after retry resets state to idle', async () => {
+			// Start with a failed tab
+			const tabId = 'fail-tab';
+			const session = makeSession([{
+				id: tabId,
+				state: 'exited' as const,
+				exitCode: -1,
+				pid: 0,
+			}]);
+			(session as Record<string, unknown>).activeTerminalTabId = tabId;
+			const props = defaultProps({ session });
+
+			const { rerender } = render(<TerminalView {...props} />);
+
+			// No spawn should have happened (tab is exited)
+			await act(async () => {
+				await new Promise((r) => setTimeout(r, 50));
+			});
+			expect(mockSpawnTerminalTab).not.toHaveBeenCalled();
+
+			// Simulate retry: parent resets state to idle
+			const retriedSession = makeSession([{
+				id: tabId,
+				state: 'idle' as const,
+				pid: 0,
+			}]);
+			(retriedSession as Record<string, unknown>).activeTerminalTabId = tabId;
+			rerender(<TerminalView {...defaultProps({ session: retriedSession })} />);
+
+			// useEffect should trigger spawnPtyForTab since state is no longer 'exited'
+			await waitFor(() => {
+				expect(mockSpawnTerminalTab).toHaveBeenCalledTimes(1);
+			});
 		});
 	});
 });

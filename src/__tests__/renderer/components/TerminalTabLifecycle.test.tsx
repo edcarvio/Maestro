@@ -74,6 +74,9 @@ vi.mock('lucide-react', () => ({
 	ChevronDown: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
 		<span className={className} style={style}>Down</span>
 	),
+	AlertCircle: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+		<span data-testid="alert-circle-icon" className={className} style={style}>!</span>
+	),
 }));
 
 // ---------------------------------------------------------------------------

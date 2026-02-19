@@ -13,6 +13,7 @@
  */
 
 import React, { useRef, useCallback, useEffect, memo, forwardRef, useImperativeHandle } from 'react';
+import { AlertCircle } from 'lucide-react';
 import { XTerminal, XTerminalHandle } from './XTerminal';
 import { TerminalTabBar } from './TerminalTabBar';
 import { TerminalSearchBar } from './TerminalSearchBar';
@@ -209,6 +210,12 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 		onTabClose(tabId);
 	}, [session.id, tabs, onTabClose]);
 
+	// Retry spawning PTY for a tab that failed to start.
+	// Resetting state to 'idle' triggers the useEffect that auto-spawns for the active tab.
+	const handleRetrySpawn = useCallback((tabId: string) => {
+		onTabStateChange(tabId, 'idle');
+	}, [onTabStateChange]);
+
 	// Store terminal ref
 	const setTerminalRef = useCallback((tabId: string, ref: XTerminalHandle | null) => {
 		if (ref) {
@@ -273,20 +280,48 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 				/>
 
 				{/* All terminal instances stacked absolutely; only active is visible */}
-				{tabs.map(tab => (
-					<div
-						key={tab.id}
-						className={`absolute inset-0 ${tab.id === session.activeTerminalTabId ? '' : 'invisible'}`}
-					>
-						<XTerminal
-							ref={(ref) => setTerminalRef(tab.id, ref)}
-							sessionId={getTerminalSessionId(session.id, tab.id)}
-							theme={theme}
-							fontFamily={fontFamily}
-							fontSize={fontSize}
-						/>
-					</div>
-				))}
+				{tabs.map(tab => {
+					const isSpawnFailed = tab.state === 'exited' && tab.exitCode !== 0 && tab.pid === 0;
+					return (
+						<div
+							key={tab.id}
+							className={`absolute inset-0 ${tab.id === session.activeTerminalTabId ? '' : 'invisible'}`}
+						>
+							{isSpawnFailed ? (
+								<div
+									className="flex items-center justify-center h-full"
+									style={{ backgroundColor: theme.colors.bgMain }}
+									data-testid={`spawn-error-${tab.id}`}
+								>
+									<div className="text-center">
+										<AlertCircle className="w-8 h-8 mx-auto mb-2" style={{ color: theme.colors.error }} />
+										<p className="mb-3 text-sm" style={{ color: theme.colors.textMain }}>
+											Failed to start terminal
+										</p>
+										<button
+											className="px-3 py-1.5 rounded text-xs font-medium transition-colors hover:opacity-90"
+											style={{
+												backgroundColor: theme.colors.accent,
+												color: theme.colors.accentForeground,
+											}}
+											onClick={() => handleRetrySpawn(tab.id)}
+										>
+											Retry
+										</button>
+									</div>
+								</div>
+							) : (
+								<XTerminal
+									ref={(ref) => setTerminalRef(tab.id, ref)}
+									sessionId={getTerminalSessionId(session.id, tab.id)}
+									theme={theme}
+									fontFamily={fontFamily}
+									fontSize={fontSize}
+								/>
+							)}
+						</div>
+					);
+				})}
 
 				{/* Show message if no tabs */}
 				{tabs.length === 0 && (

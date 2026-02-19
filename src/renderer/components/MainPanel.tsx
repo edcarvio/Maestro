@@ -1868,22 +1868,16 @@ export const MainPanel = React.memo(
 									)}
 								</div>
 
-								{/* Input Area (hidden in mobile landscape for focused reading, and during wizard doc generation) */}
-								{!isMobileLandscape && !activeTab?.wizardState?.isGeneratingDocs && (
+								{/* Input Area - hidden in terminal mode (xterm handles its own input), mobile landscape, and during wizard doc generation */}
+								{activeSession.inputMode !== 'terminal' && !isMobileLandscape && !activeTab?.wizardState?.isGeneratingDocs && (
 									<div data-tour="input-area">
 										<InputArea
 											session={activeSession}
 											theme={theme}
 											inputValue={inputValue}
 											setInputValue={setInputValue}
-											enterToSend={
-												activeSession.inputMode === 'terminal' ? enterToSendTerminal : enterToSendAI
-											}
-											setEnterToSend={
-												activeSession.inputMode === 'terminal'
-													? setEnterToSendTerminal
-													: setEnterToSendAI
-											}
+											enterToSend={enterToSendAI}
+											setEnterToSend={setEnterToSendAI}
 											stagedImages={stagedImages}
 											setStagedImages={setStagedImages}
 											setLightboxImage={setLightboxImage}

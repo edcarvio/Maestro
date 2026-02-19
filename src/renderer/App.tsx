@@ -1797,6 +1797,9 @@ function MaestroConsoleInner() {
 							// Ignore errors
 						}
 
+						// Initialize terminal tab for worktree session
+						const initialTerminalTab = createTerminalTab(defaultShell || 'zsh', subdir.path, null);
+
 						const worktreeSession: Session = {
 							id: newId,
 							name: subdir.branch || subdir.name,
@@ -1845,6 +1848,10 @@ function MaestroConsoleInner() {
 							activeFileTabId: null,
 							unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 							unifiedClosedTabHistory: [],
+							// Terminal tabs
+							terminalTabs: [initialTerminalTab],
+							activeTerminalTabId: initialTerminalTab.id,
+							closedTerminalTabHistory: [],
 							customPath: parentSession.customPath,
 							customArgs: parentSession.customArgs,
 							customEnvVars: parentSession.customEnvVars,
@@ -6409,6 +6416,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 				// Ignore errors
 			}
 
+			// Initialize terminal tab for worktree session
+			const initialTerminalTab = createTerminalTab(defaultShell || 'zsh', worktree.path, null);
+
 			const worktreeSession: Session = {
 				id: newId,
 				name: worktree.branch || worktree.name,
@@ -6457,6 +6467,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 				activeFileTabId: null,
 				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 				unifiedClosedTabHistory: [],
+				// Terminal tabs
+				terminalTabs: [initialTerminalTab],
+				activeTerminalTabId: initialTerminalTab.id,
+				closedTerminalTabHistory: [],
 				customPath: parentSession.customPath,
 				customArgs: parentSession.customArgs,
 				customEnvVars: parentSession.customEnvVars,
@@ -6593,6 +6607,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 								// Ignore errors
 							}
 
+							// Initialize terminal tab for worktree session
+							const initialTerminalTab = createTerminalTab(defaultShell || 'zsh', subdir.path, null);
+
 							const newSession: Session = {
 								id: newId,
 								name: sessionName,
@@ -6642,6 +6659,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 								activeFileTabId: null,
 								unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 								unifiedClosedTabHistory: [],
+								// Terminal tabs
+								terminalTabs: [initialTerminalTab],
+								activeTerminalTabId: initialTerminalTab.id,
+								closedTerminalTabHistory: [],
 								customPath: session.customPath,
 								customArgs: session.customArgs,
 								customEnvVars: session.customEnvVars,
@@ -10028,6 +10049,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 							// Ignore errors fetching git info
 						}
 
+						// Initialize terminal tab for worktree session
+						const initialTerminalTab = createTerminalTab(defaultShell || 'zsh', subdir.path, null);
+
 						const worktreeSession: Session = {
 							id: newId,
 							name: subdir.branch || subdir.name,
@@ -10078,6 +10102,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 							activeFileTabId: null,
 							unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 							unifiedClosedTabHistory: [],
+							// Terminal tabs
+							terminalTabs: [initialTerminalTab],
+							activeTerminalTabId: initialTerminalTab.id,
+							closedTerminalTabHistory: [],
 							customPath: activeSession.customPath,
 							customArgs: activeSession.customArgs,
 							customEnvVars: activeSession.customEnvVars,
@@ -10209,6 +10237,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 					// Ignore errors
 				}
 
+				// Initialize terminal tab for worktree session
+				const initialTerminalTab = createTerminalTab(defaultShell || 'zsh', worktreePath, null);
+
 				const worktreeSession: Session = {
 					id: newId,
 					name: branchName,
@@ -10257,6 +10288,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 					activeFileTabId: null,
 					unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 					unifiedClosedTabHistory: [],
+					// Terminal tabs
+					terminalTabs: [initialTerminalTab],
+					activeTerminalTabId: initialTerminalTab.id,
+					closedTerminalTabHistory: [],
 					customPath: activeSession.customPath,
 					customArgs: activeSession.customArgs,
 					customEnvVars: activeSession.customEnvVars,
@@ -10366,6 +10401,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 				// Ignore errors
 			}
 
+			// Initialize terminal tab for worktree session
+			const initialTerminalTab = createTerminalTab(defaultShell || 'zsh', worktreePath, null);
+
 			const worktreeSession: Session = {
 				id: newId,
 				name: branchName,
@@ -10414,6 +10452,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 				activeFileTabId: null,
 				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 				unifiedClosedTabHistory: [],
+				// Terminal tabs
+				terminalTabs: [initialTerminalTab],
+				activeTerminalTabId: initialTerminalTab.id,
+				closedTerminalTabHistory: [],
 				customPath: createWorktreeSession.customPath,
 				customArgs: createWorktreeSession.customArgs,
 				customEnvVars: createWorktreeSession.customEnvVars,

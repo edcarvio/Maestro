@@ -368,6 +368,7 @@ interface MainPanelProps {
 	onTerminalTabReopen?: (sessionId: string) => void;
 	onTerminalTabReorder?: (sessionId: string, fromIndex: number, toIndex: number) => void;
 	onTerminalTabRename?: (sessionId: string, tabId: string, newName: string | null) => void;
+	onTerminalTabRequestRename?: (tabId: string) => void;
 	onTerminalTabStateChange?: (sessionId: string, tabId: string, state: 'idle' | 'busy' | 'exited', exitCode?: number) => void;
 	onTerminalTabCwdChange?: (sessionId: string, tabId: string, cwd: string) => void;
 	onTerminalTabPidChange?: (sessionId: string, tabId: string, pid: number) => void;
@@ -1818,14 +1819,7 @@ export const MainPanel = React.memo(
 											onTabStateChange={(tabId, state, exitCode) => props.onTerminalTabStateChange?.(activeSession.id, tabId, state, exitCode)}
 											onTabCwdChange={(tabId, cwd) => props.onTerminalTabCwdChange?.(activeSession.id, tabId, cwd)}
 											onTabPidChange={(tabId, pid) => props.onTerminalTabPidChange?.(activeSession.id, tabId, pid)}
-											onRequestRename={(tabId) => {
-												const tab = activeSession.terminalTabs?.find((t) => t.id === tabId);
-												const currentName = tab?.name || '';
-												const newName = window.prompt('Rename terminal tab:', currentName);
-												if (newName !== null) {
-													props.onTerminalTabRename?.(activeSession.id, tabId, newName || null);
-												}
-											}}
+											onRequestRename={(tabId) => props.onTerminalTabRequestRename?.(tabId)}
 											searchOpen={terminalSearchOpen}
 											onSearchClose={() => setTerminalSearchOpen(false)}
 										/>

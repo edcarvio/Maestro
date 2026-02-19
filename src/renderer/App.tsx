@@ -44,6 +44,7 @@ import { TourOverlay } from './components/Wizard/tour';
 import { CONDUCTOR_BADGES, getBadgeForTime } from './constants/conductorBadges';
 import { EmptyStateView } from './components/EmptyStateView';
 import { DeleteAgentConfirmModal } from './components/DeleteAgentConfirmModal';
+import { TerminalTabRenameModal } from './components/TerminalTabRenameModal';
 
 // Lazy-loaded components for performance (rarely-used heavy modals)
 // These are loaded on-demand when the user first opens them
@@ -197,6 +198,7 @@ import {
 	createClosedTerminalTab,
 	getTerminalSessionId,
 	getActiveTerminalTab,
+	getTerminalTabDisplayName,
 	ensureTerminalTabs,
 	migrateSessionsTerminalTabs,
 	cleanTerminalTabsForPersistence,
@@ -1010,6 +1012,18 @@ function MaestroConsoleInner() {
 		if (!terminalRenameTabId || !activeSession) return null;
 		return activeSession.terminalTabs?.find(t => t.id === terminalRenameTabId) ?? null;
 	}, [terminalRenameTabId, activeSession]);
+
+	// Open the terminal tab rename modal for a given tab
+	const handleTerminalTabRenameRequest = useCallback((tabId: string) => {
+		setTerminalRenameTabId(tabId);
+		setTerminalRenameModalOpen(true);
+	}, []);
+
+	// Close the terminal tab rename modal without saving
+	const handleTerminalRenameModalClose = useCallback(() => {
+		setTerminalRenameModalOpen(false);
+		setTerminalRenameTabId(null);
+	}, []);
 
 	// Note: All modal states (confirmation, rename, queue browser, batch runner, etc.)
 	// are now managed by modalStore - see useModalActions() destructuring above
@@ -8546,6 +8560,15 @@ You are taking over this conversation. Based on the context above, provide a bri
 		);
 	}, []);
 
+	// Save a terminal tab rename from the rename modal (null name reverts to default)
+	const handleTerminalTabRenameSave = useCallback((name: string | null) => {
+		if (activeSession && terminalRenameTabId) {
+			handleTerminalTabRename(activeSession.id, terminalRenameTabId, name);
+		}
+		setTerminalRenameModalOpen(false);
+		setTerminalRenameTabId(null);
+	}, [activeSession, terminalRenameTabId, handleTerminalTabRename]);
+
 	// Toggle unread tabs filter with save/restore of active tab
 	const toggleUnreadFilter = useCallback(() => {
 		if (!showUnreadOnly) {
@@ -12972,6 +12995,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 						onTerminalTabReopen={handleTerminalTabReopen}
 						onTerminalTabReorder={handleTerminalTabReorder}
 						onTerminalTabRename={handleTerminalTabRename}
+						onTerminalTabRequestRename={handleTerminalTabRenameRequest}
 						onTerminalTabStateChange={handleTerminalTabStateChange}
 						onTerminalTabCwdChange={handleTerminalTabCwdChange}
 						onTerminalTabPidChange={handleTerminalTabPidChange}
@@ -12987,6 +13011,20 @@ You are taking over this conversation. Based on the context above, provide a bri
 
 				{/* Old settings modal removed - using new SettingsModal component below */}
 				{/* NOTE: NewInstanceModal and EditAgentModal are now rendered via AppSessionModals */}
+
+				{/* --- TERMINAL TAB RENAME MODAL --- */}
+				{terminalRenameModalOpen && terminalTabBeingRenamed && (
+					<TerminalTabRenameModal
+						theme={theme}
+						initialName={terminalTabBeingRenamed.name || ''}
+						defaultName={getTerminalTabDisplayName(
+							terminalTabBeingRenamed,
+							activeSession?.terminalTabs?.findIndex(t => t.id === terminalRenameTabId) ?? 0
+						)}
+						onRename={handleTerminalTabRenameSave}
+						onClose={handleTerminalRenameModalClose}
+					/>
+				)}
 
 				{/* --- SETTINGS MODAL (Lazy-loaded for performance) --- */}
 				{settingsModalOpen && (

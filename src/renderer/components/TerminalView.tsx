@@ -66,7 +66,6 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 
 	// Terminal search state
 	const [terminalSearchOpen, setTerminalSearchOpen] = useState(false);
-	const [terminalSearchQuery, setTerminalSearchQuery] = useState('');
 
 	// Get or create a stable ref for an EmbeddedTerminal by tab ID
 	const getTerminalRef = useCallback((tabId: string) => {

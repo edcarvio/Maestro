@@ -1689,6 +1689,67 @@ describe('useDebouncedPersistence', () => {
 				const persisted = vi.mocked(window.maestro.sessions.setAll).mock.calls[0][0] as Session[];
 				expect(persisted[0].terminalTabs).toEqual([]);
 			});
+
+			it('should not leak unknown/future runtime properties through whitelist', () => {
+				const termTab = makeTerminalTab({ id: 'term-1' });
+				// Simulate a future runtime field being added to the TerminalTab interface
+				(termTab as any).futureRuntimeField = 'should-not-persist';
+				(termTab as any).internalBuffer = new Uint8Array([1, 2, 3]);
+				const session = makeSession({ terminalTabs: [termTab] });
+
+				const initialLoadRef = makeInitialLoadRef(true);
+				const { result } = renderHook(() =>
+					useDebouncedPersistence([session], initialLoadRef)
+				);
+
+				act(() => {
+					result.current.flushNow();
+				});
+
+				const persisted = vi.mocked(window.maestro.sessions.setAll).mock.calls[0][0] as Session[];
+				const tab = persisted[0].terminalTabs[0];
+				expect(tab).not.toHaveProperty('futureRuntimeField');
+				expect(tab).not.toHaveProperty('internalBuffer');
+				// Core metadata should still be present
+				expect(tab.id).toBe('term-1');
+			});
+
+			it('should only persist whitelisted metadata fields (id, name, createdAt, cwd)', () => {
+				const termTab = makeTerminalTab({
+					id: 'term-wl',
+					name: 'Dev Server',
+					createdAt: 1700000000000,
+					cwd: '/home/user/project',
+					processRunning: true,
+					exitCode: 0,
+					scrollTop: 500,
+					searchQuery: 'error',
+				});
+				const session = makeSession({ terminalTabs: [termTab] });
+
+				const initialLoadRef = makeInitialLoadRef(true);
+				const { result } = renderHook(() =>
+					useDebouncedPersistence([session], initialLoadRef)
+				);
+
+				act(() => {
+					result.current.flushNow();
+				});
+
+				const persisted = vi.mocked(window.maestro.sessions.setAll).mock.calls[0][0] as Session[];
+				const tab = persisted[0].terminalTabs[0];
+				// Whitelisted fields are present
+				expect(tab.id).toBe('term-wl');
+				expect(tab.name).toBe('Dev Server');
+				expect(tab.createdAt).toBe(1700000000000);
+				expect(tab.cwd).toBe('/home/user/project');
+				// Runtime fields are excluded
+				expect(tab).not.toHaveProperty('processRunning');
+				expect(tab).not.toHaveProperty('exitCode');
+				// Tab-switch state is not persisted to disk (meaningless after restart)
+				expect(tab).not.toHaveProperty('scrollTop');
+				expect(tab).not.toHaveProperty('searchQuery');
+			});
 		});
 	});
 });

@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { LogViewer } from './LogViewer';
 import { TerminalOutput } from './TerminalOutput';
-import { TerminalView } from './TerminalView';
+import { TerminalView, TerminalViewHandle } from './TerminalView';
 import { InputArea } from './InputArea';
 import { FilePreview, FilePreviewHandle } from './FilePreview';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -516,6 +516,7 @@ export const MainPanel = React.memo(
 		const headerRef = useRef<HTMLDivElement>(null);
 		const filePreviewContainerRef = useRef<HTMLDivElement>(null);
 		const filePreviewRef = useRef<FilePreviewHandle>(null);
+		const terminalViewRef = useRef<TerminalViewHandle>(null);
 		const [configuredContextWindow, setConfiguredContextWindow] = useState(0);
 
 		// Extract tab handlers from props
@@ -1792,6 +1793,7 @@ export const MainPanel = React.memo(
 									  props.onTerminalTabStateChange ? (
 										/* xterm.js terminal emulator for terminal mode with multi-tab support */
 										<TerminalView
+											ref={terminalViewRef}
 											session={activeSession}
 											theme={theme}
 											fontFamily={props.fontFamily}

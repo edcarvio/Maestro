@@ -1,12 +1,13 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { TerminalView } from '../../../renderer/components/TerminalView';
+import { TerminalView, TerminalViewHandle } from '../../../renderer/components/TerminalView';
 import { createTerminalTab } from '../../../renderer/utils/terminalTabHelpers';
 import type { Session, Theme, TerminalTab } from '../../../renderer/types';
 
 // Mock XTerminal - we test TerminalView's container logic, not xterm.js internals
 const mockXTerminalFocus = vi.fn();
+const mockXTerminalClear = vi.fn();
 const mockXTerminalSearch = vi.fn().mockReturnValue(true);
 const mockXTerminalSearchNext = vi.fn().mockReturnValue(true);
 const mockXTerminalSearchPrevious = vi.fn().mockReturnValue(true);
@@ -24,7 +25,7 @@ vi.mock('../../../renderer/components/XTerminal', () => ({
 			searchPrevious: mockXTerminalSearchPrevious,
 			clearSearch: mockXTerminalClearSearch,
 			write: vi.fn(),
-			clear: vi.fn(),
+			clear: mockXTerminalClear,
 			scrollToBottom: vi.fn(),
 			getSelection: vi.fn().mockReturnValue(''),
 			resize: vi.fn(),
@@ -416,6 +417,120 @@ describe('TerminalView', () => {
 				'exited',
 				1
 			);
+		});
+	});
+
+	describe('TerminalViewHandle (ref API)', () => {
+		it('exposes clearActiveTerminal via ref', async () => {
+			const session = makeSession([{ pid: 1234 }]);
+			const ref = React.createRef<TerminalViewHandle>();
+			const props = defaultProps({ session });
+
+			render(<TerminalView ref={ref} {...props} />);
+
+			// Wait for XTerminal refs to be set up
+			await waitFor(() => {
+				expect(ref.current).not.toBeNull();
+			});
+
+			act(() => {
+				ref.current!.clearActiveTerminal();
+			});
+
+			expect(mockXTerminalClear).toHaveBeenCalled();
+		});
+
+		it('exposes focusActiveTerminal via ref', async () => {
+			const session = makeSession([{ pid: 1234 }]);
+			const ref = React.createRef<TerminalViewHandle>();
+			const props = defaultProps({ session });
+
+			render(<TerminalView ref={ref} {...props} />);
+
+			await waitFor(() => {
+				expect(ref.current).not.toBeNull();
+			});
+
+			// Clear the auto-focus calls that happen on mount
+			mockXTerminalFocus.mockClear();
+
+			act(() => {
+				ref.current!.focusActiveTerminal();
+			});
+
+			expect(mockXTerminalFocus).toHaveBeenCalled();
+		});
+
+		it('exposes searchActiveTerminal via ref', async () => {
+			const session = makeSession([{ pid: 1234 }]);
+			const ref = React.createRef<TerminalViewHandle>();
+			const props = defaultProps({ session });
+
+			render(<TerminalView ref={ref} {...props} />);
+
+			await waitFor(() => {
+				expect(ref.current).not.toBeNull();
+			});
+
+			let result: boolean;
+			act(() => {
+				result = ref.current!.searchActiveTerminal('hello');
+			});
+
+			expect(mockXTerminalSearch).toHaveBeenCalledWith('hello');
+			expect(result!).toBe(true);
+		});
+
+		it('exposes searchNext and searchPrevious via ref', async () => {
+			const session = makeSession([{ pid: 1234 }]);
+			const ref = React.createRef<TerminalViewHandle>();
+			const props = defaultProps({ session });
+
+			render(<TerminalView ref={ref} {...props} />);
+
+			await waitFor(() => {
+				expect(ref.current).not.toBeNull();
+			});
+
+			act(() => {
+				ref.current!.searchNext();
+			});
+			expect(mockXTerminalSearchNext).toHaveBeenCalled();
+
+			act(() => {
+				ref.current!.searchPrevious();
+			});
+			expect(mockXTerminalSearchPrevious).toHaveBeenCalled();
+		});
+
+		it('returns false from search methods when no active terminal', async () => {
+			// Session with no tabs = no active terminal
+			const session = {
+				...makeSession([]),
+				terminalTabs: [],
+				activeTerminalTabId: undefined,
+			} as Session;
+			const ref = React.createRef<TerminalViewHandle>();
+			const props = defaultProps({ session });
+
+			render(<TerminalView ref={ref} {...props} />);
+
+			await waitFor(() => {
+				expect(ref.current).not.toBeNull();
+			});
+
+			let searchResult: boolean;
+			let nextResult: boolean;
+			let prevResult: boolean;
+			act(() => {
+				searchResult = ref.current!.searchActiveTerminal('test');
+				nextResult = ref.current!.searchNext();
+				prevResult = ref.current!.searchPrevious();
+			});
+
+			expect(searchResult!).toBe(false);
+			expect(nextResult!).toBe(false);
+			expect(prevResult!).toBe(false);
 		});
 	});
 });

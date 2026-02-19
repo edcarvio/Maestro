@@ -12,7 +12,7 @@
  * buffer content and avoid expensive xterm.js re-initialization.
  */
 
-import React, { useRef, useCallback, useEffect, memo } from 'react';
+import React, { useRef, useCallback, useEffect, memo, forwardRef, useImperativeHandle } from 'react';
 import { XTerminal, XTerminalHandle } from './XTerminal';
 import { TerminalTabBar } from './TerminalTabBar';
 import { TerminalSearchBar } from './TerminalSearchBar';
@@ -48,24 +48,38 @@ interface TerminalViewProps {
 	onSearchClose?: () => void;
 }
 
-export const TerminalView = memo(function TerminalView({
-	session,
-	theme,
-	fontFamily,
-	fontSize = 14,
-	defaultShell,
-	shellArgs,
-	shellEnvVars,
-	onTabSelect,
-	onTabClose,
-	onNewTab,
-	onTabReorder,
-	onTabStateChange,
-	onTabPidChange,
-	onRequestRename,
-	searchOpen = false,
-	onSearchClose,
-}: TerminalViewProps) {
+/**
+ * Imperative handle for TerminalView, allowing parent components to
+ * invoke clear/focus/search on the active terminal without coupling
+ * to xterm.js internals.
+ */
+export interface TerminalViewHandle {
+	clearActiveTerminal: () => void;
+	focusActiveTerminal: () => void;
+	searchActiveTerminal: (query: string) => boolean;
+	searchNext: () => boolean;
+	searchPrevious: () => boolean;
+}
+
+export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProps>(
+	function TerminalView({
+		session,
+		theme,
+		fontFamily,
+		fontSize = 14,
+		defaultShell,
+		shellArgs,
+		shellEnvVars,
+		onTabSelect,
+		onTabClose,
+		onNewTab,
+		onTabReorder,
+		onTabStateChange,
+		onTabPidChange,
+		onRequestRename,
+		searchOpen = false,
+		onSearchClose,
+	}, ref) {
 	// Refs for terminal instances (one per tab)
 	const terminalRefs = useRef<Map<string, XTerminalHandle>>(new Map());
 	// Track which tabs have had PTYs spawned (prevents double-spawn)
@@ -74,6 +88,30 @@ export const TerminalView = memo(function TerminalView({
 	// Get active terminal tab
 	const activeTab = getActiveTerminalTab(session);
 	const tabs = session.terminalTabs || [];
+
+	// Expose imperative methods to parent via ref
+	useImperativeHandle(ref, () => ({
+		clearActiveTerminal: () => {
+			const activeTerminal = terminalRefs.current.get(session.activeTerminalTabId || '');
+			activeTerminal?.clear();
+		},
+		focusActiveTerminal: () => {
+			const activeTerminal = terminalRefs.current.get(session.activeTerminalTabId || '');
+			activeTerminal?.focus();
+		},
+		searchActiveTerminal: (query: string) => {
+			const activeTerminal = terminalRefs.current.get(session.activeTerminalTabId || '');
+			return activeTerminal?.search(query) ?? false;
+		},
+		searchNext: () => {
+			const activeTerminal = terminalRefs.current.get(session.activeTerminalTabId || '');
+			return activeTerminal?.searchNext() ?? false;
+		},
+		searchPrevious: () => {
+			const activeTerminal = terminalRefs.current.get(session.activeTerminalTabId || '');
+			return activeTerminal?.searchPrevious() ?? false;
+		},
+	}), [session.activeTerminalTabId]);
 
 	// Spawn PTY for a tab if not already running
 	const spawnPtyForTab = useCallback(async (tab: TerminalTab) => {
@@ -262,4 +300,4 @@ export const TerminalView = memo(function TerminalView({
 			</div>
 		</div>
 	);
-});
+}));

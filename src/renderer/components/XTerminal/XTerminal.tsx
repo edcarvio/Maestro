@@ -27,7 +27,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
 
 import type { Theme } from '../../types';
-import { toXtermTheme } from '../../utils/xtermTheme';
+import { toXtermTheme, getSearchDecorationColors } from '../../utils/xtermTheme';
 import { processService } from '../../services/process';
 
 /**
@@ -174,6 +174,7 @@ const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({
 	const initRef = useRef(false);
 	const cleanupFnsRef = useRef<Array<() => void>>([]);
 	const lastSearchQueryRef = useRef<string>('');
+	const themeRef = useRef(theme);
 	const [isFocused, setIsFocused] = useState(false);
 
 	// Write batching: accumulates PTY data and flushes once per animation frame
@@ -197,15 +198,20 @@ const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({
 				wholeWord: false,
 				regex: false,
 				incremental: true,
+				decorations: getSearchDecorationColors(themeRef.current),
 			});
 		},
 		searchNext: () => {
 			if (!searchAddonRef.current || !lastSearchQueryRef.current) return false;
-			return searchAddonRef.current.findNext(lastSearchQueryRef.current);
+			return searchAddonRef.current.findNext(lastSearchQueryRef.current, {
+				decorations: getSearchDecorationColors(themeRef.current),
+			});
 		},
 		searchPrevious: () => {
 			if (!searchAddonRef.current || !lastSearchQueryRef.current) return false;
-			return searchAddonRef.current.findPrevious(lastSearchQueryRef.current);
+			return searchAddonRef.current.findPrevious(lastSearchQueryRef.current, {
+				decorations: getSearchDecorationColors(themeRef.current),
+			});
 		},
 		clearSearch: () => searchAddonRef.current?.clearDecorations(),
 		getSelection: () => terminalRef.current?.getSelection() ?? '',
@@ -388,6 +394,7 @@ const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({
 
 	// Update theme when it changes
 	useEffect(() => {
+		themeRef.current = theme;
 		if (terminalRef.current) {
 			terminalRef.current.options.theme = toXtermTheme(theme);
 		}

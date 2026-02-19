@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { toXtermTheme } from '../../../renderer/utils/xtermTheme';
+import { toXtermTheme, hexBlend, getSearchDecorationColors } from '../../../renderer/utils/xtermTheme';
 import { THEMES } from '../../../shared/themes';
 import type { Theme, AnsiColors } from '../../../shared/theme-types';
 
@@ -255,4 +255,89 @@ describe('toXtermTheme', () => {
 			}
 		});
 	});
+});
+
+describe('hexBlend', () => {
+	it('returns pure foreground at alpha=1', () => {
+		expect(hexBlend('#ff0000', '#000000', 1)).toBe('#ff0000');
+	});
+
+	it('returns pure background at alpha=0', () => {
+		expect(hexBlend('#ff0000', '#000000', 0)).toBe('#000000');
+	});
+
+	it('blends white over black at 50% to grey', () => {
+		expect(hexBlend('#ffffff', '#000000', 0.5)).toBe('#808080');
+	});
+
+	it('blends correctly at 25%', () => {
+		// R: 255*0.25 + 0*0.75 = 64 → 40
+		// G: 0*0.25 + 255*0.75 = 191 → bf
+		// B: 0*0.25 + 0*0.75 = 0 → 00
+		expect(hexBlend('#ff0000', '#00ff00', 0.25)).toBe('#40bf00');
+	});
+
+	it('returns valid #RRGGBB format', () => {
+		const result = hexBlend('#bd93f9', '#282a36', 0.3);
+		expect(result).toMatch(/^#[0-9a-f]{6}$/);
+	});
+});
+
+describe('getSearchDecorationColors', () => {
+	const HEX_REGEX = /^#[0-9a-f]{6}$/;
+
+	it('returns all required decoration fields', () => {
+		const result = getSearchDecorationColors(makeDarkTheme());
+		expect(result).toHaveProperty('matchBackground');
+		expect(result).toHaveProperty('matchBorder');
+		expect(result).toHaveProperty('matchOverviewRuler');
+		expect(result).toHaveProperty('activeMatchBackground');
+		expect(result).toHaveProperty('activeMatchBorder');
+		expect(result).toHaveProperty('activeMatchColorOverviewRuler');
+	});
+
+	it('returns #RRGGBB format for all colors', () => {
+		const result = getSearchDecorationColors(makeDarkTheme());
+		expect(result.matchBackground).toMatch(HEX_REGEX);
+		expect(result.matchBorder).toMatch(HEX_REGEX);
+		expect(result.matchOverviewRuler).toMatch(HEX_REGEX);
+		expect(result.activeMatchBackground).toMatch(HEX_REGEX);
+		expect(result.activeMatchBorder).toMatch(HEX_REGEX);
+		expect(result.activeMatchColorOverviewRuler).toMatch(HEX_REGEX);
+	});
+
+	it('uses accent color for overview ruler', () => {
+		const theme = makeDarkTheme();
+		const result = getSearchDecorationColors(theme);
+		expect(result.matchOverviewRuler).toBe(theme.colors.accent);
+	});
+
+	it('uses warning color for active match overview ruler', () => {
+		const theme = makeDarkTheme();
+		const result = getSearchDecorationColors(theme);
+		expect(result.activeMatchColorOverviewRuler).toBe(theme.colors.warning);
+	});
+
+	it('produces different colors for dark and light themes', () => {
+		const dark = getSearchDecorationColors(makeDarkTheme());
+		const light = getSearchDecorationColors(makeLightTheme());
+		expect(dark.matchBackground).not.toBe(light.matchBackground);
+		expect(dark.activeMatchBackground).not.toBe(light.activeMatchBackground);
+	});
+
+	it('active match is visually distinct from non-active match', () => {
+		const result = getSearchDecorationColors(makeDarkTheme());
+		expect(result.matchBackground).not.toBe(result.activeMatchBackground);
+	});
+
+	it.each(Object.keys(THEMES) as Array<keyof typeof THEMES>)(
+		'produces valid decoration colors for built-in theme "%s"',
+		(themeId) => {
+			const result = getSearchDecorationColors(THEMES[themeId]);
+			expect(result.matchBackground).toMatch(HEX_REGEX);
+			expect(result.matchOverviewRuler).toMatch(HEX_REGEX);
+			expect(result.activeMatchBackground).toMatch(HEX_REGEX);
+			expect(result.activeMatchColorOverviewRuler).toMatch(HEX_REGEX);
+		}
+	);
 });

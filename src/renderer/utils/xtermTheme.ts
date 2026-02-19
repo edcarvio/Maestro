@@ -3,6 +3,8 @@
  *
  * Uses per-theme ANSI color palettes when available for a native terminal look.
  * Falls back to generic dark/light palettes for themes without custom ANSI colors.
+ *
+ * Also provides search decoration color derivation for the SearchAddon.
  */
 
 import type { Theme } from '../../shared/theme-types';
@@ -88,5 +90,69 @@ export function toXtermTheme(theme: Theme): ITheme {
 		brightMagenta: ansi.brightMagenta,
 		brightCyan: ansi.brightCyan,
 		brightWhite: ansi.brightWhite,
+	};
+}
+
+// ── Search decoration colors ────────────────────────────────────────────────
+
+/**
+ * Parse a #RRGGBB hex string to [r, g, b] tuple.
+ */
+function parseHex(hex: string): [number, number, number] {
+	const h = hex.replace('#', '');
+	return [
+		parseInt(h.slice(0, 2), 16),
+		parseInt(h.slice(2, 4), 16),
+		parseInt(h.slice(4, 6), 16),
+	];
+}
+
+/**
+ * Blend a foreground color over a background at a given alpha, returning #RRGGBB.
+ * Both inputs must be #RRGGBB format.
+ */
+export function hexBlend(fg: string, bg: string, alpha: number): string {
+	const [fR, fG, fB] = parseHex(fg);
+	const [bR, bG, bB] = parseHex(bg);
+	const r = Math.round(fR * alpha + bR * (1 - alpha));
+	const g = Math.round(fG * alpha + bG * (1 - alpha));
+	const b = Math.round(fB * alpha + bB * (1 - alpha));
+	return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+/**
+ * Search decoration options for @xterm/addon-search.
+ * All colors are in #RRGGBB format as required by the addon.
+ */
+export interface SearchDecorationColors {
+	matchBackground: string;
+	matchBorder: string;
+	matchOverviewRuler: string;
+	activeMatchBackground: string;
+	activeMatchBorder: string;
+	activeMatchColorOverviewRuler: string;
+}
+
+/**
+ * Derive search decoration colors from a Maestro theme.
+ *
+ * - Non-active matches: accent color blended subtly over background
+ * - Active match: warning color (yellow/orange) blended prominently over background
+ *
+ * This approach works across dark, light, and vibe themes because it always
+ * blends over the actual background color.
+ */
+export function getSearchDecorationColors(theme: Theme): SearchDecorationColors {
+	const bg = theme.colors.bgMain;
+	const accent = theme.colors.accent;
+	const warning = theme.colors.warning;
+
+	return {
+		matchBackground: hexBlend(accent, bg, 0.3),
+		matchBorder: hexBlend(accent, bg, 0.5),
+		matchOverviewRuler: accent,
+		activeMatchBackground: hexBlend(warning, bg, 0.5),
+		activeMatchBorder: hexBlend(warning, bg, 0.7),
+		activeMatchColorOverviewRuler: warning,
 	};
 }

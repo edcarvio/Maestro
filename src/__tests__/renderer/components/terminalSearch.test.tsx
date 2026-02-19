@@ -153,6 +153,14 @@ vi.mock('../../../renderer/utils/xtermTheme', () => ({
 		background: '#000',
 		foreground: '#fff',
 	})),
+	getSearchDecorationColors: vi.fn(() => ({
+		matchBackground: '#3d3548',
+		matchBorder: '#6e5e98',
+		matchOverviewRuler: '#bd93f9',
+		activeMatchBackground: '#8c9261',
+		activeMatchBorder: '#c3d273',
+		activeMatchColorOverviewRuler: '#f1fa8c',
+	})),
 }));
 
 // ── Imports after mocks ────────────────────────────────────────────────────

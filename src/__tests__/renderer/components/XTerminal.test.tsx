@@ -133,11 +133,21 @@ vi.mock('../../../renderer/services/process', () => ({
 	},
 }));
 
+const mockDecorationColors = {
+	matchBackground: '#3d3548',
+	matchBorder: '#6e5e98',
+	matchOverviewRuler: '#bd93f9',
+	activeMatchBackground: '#8c9261',
+	activeMatchBorder: '#c3d273',
+	activeMatchColorOverviewRuler: '#f1fa8c',
+};
+
 vi.mock('../../../renderer/utils/xtermTheme', () => ({
 	toXtermTheme: vi.fn(() => ({
 		background: '#000',
 		foreground: '#fff',
 	})),
+	getSearchDecorationColors: vi.fn(() => mockDecorationColors),
 }));
 
 // --- Import after mocks ---
@@ -291,7 +301,7 @@ describe('XTerminal', () => {
 		expect(typeof ref.current!.resize).toBe('function');
 	});
 
-	it('imperative search delegates to SearchAddon with incremental options', () => {
+	it('imperative search delegates to SearchAddon with incremental options and decorations', () => {
 		const ref = createRef<XTerminalHandle>();
 
 		render(
@@ -309,6 +319,7 @@ describe('XTerminal', () => {
 			wholeWord: false,
 			regex: false,
 			incremental: true,
+			decorations: mockDecorationColors,
 		});
 	});
 
@@ -329,7 +340,7 @@ describe('XTerminal', () => {
 		expect(searchMethods.findNext).not.toHaveBeenCalled();
 	});
 
-	it('searchNext and searchPrevious re-use the last search query', () => {
+	it('searchNext and searchPrevious re-use the last search query with decorations', () => {
 		const ref = createRef<XTerminalHandle>();
 
 		render(
@@ -346,10 +357,14 @@ describe('XTerminal', () => {
 		searchMethods.findNext.mockClear();
 
 		ref.current!.searchNext();
-		expect(searchMethods.findNext).toHaveBeenCalledWith('world');
+		expect(searchMethods.findNext).toHaveBeenCalledWith('world', {
+			decorations: mockDecorationColors,
+		});
 
 		ref.current!.searchPrevious();
-		expect(searchMethods.findPrevious).toHaveBeenCalledWith('world');
+		expect(searchMethods.findPrevious).toHaveBeenCalledWith('world', {
+			decorations: mockDecorationColors,
+		});
 	});
 
 	it('searchNext and searchPrevious return false when no prior search', () => {

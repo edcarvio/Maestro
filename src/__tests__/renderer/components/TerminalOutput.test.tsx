@@ -38,20 +38,8 @@ vi.mock('remark-gfm', () => ({
 	default: [],
 }));
 
-vi.mock('dompurify', () => ({
-	default: {
-		sanitize: (html: string) => html,
-	},
-}));
-
-vi.mock('ansi-to-html', () => ({
-	default: class Convert {
-		toHtml(text: string) {
-			// Simple mock that preserves the text
-			return text;
-		}
-	},
-}));
+// Note: dompurify and ansi-to-html mocks removed - no longer used by TerminalOutput
+// (ANSI conversion was terminal-only, now handled by XTerminal)
 
 // Track layer stack mock functions
 const mockRegisterLayer = vi.fn().mockReturnValue('layer-1');
@@ -1185,7 +1173,7 @@ describe('TerminalOutput', () => {
 			expect(screen.queryByTitle(/Delete command/)).not.toBeInTheDocument();
 		});
 
-		it('shows delete button with correct tooltip in terminal mode', () => {
+		it('shows delete button with correct tooltip in terminal mode (legacy fallback)', () => {
 			const logs: LogEntry[] = [createLogEntry({ text: 'ls -la', source: 'user' })];
 
 			const session = createDefaultSession({
@@ -1202,7 +1190,8 @@ describe('TerminalOutput', () => {
 
 			render(<TerminalOutput {...props} />);
 
-			expect(screen.getByTitle(/Delete command and output/)).toBeInTheDocument();
+			// Terminal-specific rendering removed; component now uses AI-mode tooltip
+			expect(screen.getByTitle(/Delete message and response/)).toBeInTheDocument();
 		});
 
 		it('shows delete button for each user message in a conversation', () => {
@@ -1783,7 +1772,8 @@ describe('TerminalOutput', () => {
 	});
 
 	describe('local filter functionality', () => {
-		it('shows filter button for terminal output entries', () => {
+		it('does not show filter button (terminal-only feature moved to XTerminal)', () => {
+			// LogFilterControls were a terminal-only feature, now removed from TerminalOutput
 			const logs: LogEntry[] = [createLogEntry({ text: 'Terminal output', source: 'stdout' })];
 
 			const session = createDefaultSession({
@@ -1794,78 +1784,7 @@ describe('TerminalOutput', () => {
 			const props = createDefaultProps({ session });
 			render(<TerminalOutput {...props} />);
 
-			expect(screen.getByTitle('Filter this output')).toBeInTheDocument();
-		});
-
-		it('shows filter input when filter button is clicked', async () => {
-			const logs: LogEntry[] = [createLogEntry({ text: 'Terminal output', source: 'stdout' })];
-
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			const filterButton = screen.getByTitle('Filter this output');
-			await act(async () => {
-				fireEvent.click(filterButton);
-			});
-
-			expect(screen.getByPlaceholderText(/Include by keyword/)).toBeInTheDocument();
-		});
-
-		it('toggles between include and exclude mode', async () => {
-			const logs: LogEntry[] = [createLogEntry({ text: 'Terminal output', source: 'stdout' })];
-
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			// Open filter
-			const filterButton = screen.getByTitle('Filter this output');
-			await act(async () => {
-				fireEvent.click(filterButton);
-			});
-
-			// Click mode toggle (should start as include)
-			const modeToggle = screen.getByTitle('Include matching lines');
-			await act(async () => {
-				fireEvent.click(modeToggle);
-			});
-
-			expect(screen.getByTitle('Exclude matching lines')).toBeInTheDocument();
-		});
-
-		it('toggles between plain text and regex mode', async () => {
-			const logs: LogEntry[] = [createLogEntry({ text: 'Terminal output', source: 'stdout' })];
-
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			// Open filter
-			const filterButton = screen.getByTitle('Filter this output');
-			await act(async () => {
-				fireEvent.click(filterButton);
-			});
-
-			// Click regex toggle (should start as plain text)
-			const regexToggle = screen.getByTitle('Using plain text');
-			await act(async () => {
-				fireEvent.click(regexToggle);
-			});
-
-			expect(screen.getByTitle('Using regex')).toBeInTheDocument();
+			expect(screen.queryByTitle('Filter this output')).not.toBeInTheDocument();
 		});
 	});
 
@@ -2021,7 +1940,9 @@ describe('TerminalOutput', () => {
 	});
 
 	describe('terminal mode specific behaviors', () => {
-		it('shows $ prompt for user commands in terminal mode', () => {
+		it('renders terminal mode logs with AI-mode styling (terminal rendering moved to XTerminal)', () => {
+			// Terminal-specific rendering ($ prefix, ANSI conversion) was removed.
+			// TerminalOutput now renders all logs with AI-mode styling.
 			const logs: LogEntry[] = [createLogEntry({ text: 'ls -la', source: 'user' })];
 
 			const session = createDefaultSession({
@@ -2032,7 +1953,8 @@ describe('TerminalOutput', () => {
 			const props = createDefaultProps({ session });
 			render(<TerminalOutput {...props} />);
 
-			expect(screen.getByText('$')).toBeInTheDocument();
+			// User command should render as plain text without $ prefix
+			expect(screen.getByText('ls -la')).toBeInTheDocument();
 		});
 	});
 
@@ -2155,7 +2077,9 @@ describe('helper function behaviors (tested via component)', () => {
 	});
 
 	describe('processLogTextHelper behavior', () => {
-		it('filters out empty lines in terminal mode', () => {
+		it('preserves empty lines (terminal-specific filtering removed)', () => {
+			// Terminal-specific prompt filtering was removed from TerminalOutput.
+			// processLogTextHelper is now always called with isTerminal=false.
 			const textWithEmptyLines = 'line1\n\n\nline2';
 			const logs: LogEntry[] = [createLogEntry({ text: textWithEmptyLines, source: 'stdout' })];
 
@@ -2167,11 +2091,13 @@ describe('helper function behaviors (tested via component)', () => {
 			const props = createDefaultProps({ session });
 			render(<TerminalOutput {...props} />);
 
-			// Both lines should be present
+			// Both lines should be present (empty lines preserved in non-terminal mode)
 			expect(screen.getByText(/line1/)).toBeInTheDocument();
 		});
 
-		it('filters out bash prompts', () => {
+		it('preserves bash prompts (terminal-specific filtering removed)', () => {
+			// Terminal-specific prompt filtering was removed from TerminalOutput.
+			// Bash prompt removal is now handled by XTerminal.
 			const textWithPrompt = 'output\nbash-3.2$ \nmore output';
 			const logs: LogEntry[] = [createLogEntry({ text: textWithPrompt, source: 'stdout' })];
 
@@ -2183,102 +2109,18 @@ describe('helper function behaviors (tested via component)', () => {
 			const props = createDefaultProps({ session });
 			render(<TerminalOutput {...props} />);
 
-			// Output should be present, prompt filtered
+			// All text should be present (no filtering)
 			expect(screen.getByText(/output/)).toBeInTheDocument();
 		});
 	});
 
 	describe('filterTextByLinesHelper behavior', () => {
-		it('filters lines by keyword (include mode)', async () => {
-			const text = 'error: something went wrong\ninfo: all good\nerror: another issue';
-			const logs: LogEntry[] = [createLogEntry({ text, source: 'stdout' })];
-
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			// Open local filter
-			const filterButton = screen.getByTitle('Filter this output');
-			await act(async () => {
-				fireEvent.click(filterButton);
-			});
-
-			// Type filter query
-			const filterInput = screen.getByPlaceholderText(/Include by keyword/);
-			await act(async () => {
-				fireEvent.change(filterInput, { target: { value: 'error' } });
-			});
-
-			// Should filter to only error lines
-			// (exact behavior depends on component rendering)
-		});
-
-		it('filters lines by regex', async () => {
-			const text = 'user123 logged in\nuser456 logged out\nadmin logged in';
-			const logs: LogEntry[] = [createLogEntry({ text, source: 'stdout' })];
-
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			// Open local filter
-			const filterButton = screen.getByTitle('Filter this output');
-			await act(async () => {
-				fireEvent.click(filterButton);
-			});
-
-			// Enable regex mode
-			const regexToggle = screen.getByTitle('Using plain text');
-			await act(async () => {
-				fireEvent.click(regexToggle);
-			});
-
-			// Type regex pattern
-			const filterInput = screen.getByPlaceholderText(/Include by RegEx/);
-			await act(async () => {
-				fireEvent.change(filterInput, { target: { value: 'user\\d+' } });
-			});
-		});
-
-		it('handles invalid regex gracefully', async () => {
-			const text = 'some text';
-			const logs: LogEntry[] = [createLogEntry({ text, source: 'stdout' })];
-
-			const session = createDefaultSession({
-				inputMode: 'terminal',
-				shellLogs: logs,
-			});
-
-			const props = createDefaultProps({ session });
-			render(<TerminalOutput {...props} />);
-
-			// Open local filter
-			const filterButton = screen.getByTitle('Filter this output');
-			await act(async () => {
-				fireEvent.click(filterButton);
-			});
-
-			// Enable regex mode
-			const regexToggle = screen.getByTitle('Using plain text');
-			await act(async () => {
-				fireEvent.click(regexToggle);
-			});
-
-			// Type invalid regex
-			const filterInput = screen.getByPlaceholderText(/Include by RegEx/);
-			await act(async () => {
-				fireEvent.change(filterInput, { target: { value: '[invalid' } });
-			});
-
-			// Should not throw, falls back to plain text matching
+		// Note: Local filter UI (LogFilterControls) was terminal-only and has been removed.
+		// filterTextByLinesHelper is tested directly in textProcessing.test.ts.
+		// The filter state machinery remains but is no longer accessible via the UI.
+		it('filter utility is tested in textProcessing.test.ts (UI removed from TerminalOutput)', () => {
+			// Placeholder - see src/__tests__/renderer/utils/textProcessing.test.ts
+			expect(true).toBe(true);
 		});
 	});
 

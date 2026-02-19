@@ -117,3 +117,75 @@ describe('Session initialization with default terminal tab', () => {
 		expect(mainTab.id).not.toBe(worktreeTab.id);
 	});
 });
+
+describe('Worktree session creation with terminal tabs', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockIdCounter = 0;
+	});
+
+	it('initializes terminal tabs using the worktree path as cwd', () => {
+		const worktreePath = '/Users/test/project/.worktrees/feature-auth';
+		const defaultTerminalTab = createDefaultTerminalTab(worktreePath);
+
+		// Simulate the worktree session creation pattern from App.tsx
+		const worktreeSession = {
+			cwd: worktreePath,
+			terminalTabs: [defaultTerminalTab],
+			activeTerminalTabId: defaultTerminalTab.id,
+			closedTerminalTabHistory: [] as any[],
+		};
+
+		expect(worktreeSession.terminalTabs).toHaveLength(1);
+		expect(worktreeSession.terminalTabs[0].cwd).toBe(worktreePath);
+		expect(worktreeSession.activeTerminalTabId).toBe(defaultTerminalTab.id);
+		expect(worktreeSession.closedTerminalTabHistory).toEqual([]);
+	});
+
+	it('creates unique terminal tab IDs across multiple worktree sessions', () => {
+		const paths = [
+			'/project/.worktrees/feature-a',
+			'/project/.worktrees/feature-b',
+			'/project/.worktrees/bugfix-c',
+		];
+
+		const sessions = paths.map((path) => {
+			const tab = createDefaultTerminalTab(path);
+			return {
+				cwd: path,
+				terminalTabs: [tab],
+				activeTerminalTabId: tab.id,
+			};
+		});
+
+		// All terminal tab IDs should be unique
+		const tabIds = sessions.map((s) => s.terminalTabs[0].id);
+		expect(new Set(tabIds).size).toBe(3);
+
+		// Each session's activeTerminalTabId should match its tab
+		sessions.forEach((s) => {
+			expect(s.activeTerminalTabId).toBe(s.terminalTabs[0].id);
+		});
+	});
+
+	it('uses the worktree-specific path, not the parent project path', () => {
+		const parentPath = '/Users/test/project';
+		const worktreePath = '/Users/test/project/.worktrees/my-branch';
+
+		const parentTab = createDefaultTerminalTab(parentPath);
+		const worktreeTab = createDefaultTerminalTab(worktreePath);
+
+		// Worktree tab should use the worktree path, not the parent
+		expect(worktreeTab.cwd).toBe(worktreePath);
+		expect(worktreeTab.cwd).not.toBe(parentPath);
+		expect(parentTab.cwd).toBe(parentPath);
+	});
+
+	it('inherits no runtime state in freshly created worktree terminal tabs', () => {
+		const tab = createDefaultTerminalTab('/project/.worktrees/dev');
+
+		// Fresh tabs should have no runtime state
+		expect(tab.processRunning).toBeUndefined();
+		expect(tab.exitCode).toBeUndefined();
+	});
+});

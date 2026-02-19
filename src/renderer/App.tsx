@@ -10522,6 +10522,24 @@ You are taking over this conversation. Based on the context above, provide a bri
 		[activeSession]
 	);
 
+	const handleTerminalTabRename = useCallback(
+		(tabId: string, name: string) => {
+			if (!activeSession) return;
+			setSessions((prev) =>
+				prev.map((s) => {
+					if (s.id !== activeSession.id) return s;
+					return {
+						...s,
+						terminalTabs: s.terminalTabs.map((tab) =>
+							tab.id === tabId ? { ...tab, name: name.trim() || null } : tab
+						),
+					};
+				})
+			);
+		},
+		[activeSession]
+	);
+
 	const handleCloseOtherTerminalTabs = useCallback(
 		(keepTabId: string) => {
 			if (!activeSession) return;
@@ -11645,6 +11663,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		handleNewTerminalTab,
 		handleTerminalTabSelect,
 		handleTerminalTabClose,
+		handleTerminalTabRename,
 		handleTerminalTabReorder,
 		handleTerminalTabExit,
 		handleTerminalTabSpawned,

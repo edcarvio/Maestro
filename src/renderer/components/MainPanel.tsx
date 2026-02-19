@@ -246,6 +246,7 @@ interface MainPanelProps {
 	activeTerminalTabId?: string | null;
 	onTerminalTabSelect?: (tabId: string) => void;
 	onTerminalTabClose?: (tabId: string) => void;
+	onTerminalTabRename?: (tabId: string, name: string) => void;
 	onNewTerminalTab?: () => void;
 	onTerminalTabReorder?: (fromIndex: number, toIndex: number) => void;
 	onTerminalTabExit?: (tabId: string, exitCode: number) => void;

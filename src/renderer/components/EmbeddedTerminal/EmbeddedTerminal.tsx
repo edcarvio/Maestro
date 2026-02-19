@@ -47,6 +47,7 @@ interface EmbeddedTerminalProps {
 	isVisible: boolean;
 	onProcessExit?: (tabId: string, exitCode: number) => void;
 	onRequestClose?: (tabId: string) => void;
+	onSpawned?: (tabId: string) => void;
 }
 
 /**
@@ -149,6 +150,7 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 	isVisible,
 	onProcessExit,
 	onRequestClose,
+	onSpawned,
 }, ref) => {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const xtermContainerRef = useRef<HTMLDivElement>(null);
@@ -290,6 +292,9 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 			return;
 		}
 
+		// Notify parent that PTY is now running (drives tab loading indicator)
+		onSpawned?.(terminalTabId);
+
 		// Subscribe to raw PTY data — batch writes via RAF for performance.
 		// High-throughput commands (find /, cat large-file, yes) can produce
 		// thousands of data events per second. Batching into a single write()
@@ -352,7 +357,7 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 			}
 		});
 		cleanupFnsRef.current.push(unsubExit);
-	}, [terminalTabId, cwd, theme, fontFamily, onProcessExit, onRequestClose]);
+	}, [terminalTabId, cwd, theme, fontFamily, onProcessExit, onRequestClose, onSpawned]);
 
 	// Retry handler — clean up old state and re-attempt spawn
 	const handleRetry = useCallback(async () => {

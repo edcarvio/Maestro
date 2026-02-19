@@ -1665,13 +1665,12 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 		[isActive, theme.colors, isHovered, hoverBgColor, isDragOver]
 	);
 
-	// Status dot color: green = running, gray = exited/unknown
+	// Status: green dot = running, gray dot = exited, spinner = spawning
+	const isSpawning = tab.processRunning === undefined && tab.exitCode === undefined;
 	const statusColor =
 		tab.processRunning === true
 			? '#22c55e'
-			: tab.processRunning === false
-				? theme.colors.textDim
-				: theme.colors.textDim;
+			: theme.colors.textDim;
 
 	return (
 		<div
@@ -1695,11 +1694,21 @@ const TerminalTabComponent = memo(function TerminalTabComponent({
 				style={{ color: isActive ? theme.colors.textMain : theme.colors.textDim }}
 			/>
 
-			{/* Status dot */}
-			<span
-				className="w-1.5 h-1.5 rounded-full shrink-0"
-				style={{ backgroundColor: statusColor }}
-			/>
+			{/* Status indicator: spinner while PTY is spawning, dot when running/exited */}
+			{isSpawning ? (
+				<span data-testid="terminal-tab-spinner" className="shrink-0 flex items-center">
+					<Loader2
+						className="w-3 h-3 animate-spin"
+						style={{ color: theme.colors.accent }}
+					/>
+				</span>
+			) : (
+				<span
+					className="w-1.5 h-1.5 rounded-full shrink-0"
+					data-testid="terminal-tab-status-dot"
+					style={{ backgroundColor: statusColor }}
+				/>
+			)}
 
 			{/* Tab name */}
 			<span

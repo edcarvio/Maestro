@@ -247,6 +247,7 @@ interface MainPanelProps {
 	onTerminalTabClose?: (tabId: string) => void;
 	onNewTerminalTab?: () => void;
 	onTerminalTabExit?: (tabId: string, exitCode: number) => void;
+	onTerminalTabSpawned?: (tabId: string) => void;
 	onRequestTerminalTabRename?: (tabId: string) => void;
 
 	// Scroll position persistence
@@ -1721,6 +1722,7 @@ export const MainPanel = React.memo(
 										isVisible={isActive}
 										onProcessExit={props.onTerminalTabExit}
 										onRequestClose={props.onTerminalTabClose}
+										onSpawned={props.onTerminalTabSpawned}
 									/>
 									{isActive && terminalSearchOpen && (
 										<TerminalSearchBar

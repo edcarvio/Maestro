@@ -34,6 +34,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { GitStatusWidget } from './GitStatusWidget';
 import { AgentSessionsBrowser } from './AgentSessionsBrowser';
 import { TabBar } from './TabBar';
+import { TerminalTabBar } from './TerminalTabBar';
 import { WizardConversationView, DocumentGenerationView } from './InlineWizard';
 import { gitService } from '../services/git';
 import { remoteUrlToBrowserUrl } from '../../shared/gitUtils';
@@ -358,6 +359,12 @@ interface MainPanelProps {
 	shellArgs?: string;
 	shellEnvVars?: Record<string, string>;
 	onTerminalTabUpdate?: (sessionId: string, tabId: string, updates: Partial<import('../types').TerminalTab>) => void;
+	onTerminalNewTab?: (sessionId: string) => void;
+	onTerminalTabSelect?: (sessionId: string, tabId: string) => void;
+	onTerminalTabClose?: (sessionId: string, tabId: string) => void;
+	onTerminalTabReopen?: (sessionId: string) => void;
+	onTerminalTabReorder?: (sessionId: string, fromIndex: number, toIndex: number) => void;
+	onTerminalTabRename?: (sessionId: string, tabId: string, newName: string | null) => void;
 }
 
 // PERFORMANCE: Wrap with React.memo to prevent re-renders when parent (App.tsx) re-renders
@@ -1770,23 +1777,45 @@ export const MainPanel = React.memo(
 									  activeSession.terminalTabs &&
 									  activeSession.terminalTabs.length > 0 &&
 									  props.onTerminalTabUpdate ? (
-										/* xterm.js terminal emulator for terminal mode */
+										/* xterm.js terminal emulator for terminal mode with multi-tab support */
 										(() => {
 											const activeTermTab = getActiveTerminalTab(activeSession);
 											if (!activeTermTab) return null;
 											return (
-												<TerminalView
-													key={`${activeSession.id}-terminal-${activeTermTab.id}`}
-													session={activeSession}
-													terminalTab={activeTermTab}
-													theme={theme}
-													fontFamily={props.fontFamily}
-													isVisible={true}
-													defaultShell={props.defaultShell || 'zsh'}
-													shellArgs={props.shellArgs}
-													shellEnvVars={props.shellEnvVars}
-													onTerminalTabUpdate={props.onTerminalTabUpdate}
-												/>
+												<>
+													{/* Terminal tab bar - always shown for discoverability */}
+													{props.onTerminalTabSelect && (
+														<TerminalTabBar
+															tabs={activeSession.terminalTabs!}
+															activeTabId={activeSession.activeTerminalTabId || activeTermTab.id}
+															theme={theme}
+															onTabSelect={(tabId) => props.onTerminalTabSelect?.(activeSession.id, tabId)}
+															onTabClose={(tabId) => props.onTerminalTabClose?.(activeSession.id, tabId)}
+															onNewTab={() => props.onTerminalNewTab?.(activeSession.id)}
+															onRequestRename={(tabId) => {
+																const tab = activeSession.terminalTabs?.find((t) => t.id === tabId);
+																const currentName = tab?.name || '';
+																const newName = window.prompt('Rename terminal tab:', currentName);
+																if (newName !== null) {
+																	props.onTerminalTabRename?.(activeSession.id, tabId, newName || null);
+																}
+															}}
+															onTabReorder={(fromIndex, toIndex) => props.onTerminalTabReorder?.(activeSession.id, fromIndex, toIndex)}
+														/>
+													)}
+													<TerminalView
+														key={`${activeSession.id}-terminal-${activeTermTab.id}`}
+														session={activeSession}
+														terminalTab={activeTermTab}
+														theme={theme}
+														fontFamily={props.fontFamily}
+														isVisible={true}
+														defaultShell={props.defaultShell || 'zsh'}
+														shellArgs={props.shellArgs}
+														shellEnvVars={props.shellEnvVars}
+														onTerminalTabUpdate={props.onTerminalTabUpdate}
+													/>
+												</>
 											);
 										})()
 									) : (

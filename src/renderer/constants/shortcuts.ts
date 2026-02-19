@@ -119,6 +119,11 @@ export const FIXED_SHORTCUTS: Record<string, Shortcut> = {
 		label: 'File Preview: Go Forward',
 		keys: ['Meta', 'ArrowRight'],
 	},
+	newTerminalTab: {
+		id: 'newTerminalTab',
+		label: 'New Terminal Tab',
+		keys: ['Control', 'Shift', '`'],
+	},
 };
 
 // Tab navigation shortcuts (AI mode only)

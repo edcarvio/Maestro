@@ -722,6 +722,71 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 				}
 			}
 
+			// Terminal tab shortcuts (terminal mode only, reuses some AI tab keybindings contextually)
+			if (
+				ctx.activeSessionId &&
+				ctx.activeSession?.inputMode === 'terminal' &&
+				ctx.activeSession?.terminalTabs &&
+				ctx.activeSession.terminalTabs.length > 0 &&
+				!ctx.activeGroupChatId
+			) {
+				const termTabs = ctx.activeSession.terminalTabs;
+				const activeTermTabId = ctx.activeSession.activeTerminalTabId;
+
+				// Ctrl+Shift+` - New terminal tab
+				if (e.ctrlKey && e.shiftKey && e.key === '`') {
+					e.preventDefault();
+					ctx.handleTerminalNewTab(ctx.activeSession.id);
+					return;
+				}
+
+				// Cmd+Shift+] - Next terminal tab
+				if (ctx.isTabShortcut(e, 'nextTab')) {
+					e.preventDefault();
+					const currentIndex = termTabs.findIndex((t: { id: string }) => t.id === activeTermTabId);
+					const nextIndex = currentIndex < termTabs.length - 1 ? currentIndex + 1 : 0;
+					ctx.handleTerminalTabSelect(ctx.activeSession.id, termTabs[nextIndex].id);
+					return;
+				}
+
+				// Cmd+Shift+[ - Previous terminal tab
+				if (ctx.isTabShortcut(e, 'prevTab')) {
+					e.preventDefault();
+					const currentIndex = termTabs.findIndex((t: { id: string }) => t.id === activeTermTabId);
+					const prevIndex = currentIndex > 0 ? currentIndex - 1 : termTabs.length - 1;
+					ctx.handleTerminalTabSelect(ctx.activeSession.id, termTabs[prevIndex].id);
+					return;
+				}
+
+				// Cmd+W - Close terminal tab (only if more than one)
+				if (ctx.isTabShortcut(e, 'closeTab')) {
+					e.preventDefault();
+					if (termTabs.length > 1 && activeTermTabId) {
+						ctx.handleTerminalTabClose(ctx.activeSession.id, activeTermTabId);
+					}
+					return;
+				}
+
+				// Cmd+Shift+T - Reopen closed terminal tab
+				if (ctx.isTabShortcut(e, 'reopenClosedTab')) {
+					e.preventDefault();
+					ctx.handleTerminalTabReopen(ctx.activeSession.id);
+					return;
+				}
+
+				// Cmd+1-9 - Jump to terminal tab by number
+				for (let i = 1; i <= 9; i++) {
+					if (ctx.isTabShortcut(e, `goToTab${i}`)) {
+						e.preventDefault();
+						const targetIndex = i - 1;
+						if (targetIndex < termTabs.length) {
+							ctx.handleTerminalTabSelect(ctx.activeSession.id, termTabs[targetIndex].id);
+						}
+						return;
+					}
+				}
+			}
+
 			// Cmd+F contextual shortcuts - track based on current focus/context
 			if (e.key === 'f' && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
 				if (ctx.activeFocus === 'right' && ctx.activeRightTab === 'files') {

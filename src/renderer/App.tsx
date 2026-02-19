@@ -194,10 +194,12 @@ import {
 } from './utils/tabHelpers';
 import {
 	createTerminalTab,
+	createClosedTerminalTab,
 	getTerminalSessionId,
 	getActiveTerminalTab,
 	ensureTerminalTabs,
 	cleanTerminalTabsForPersistence,
+	MAX_CLOSED_TERMINAL_TABS,
 } from './utils/terminalTabHelpers';
 import { shouldOpenExternally, flattenTree } from './utils/fileExplorer';
 import type { FileNode } from './types/fileTree';
@@ -8338,6 +8340,132 @@ You are taking over this conversation. Based on the context above, provide a bri
 		);
 	}, []);
 
+	// Create a new terminal tab for a session
+	const handleTerminalNewTab = useCallback((sessionId: string) => {
+		setSessions((prev) =>
+			prev.map((s) => {
+				if (s.id !== sessionId || !s.terminalTabs) return s;
+				const newTab = createTerminalTab(defaultShell || 'zsh', s.cwd, null);
+				return {
+					...s,
+					terminalTabs: [...s.terminalTabs, newTab],
+					activeTerminalTabId: newTab.id,
+				};
+			})
+		);
+	}, [defaultShell]);
+
+	// Select a terminal tab
+	const handleTerminalTabSelect = useCallback((sessionId: string, tabId: string) => {
+		setSessions((prev) =>
+			prev.map((s) => {
+				if (s.id !== sessionId) return s;
+				return { ...s, activeTerminalTabId: tabId };
+			})
+		);
+	}, []);
+
+	// Close a terminal tab (kills PTY, saves to closed history for undo)
+	const handleTerminalTabClose = useCallback((sessionId: string, tabId: string) => {
+		setSessions((prev) =>
+			prev.map((s) => {
+				if (s.id !== sessionId || !s.terminalTabs) return s;
+				// Don't close the last tab
+				if (s.terminalTabs.length <= 1) return s;
+
+				const closingIndex = s.terminalTabs.findIndex((t) => t.id === tabId);
+				if (closingIndex === -1) return s;
+
+				const closingTab = s.terminalTabs[closingIndex];
+
+				// Kill the PTY for the closing tab
+				const ptySessionId = getTerminalSessionId(sessionId, tabId);
+				window.maestro.process.kill(ptySessionId);
+
+				// Add to closed tab history
+				const closedEntry = createClosedTerminalTab(closingTab, closingIndex);
+				const closedHistory = [
+					closedEntry,
+					...(s.closedTerminalTabHistory || []),
+				].slice(0, MAX_CLOSED_TERMINAL_TABS);
+
+				// Remove the tab
+				const remaining = s.terminalTabs.filter((t) => t.id !== tabId);
+
+				// Select a new active tab if the closed one was active
+				let newActiveTabId = s.activeTerminalTabId;
+				if (s.activeTerminalTabId === tabId) {
+					// Prefer the tab at the same index, or the last tab
+					const newIndex = Math.min(closingIndex, remaining.length - 1);
+					newActiveTabId = remaining[newIndex]?.id || remaining[0]?.id;
+				}
+
+				return {
+					...s,
+					terminalTabs: remaining,
+					activeTerminalTabId: newActiveTabId,
+					closedTerminalTabHistory: closedHistory,
+				};
+			})
+		);
+	}, []);
+
+	// Reopen the most recently closed terminal tab
+	const handleTerminalTabReopen = useCallback((sessionId: string) => {
+		setSessions((prev) =>
+			prev.map((s) => {
+				if (s.id !== sessionId || !s.closedTerminalTabHistory?.length) return s;
+
+				const [lastClosed, ...remainingHistory] = s.closedTerminalTabHistory;
+				const restoredTab = createTerminalTab(
+					lastClosed.tab.shellType,
+					lastClosed.tab.cwd,
+					lastClosed.tab.name
+				);
+
+				// Insert at original position (clamped to current length)
+				const insertIndex = Math.min(lastClosed.index, (s.terminalTabs || []).length);
+				const tabs = [...(s.terminalTabs || [])];
+				tabs.splice(insertIndex, 0, restoredTab);
+
+				return {
+					...s,
+					terminalTabs: tabs,
+					activeTerminalTabId: restoredTab.id,
+					closedTerminalTabHistory: remainingHistory,
+				};
+			})
+		);
+	}, []);
+
+	// Reorder terminal tabs via drag-and-drop
+	const handleTerminalTabReorder = useCallback((sessionId: string, fromIndex: number, toIndex: number) => {
+		setSessions((prev) =>
+			prev.map((s) => {
+				if (s.id !== sessionId || !s.terminalTabs) return s;
+				const tabs = [...s.terminalTabs];
+				const [moved] = tabs.splice(fromIndex, 1);
+				tabs.splice(toIndex, 0, moved);
+				return { ...s, terminalTabs: tabs };
+			})
+		);
+	}, []);
+
+	// Rename a terminal tab
+	const handleTerminalTabRename = useCallback((sessionId: string, tabId: string, newName: string | null) => {
+		setSessions((prev) =>
+			prev.map((s) => {
+				if (s.id !== sessionId || !s.terminalTabs) return s;
+				return {
+					...s,
+					terminalTabs: s.terminalTabs.map((tab) =>
+						tab.id === tabId ? { ...tab, name: newName } : tab
+					),
+				};
+			})
+		);
+	}, []);
+
 	// Toggle unread tabs filter with save/restore of active tab
 	const toggleUnreadFilter = useCallback(() => {
 		if (!showUnreadOnly) {
@@ -10908,6 +11036,12 @@ You are taking over this conversation. Based on the context above, provide a bri
 		// Auto-scroll AI mode toggle
 		autoScrollAiMode,
 		setAutoScrollAiMode,
+
+		// Terminal tab management
+		handleTerminalNewTab,
+		handleTerminalTabSelect,
+		handleTerminalTabClose,
+		handleTerminalTabReopen,
 	};
 
 	// Update flat file list when active session's tree, expanded folders, filter, or hidden files setting changes
@@ -12707,6 +12841,12 @@ You are taking over this conversation. Based on the context above, provide a bri
 						defaultShell={defaultShell}
 						shellArgs={shellArgs}
 						onTerminalTabUpdate={handleTerminalTabUpdate}
+						onTerminalNewTab={handleTerminalNewTab}
+						onTerminalTabSelect={handleTerminalTabSelect}
+						onTerminalTabClose={handleTerminalTabClose}
+						onTerminalTabReopen={handleTerminalTabReopen}
+						onTerminalTabReorder={handleTerminalTabReorder}
+						onTerminalTabRename={handleTerminalTabRename}
 					/>
 				)}
 

@@ -192,7 +192,7 @@ const LogItemComponent = memo(
 		};
 
 		// Process text for display (carriage return handling for AI mode)
-		const processedText = processLogTextHelper(log.text, false);
+		const processedText = processLogTextHelper(log.text);
 
 		// Skip rendering stderr entries that have no actual content
 		if (log.source === 'stderr' && !processedText.trim()) {

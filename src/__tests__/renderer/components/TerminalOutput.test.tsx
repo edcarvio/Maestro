@@ -2079,7 +2079,7 @@ describe('helper function behaviors (tested via component)', () => {
 	describe('processLogTextHelper behavior', () => {
 		it('preserves empty lines (terminal-specific filtering removed)', () => {
 			// Terminal-specific prompt filtering was removed from TerminalOutput.
-			// processLogTextHelper is now always called with isTerminal=false.
+			// processLogTextHelper no longer accepts an isTerminal parameter.
 			const textWithEmptyLines = 'line1\n\n\nline2';
 			const logs: LogEntry[] = [createLogEntry({ text: textWithEmptyLines, source: 'stdout' })];
 
@@ -2096,8 +2096,8 @@ describe('helper function behaviors (tested via component)', () => {
 		});
 
 		it('preserves bash prompts (terminal-specific filtering removed)', () => {
-			// Terminal-specific prompt filtering was removed from TerminalOutput.
-			// Bash prompt removal is now handled by XTerminal.
+			// processLogTextHelper only applies carriage return processing now.
+			// Bash prompt removal is handled by XTerminal for terminal mode.
 			const textWithPrompt = 'output\nbash-3.2$ \nmore output';
 			const logs: LogEntry[] = [createLogEntry({ text: textWithPrompt, source: 'stdout' })];
 

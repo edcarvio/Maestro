@@ -1,10 +1,9 @@
 /**
- * Text processing utilities for terminal output handling.
+ * Text processing utilities for AI output handling.
  *
  * These are pure functions with no React dependencies that can be used
- * for processing terminal/AI output text including:
- * - Carriage return processing (terminal line overwrites)
- * - Log text filtering (bash prompt removal)
+ * for processing AI agent output text including:
+ * - Carriage return processing (line overwrites)
  * - Line-based filtering with regex support
  * - ANSI to HTML conversion caching
  * - Markdown stripping
@@ -43,26 +42,15 @@ export const processCarriageReturns = (text: string): string => {
 };
 
 /**
- * Filter out bash prompt lines and apply carriage return processing.
- * Removes empty lines and standalone bash/zsh prompts from terminal output.
+ * Apply carriage return processing to log text for display.
+ * Terminal mode is now handled by xterm.js (XTerminal component),
+ * so this function only processes AI-mode output.
  *
- * @param text - Raw terminal output text
- * @param isTerminal - Whether this is terminal mode (vs AI mode)
- * @returns Processed text with prompts filtered out
+ * @param text - Raw log output text
+ * @returns Processed text with carriage return overwrites applied
  */
-export const processLogTextHelper = (text: string, isTerminal: boolean): string => {
-	const processed = processCarriageReturns(text);
-	if (!isTerminal) return processed;
-
-	const lines = processed.split('\n');
-	const filteredLines = lines.filter((line) => {
-		const trimmed = line.trim();
-		if (!trimmed) return false;
-		if (/^(bash-\d+\.\d+\$|zsh[%#]|\$|#)\s*$/.test(trimmed)) return false;
-		return true;
-	});
-
-	return filteredLines.join('\n');
+export const processLogTextHelper = (text: string): string => {
+	return processCarriageReturns(text);
 };
 
 /**

@@ -197,6 +197,7 @@ import {
 	closeTerminalTab,
 } from './utils/tabHelpers';
 import { shouldOpenExternally, flattenTree } from './utils/fileExplorer';
+import { createDefaultTerminalTab } from './utils/terminalTabHelpers';
 import type { FileNode } from './types/fileTree';
 import { substituteTemplateVariables } from './utils/templateVariables';
 import { validateNewSession } from './utils/sessionValidation';
@@ -1803,6 +1804,9 @@ function MaestroConsoleInner() {
 							// Ignore errors
 						}
 
+						// Initialize with a single terminal tab
+						const defaultTerminalTab = createDefaultTerminalTab(subdir.path);
+
 						const worktreeSession: Session = {
 							id: newId,
 							name: subdir.branch || subdir.name,
@@ -1844,8 +1848,8 @@ function MaestroConsoleInner() {
 							activeFileTabId: null,
 							unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 							unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTerminalTab],
+				activeTerminalTabId: defaultTerminalTab.id,
 				closedTerminalTabHistory: [],
 							customPath: parentSession.customPath,
 							customArgs: parentSession.customArgs,
@@ -6428,6 +6432,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 				// Ignore errors
 			}
 
+			// Initialize with a single terminal tab
+			const defaultTerminalTab = createDefaultTerminalTab(worktree.path);
+
 			const worktreeSession: Session = {
 				id: newId,
 				name: worktree.branch || worktree.name,
@@ -6469,8 +6476,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 				activeFileTabId: null,
 				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 				unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTerminalTab],
+				activeTerminalTabId: defaultTerminalTab.id,
 				closedTerminalTabHistory: [],
 				customPath: parentSession.customPath,
 				customArgs: parentSession.customArgs,
@@ -6608,6 +6615,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 								// Ignore errors
 							}
 
+							// Initialize with a single terminal tab
+							const defaultTerminalTab = createDefaultTerminalTab(subdir.path);
+
 							const newSession: Session = {
 								id: newId,
 								name: sessionName,
@@ -6650,8 +6660,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 								activeFileTabId: null,
 								unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 								unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTerminalTab],
+				activeTerminalTabId: defaultTerminalTab.id,
 				closedTerminalTabHistory: [],
 								customPath: session.customPath,
 								customArgs: session.customArgs,
@@ -8009,6 +8019,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 				showThinking: defaultShowThinking,
 			};
 
+			// Initialize with a single terminal tab
+			const defaultTerminalTab = createDefaultTerminalTab(workingDir);
+
 			const newSession: Session = {
 				id: newId,
 				name,
@@ -8054,8 +8067,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 				activeFileTabId: null,
 				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 				unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTerminalTab],
+				activeTerminalTabId: defaultTerminalTab.id,
 				closedTerminalTabHistory: [],
 				// Nudge message - appended to every interactive user message
 				nudgeMessage,
@@ -8183,6 +8196,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 			const firstDoc = generatedDocuments[0];
 			const autoRunSelectedFile = firstDoc ? firstDoc.filename.replace(/\.md$/, '') : undefined;
 
+			// Initialize with a single terminal tab
+			const defaultTerminalTab = createDefaultTerminalTab(directoryPath);
+
 			// Create the session with Auto Run configured
 			const newSession: Session = {
 				id: newId,
@@ -8222,8 +8238,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 				activeFileTabId: null,
 				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 				unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTerminalTab],
+				activeTerminalTabId: defaultTerminalTab.id,
 				closedTerminalTabHistory: [],
 				// Auto Run configuration from wizard
 				autoRunFolderPath,
@@ -9871,6 +9887,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 							// Ignore errors fetching git info
 						}
 
+						// Initialize with a single terminal tab
+						const defaultTerminalTab = createDefaultTerminalTab(subdir.path);
+
 						const worktreeSession: Session = {
 							id: newId,
 							name: subdir.branch || subdir.name,
@@ -9914,8 +9933,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 							activeFileTabId: null,
 							unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 							unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTerminalTab],
+				activeTerminalTabId: defaultTerminalTab.id,
 				closedTerminalTabHistory: [],
 							customPath: activeSession.customPath,
 							customArgs: activeSession.customArgs,
@@ -10048,6 +10067,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 					// Ignore errors
 				}
 
+				// Initialize with a single terminal tab
+				const defaultTerminalTab = createDefaultTerminalTab(worktreePath);
+
 				const worktreeSession: Session = {
 					id: newId,
 					name: branchName,
@@ -10089,8 +10111,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 					activeFileTabId: null,
 					unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 					unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTerminalTab],
+				activeTerminalTabId: defaultTerminalTab.id,
 				closedTerminalTabHistory: [],
 					customPath: activeSession.customPath,
 					customArgs: activeSession.customArgs,
@@ -10201,6 +10223,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 				// Ignore errors
 			}
 
+			// Initialize with a single terminal tab
+			const defaultTerminalTab = createDefaultTerminalTab(worktreePath);
+
 			const worktreeSession: Session = {
 				id: newId,
 				name: branchName,
@@ -10242,8 +10267,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 				activeFileTabId: null,
 				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 				unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTerminalTab],
+				activeTerminalTabId: defaultTerminalTab.id,
 				closedTerminalTabHistory: [],
 				customPath: createWorktreeSession.customPath,
 				customArgs: createWorktreeSession.customArgs,
@@ -12413,6 +12438,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 									saveToHistory: defaultSaveToHistory,
 								};
 
+								// Initialize with a single terminal tab
+								const defaultTerminalTab = createDefaultTerminalTab(data.localPath);
+
 								// Create session with Symphony metadata
 								const newSession: Session = {
 									id: newId,
@@ -12452,8 +12480,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 									activeFileTabId: null,
 									unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 									unifiedClosedTabHistory: [],
-				terminalTabs: [],
-				activeTerminalTabId: null,
+				terminalTabs: [defaultTerminalTab],
+				activeTerminalTabId: defaultTerminalTab.id,
 				closedTerminalTabHistory: [],
 									// Custom agent config
 									customPath: data.customPath,

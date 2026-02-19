@@ -862,6 +862,16 @@ describe('process IPC handlers', () => {
 
 			expect(result).toBe(false);
 		});
+
+		it('should work with terminal tab session ID format ({sessionId}-terminal-{tabId})', async () => {
+			mockProcessManager.interrupt.mockReturnValue(true);
+
+			const handler = handlers.get('process:interrupt');
+			const result = await handler!({} as any, 'abc123-terminal-def456');
+
+			expect(mockProcessManager.interrupt).toHaveBeenCalledWith('abc123-terminal-def456');
+			expect(result).toBe(true);
+		});
 	});
 
 	describe('process:resize', () => {

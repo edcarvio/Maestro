@@ -87,6 +87,15 @@ describe('Process Preload API', () => {
 			expect(mockInvoke).toHaveBeenCalledWith('process:interrupt', 'session-123');
 			expect(result).toBe(true);
 		});
+
+		it('should pass terminal tab session ID format through to IPC', async () => {
+			mockInvoke.mockResolvedValue(true);
+
+			const result = await api.interrupt('abc123-terminal-def456');
+
+			expect(mockInvoke).toHaveBeenCalledWith('process:interrupt', 'abc123-terminal-def456');
+			expect(result).toBe(true);
+		});
 	});
 
 	describe('kill', () => {

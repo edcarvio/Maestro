@@ -4365,12 +4365,13 @@ You are taking over this conversation. Based on the context above, provide a bri
 		const currentSession = sessionsRef.current.find((s) => s.id === activeSessionIdRef.current);
 		if (!currentSession) return null;
 
-		const isAIMode = currentSession.inputMode === 'ai';
+		// Log deletion only applies to AI mode — terminal mode uses xterm.js buffer
+		if (currentSession.inputMode !== 'ai') return null;
 
-		// For AI mode, use the active tab's logs; for terminal mode, use shellLogs
-		// DEPRECATED: shellLogs read for terminal mode - terminal now uses xterm.js buffer
-		const currentActiveTab = isAIMode ? getActiveTab(currentSession) : null;
-		const logs = isAIMode ? currentActiveTab?.logs || [] : currentSession.shellLogs;
+		const currentActiveTab = getActiveTab(currentSession);
+		if (!currentActiveTab) return null;
+
+		const logs = currentActiveTab.logs || [];
 
 		// Find the log entry and its index
 		const logIndex = logs.findIndex((log) => log.id === logId);
@@ -4410,66 +4411,47 @@ You are taking over this conversation. Based on the context above, provide a bri
 			}
 		}
 
-		if (isAIMode && currentActiveTab) {
-			// For AI mode, also delete from the Claude session JSONL file
-			// This ensures the context is actually removed for future interactions
-			// Use the active tab's agentSessionId, not the deprecated session-level one
-			const agentSessionId = currentActiveTab.agentSessionId;
-			if (agentSessionId && currentSession.cwd) {
-				// Delete asynchronously - don't block the UI update
-				window.maestro.claude
-					.deleteMessagePair(
-						currentSession.cwd,
-						agentSessionId,
-						logId, // This is the UUID if loaded from Claude session
-						log.text // Fallback: match by content if UUID doesn't match
-					)
-					.then((result) => {
-						if (!result.success) {
-							console.warn('[handleDeleteLog] Failed to delete from Claude session:', result.error);
-						}
-					})
-					.catch((err) => {
-						console.error('[handleDeleteLog] Error deleting from Claude session:', err);
-					});
-			}
-
-			// Update the active tab's logs and aiCommandHistory
-			const commandText = log.text.trim();
-
-			setSessions((prev) =>
-				prev.map((s) => {
-					if (s.id !== currentSession.id) return s;
-					const newAICommandHistory = (s.aiCommandHistory || []).filter(
-						(cmd) => cmd !== commandText
-					);
-					return {
-						...s,
-						aiCommandHistory: newAICommandHistory,
-						aiTabs: s.aiTabs.map((tab) =>
-							tab.id === currentActiveTab.id ? { ...tab, logs: newLogs } : tab
-						),
-					};
+		// Also delete from the Claude session JSONL file
+		// This ensures the context is actually removed for future interactions
+		// Use the active tab's agentSessionId, not the deprecated session-level one
+		const agentSessionId = currentActiveTab.agentSessionId;
+		if (agentSessionId && currentSession.cwd) {
+			// Delete asynchronously - don't block the UI update
+			window.maestro.claude
+				.deleteMessagePair(
+					currentSession.cwd,
+					agentSessionId,
+					logId, // This is the UUID if loaded from Claude session
+					log.text // Fallback: match by content if UUID doesn't match
+				)
+				.then((result) => {
+					if (!result.success) {
+						console.warn('[handleDeleteLog] Failed to delete from Claude session:', result.error);
+					}
 				})
-			);
-		} else {
-			// DEPRECATED: Terminal mode now uses xterm.js, shellLogs are no longer updated
-			// Still update shellCommandHistory for command history feature
-			const commandText = log.text.trim();
-
-			setSessions((prev) =>
-				prev.map((s) => {
-					if (s.id !== currentSession.id) return s;
-					const newShellCommandHistory = (s.shellCommandHistory || []).filter(
-						(cmd) => cmd !== commandText
-					);
-					return {
-						...s,
-						shellCommandHistory: newShellCommandHistory,
-					};
-				})
-			);
+				.catch((err) => {
+					console.error('[handleDeleteLog] Error deleting from Claude session:', err);
+				});
 		}
+
+		// Update the active tab's logs and aiCommandHistory
+		const commandText = log.text.trim();
+
+		setSessions((prev) =>
+			prev.map((s) => {
+				if (s.id !== currentSession.id) return s;
+				const newAICommandHistory = (s.aiCommandHistory || []).filter(
+					(cmd) => cmd !== commandText
+				);
+				return {
+					...s,
+					aiCommandHistory: newAICommandHistory,
+					aiTabs: s.aiTabs.map((tab) =>
+						tab.id === currentActiveTab.id ? { ...tab, logs: newLogs } : tab
+					),
+				};
+			})
+		);
 
 		return nextUserCommandIndex;
 	}, []);

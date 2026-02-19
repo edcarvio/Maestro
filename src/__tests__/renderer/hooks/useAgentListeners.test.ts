@@ -365,7 +365,7 @@ describe('useAgentListeners', () => {
 			expect(deps.batchedUpdater.appendLog).not.toHaveBeenCalled();
 		});
 
-		it('appends terminal data to shell log (isAi=false)', () => {
+		it('silently drops non-AI terminal data (no longer routed to shellLogs)', () => {
 			const deps = createMockDeps();
 			const session = createMockSession({ id: 'sess-1' });
 			useSessionStore.setState({
@@ -377,12 +377,8 @@ describe('useAgentListeners', () => {
 
 			onDataHandler?.('sess-1', 'ls output');
 
-			expect(deps.batchedUpdater.appendLog).toHaveBeenCalledWith(
-				'sess-1',
-				null,
-				false,
-				'ls output'
-			);
+			// Non-AI data is no longer appended — terminal uses xterm.js
+			expect(deps.batchedUpdater.appendLog).not.toHaveBeenCalled();
 		});
 
 		it('returns early for -terminal suffixed sessions', () => {
@@ -481,7 +477,7 @@ describe('useAgentListeners', () => {
 			expect(updated?.state).toBe('idle');
 		});
 
-		it('adds system log entry for non-zero exit code', () => {
+		it('transitions to idle on non-zero exit without mutating shellLogs', () => {
 			const deps = createMockDeps();
 			const session = createMockSession({
 				id: 'sess-1',
@@ -498,12 +494,9 @@ describe('useAgentListeners', () => {
 			onCommandExitHandler?.('sess-1', 1);
 
 			const updated = useSessionStore.getState().sessions.find((s) => s.id === 'sess-1');
-			// System log should be appended to shellLogs for non-zero exit
-			const exitLog = updated?.shellLogs?.find(
-				(log: any) => log.source === 'system' && log.text?.includes('exited with code 1')
-			);
-			expect(exitLog).toBeDefined();
-			expect(exitLog?.source).toBe('system');
+			// No longer appends to shellLogs — terminal uses xterm.js
+			expect(updated?.shellLogs).toEqual([]);
+			expect(updated?.state).toBe('idle');
 		});
 	});
 

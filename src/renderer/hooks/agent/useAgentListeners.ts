@@ -215,14 +215,9 @@ export function useAgentListeners(deps: UseAgentListenersDeps): void {
 				isFromAi = false;
 			}
 
-			// Filter out empty stdout for terminal commands
-			if (!isFromAi && !data.trim()) return;
-
-			// For terminal output, use batched append to shell logs
-			if (!isFromAi) {
-				deps.batchedUpdater.appendLog(actualSessionId, null, false, data);
-				return;
-			}
+			// DEPRECATED: Non-AI terminal output (from runCommand) is no longer routed to shellLogs.
+			// Terminal mode uses xterm.js with direct PTY streaming via XTerminal component.
+			if (!isFromAi) return;
 
 			// For AI output, determine target tab ID
 			let targetTabId = tabIdFromSession;
@@ -660,71 +655,20 @@ export function useAgentListeners(deps: UseAgentListenersDeps): void {
 							};
 						}
 
-						// Terminal exit
-						const exitLog: LogEntry = {
-							id: generateId(),
-							timestamp: Date.now(),
-							source: 'system',
-							text: `Terminal process exited with code ${code}`,
-						};
-
+						// Terminal exit — no longer append to shellLogs (terminal uses xterm.js now)
 						const anyAiTabBusy = s.aiTabs?.some((tab) => tab.state === 'busy') || false;
 
 						return {
 							...s,
 							state: anyAiTabBusy ? s.state : ('idle' as SessionState),
 							busySource: anyAiTabBusy ? s.busySource : undefined,
-							shellLogs: [...s.shellLogs, exitLog],
 						};
 					})
 				);
 
-				// Refresh git branches/tags after terminal command completes
-				if (!isFromAi) {
-					const currentSession = getSessions().find((s) => s.id === actualSessionId);
-					if (currentSession?.isGitRepo) {
-						const userLogs = currentSession.shellLogs.filter((log) => log.source === 'user');
-						const lastCommand = userLogs[userLogs.length - 1]?.text?.trim().toLowerCase() || '';
-
-						const gitRefCommands = [
-							'git branch',
-							'git checkout',
-							'git switch',
-							'git fetch',
-							'git pull',
-							'git tag',
-							'git merge',
-							'git rebase',
-							'git reset',
-						];
-						const shouldRefresh = gitRefCommands.some((cmd) => lastCommand.startsWith(cmd));
-
-						if (shouldRefresh) {
-							(async () => {
-								const sshRemoteId =
-									currentSession.sshRemoteId ||
-									currentSession.sessionSshRemoteConfig?.remoteId ||
-									undefined;
-								const [gitBranches, gitTags] = await Promise.all([
-									gitService.getBranches(currentSession.cwd, sshRemoteId),
-									gitService.getTags(currentSession.cwd, sshRemoteId),
-								]);
-								setSessions((prev) =>
-									prev.map((s) =>
-										s.id === actualSessionId
-											? {
-													...s,
-													gitBranches,
-													gitTags,
-													gitRefsCacheTime: Date.now(),
-												}
-											: s
-									)
-								);
-							})();
-						}
-					}
-				}
+				// DEPRECATED: Git ref refresh after terminal command removed.
+				// shellLogs is no longer populated, so the last-command heuristic was always empty.
+				// Terminal tab CWD changes trigger git refresh via onTerminalTabCwdChange instead.
 
 				// Fire side effects AFTER state update
 				if (toastData?.startTime && toastData?.agentType) {
@@ -1012,18 +956,22 @@ export function useAgentListeners(deps: UseAgentListenersDeps): void {
 				actualSessionId = sessionId;
 			}
 
+			// Only route AI stderr — terminal stderr is no longer stored in shellLogs.
+			// Terminal mode uses xterm.js which receives stderr directly via PTY.
 			if (isFromAi && tabIdFromSession) {
 				deps.batchedUpdater.appendLog(actualSessionId, tabIdFromSession, true, data, true);
-			} else {
-				deps.batchedUpdater.appendLog(actualSessionId, null, false, data, true);
 			}
 		});
 
 		// ================================================================
 		// onCommandExit — Handle command exit from runCommand
+		// DEPRECATED: runCommand is deprecated. Terminal mode uses xterm.js with PTY.
+		// Exit is handled per-tab via onTerminalTabStateChange.
+		// Keeping handler for backwards compatibility (web interface) but
+		// no longer appends exit logs to shellLogs.
 		// ================================================================
 		const unsubscribeCommandExit = window.maestro.process.onCommandExit(
-			(sessionId: string, code: number) => {
+			(sessionId: string, _code: number) => {
 				const actualSessionId = sessionId;
 
 				setSessions((prev) =>
@@ -1032,28 +980,10 @@ export function useAgentListeners(deps: UseAgentListenersDeps): void {
 
 						const anyAiTabBusy = s.aiTabs?.some((tab) => tab.state === 'busy') || false;
 
-						const newState = anyAiTabBusy ? ('busy' as SessionState) : ('idle' as SessionState);
-						const newBusySource = anyAiTabBusy ? ('ai' as const) : undefined;
-
-						if (code !== 0) {
-							const exitLog: LogEntry = {
-								id: generateId(),
-								timestamp: Date.now(),
-								source: 'system',
-								text: `Command exited with code ${code}`,
-							};
-							return {
-								...s,
-								state: newState,
-								busySource: newBusySource,
-								shellLogs: [...s.shellLogs, exitLog],
-							};
-						}
-
 						return {
 							...s,
-							state: newState,
-							busySource: newBusySource,
+							state: anyAiTabBusy ? ('busy' as SessionState) : ('idle' as SessionState),
+							busySource: anyAiTabBusy ? ('ai' as const) : undefined,
 						};
 					})
 				);

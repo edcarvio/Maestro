@@ -30,12 +30,17 @@ export const DEFAULT_SCROLLBACK_LINES = 10000;
  */
 export const WRITE_BUFFER_FORCE_FLUSH_SIZE = 512 * 1024;
 
+/** Cursor shape options supported by xterm.js */
+export type CursorStyle = 'block' | 'underline' | 'bar';
+
 interface XTerminalProps {
 	sessionId: string;
 	theme: Theme;
 	fontFamily: string;
 	fontSize?: number;
 	scrollbackLines?: number;
+	cursorStyle?: CursorStyle;
+	cursorBlink?: boolean;
 	onData?: (data: string) => void;
 	onResize?: (cols: number, rows: number) => void;
 	onTitleChange?: (title: string) => void;
@@ -137,7 +142,7 @@ export function mapMaestroThemeToXterm(theme: Theme) {
 }
 
 export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XTerminal(
-	{ sessionId, theme, fontFamily, fontSize = 14, scrollbackLines, onData, onResize, onTitleChange },
+	{ sessionId, theme, fontFamily, fontSize = 14, scrollbackLines, cursorStyle = 'block', cursorBlink = true, onData, onResize, onTitleChange },
 	ref
 ) {
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -165,8 +170,8 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 		if (!containerRef.current) return;
 
 		const term = new Terminal({
-			cursorBlink: true,
-			cursorStyle: 'block',
+			cursorBlink,
+			cursorStyle,
 			fontFamily: fontFamily || 'Menlo, Monaco, "Courier New", monospace',
 			fontSize,
 			theme: mapMaestroThemeToXterm(theme),
@@ -241,6 +246,14 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 			fitAddonRef.current?.fit();
 		}
 	}, [fontFamily, fontSize]);
+
+	// Update cursor when style or blink changes
+	useEffect(() => {
+		if (terminalRef.current) {
+			terminalRef.current.options.cursorStyle = cursorStyle;
+			terminalRef.current.options.cursorBlink = cursorBlink;
+		}
+	}, [cursorStyle, cursorBlink]);
 
 	// Debounced resize handler
 	const handleResize = useCallback(() => {

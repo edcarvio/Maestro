@@ -533,6 +533,14 @@ export const MainPanel = React.memo(
 			}
 		}, [activeSession?.activeTerminalTabId]);
 
+		// Close terminal search when switching to terminal mode
+		// (TerminalView manages its own search state in terminal mode)
+		useEffect(() => {
+			if (activeSession?.inputMode === 'terminal') {
+				setTerminalSearchOpen(false);
+			}
+		}, [activeSession?.inputMode]);
+
 		// Redirect outputSearchOpen to terminal search when a terminal tab is active (AI mode only)
 		// In terminal mode, TerminalView manages its own search state
 		useEffect(() => {

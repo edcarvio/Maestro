@@ -158,6 +158,49 @@ vi.mock('../../../renderer/components/TerminalView', () => ({
 	},
 }));
 
+vi.mock('../../../renderer/components/EmbeddedTerminal', () => ({
+	EmbeddedTerminal: React.forwardRef(function MockEmbeddedTerminal(
+		props: { terminalTabId: string; isVisible: boolean },
+		ref: React.Ref<unknown>
+	) {
+		React.useImperativeHandle(ref, () => ({
+			write: vi.fn(),
+			focus: vi.fn(),
+			clear: vi.fn(),
+			scrollToBottom: vi.fn(),
+			search: vi.fn(() => false),
+			searchNext: vi.fn(() => false),
+			searchPrevious: vi.fn(() => false),
+			clearSearch: vi.fn(),
+			getSelection: vi.fn(() => ''),
+			resize: vi.fn(),
+		}));
+		return React.createElement(
+			'div',
+			{ 'data-testid': `embedded-terminal-${props.terminalTabId}` },
+			`Mock Terminal ${props.terminalTabId}`
+		);
+	}),
+	TerminalSearchBar: function MockTerminalSearchBar(props: { onClose: () => void }) {
+		return React.createElement(
+			'div',
+			{ 'data-testid': 'terminal-search-bar' },
+			React.createElement(
+				'button',
+				{ onClick: props.onClose, 'data-testid': 'terminal-search-close' },
+				'Close'
+			)
+		);
+	},
+}));
+
+vi.mock('../../../renderer/contexts/LayerStackContext', () => ({
+	useLayerStack: () => ({
+		registerLayer: vi.fn(),
+		unregisterLayer: vi.fn(),
+	}),
+}));
+
 vi.mock('../../../renderer/components/ErrorBoundary', () => ({
 	ErrorBoundary: (props: { children: React.ReactNode }) => props.children,
 }));
@@ -2006,6 +2049,43 @@ describe('MainPanel', () => {
 
 			expect(screen.queryByTestId('tab-bar')).not.toBeInTheDocument();
 			expect(screen.getByTestId('terminal-view')).toBeInTheDocument();
+		});
+
+		it('should close AI-mode terminal search when switching to terminal mode', () => {
+			const terminalTabs = [{ id: 'term-1', name: null, createdAt: Date.now(), cwd: '/test' }];
+			const session = createSession({
+				inputMode: 'ai',
+				terminalTabs,
+				activeTerminalTabId: 'term-1',
+			});
+
+			const { rerender } = render(<MainPanel {...defaultProps} activeSession={session} />);
+
+			// Open terminal search via Cmd+F
+			act(() => {
+				window.dispatchEvent(
+					new KeyboardEvent('keydown', {
+						key: 'f',
+						metaKey: true,
+						bubbles: true,
+					})
+				);
+			});
+
+			// Search bar should appear
+			expect(screen.getByTestId('terminal-search-bar')).toBeInTheDocument();
+
+			// Switch to terminal mode
+			const terminalSession = createSession({
+				inputMode: 'terminal',
+				terminalTabs,
+				activeTerminalTabId: 'term-1',
+			});
+			rerender(<MainPanel {...defaultProps} activeSession={terminalSession} />);
+
+			// Switch back to AI mode — search should NOT re-appear
+			rerender(<MainPanel {...defaultProps} activeSession={session} />);
+			expect(screen.queryByTestId('terminal-search-bar')).not.toBeInTheDocument();
 		});
 	});
 

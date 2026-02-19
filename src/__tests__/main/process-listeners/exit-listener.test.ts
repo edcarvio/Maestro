@@ -417,4 +417,125 @@ describe('Exit Listener', () => {
 			});
 		});
 	});
+
+	describe('Terminal Tab Session IDs', () => {
+		it('should forward exit event for terminal tab session IDs', () => {
+			setupListener();
+			const handler = eventHandlers.get('exit');
+
+			handler?.('session-123-terminal-tab-456', 0);
+
+			expect(mockDeps.safeSend).toHaveBeenCalledWith(
+				'process:exit',
+				'session-123-terminal-tab-456',
+				0
+			);
+		});
+
+		it('should forward exit event for legacy terminal session IDs', () => {
+			setupListener();
+			const handler = eventHandlers.get('exit');
+
+			handler?.('session-123-terminal', 0);
+
+			expect(mockDeps.safeSend).toHaveBeenCalledWith(
+				'process:exit',
+				'session-123-terminal',
+				0
+			);
+		});
+
+		it('should remove power block for terminal tab sessions', () => {
+			setupListener();
+			const handler = eventHandlers.get('exit');
+
+			handler?.('session-123-terminal-tab-456', 0);
+
+			expect(mockDeps.powerManager.removeBlockReason).toHaveBeenCalledWith(
+				'session:session-123-terminal-tab-456'
+			);
+		});
+	});
+
+	describe('Web Broadcast', () => {
+		let mockWebServer: { broadcastToSessionClients: ReturnType<typeof vi.fn> };
+
+		beforeEach(() => {
+			mockWebServer = {
+				broadcastToSessionClients: vi.fn(),
+			};
+			mockDeps.getWebServer = () => mockWebServer as never;
+		});
+
+		it('should extract base session ID for terminal tab format', () => {
+			setupListener();
+			const handler = eventHandlers.get('exit');
+
+			handler?.('session-123-terminal-tab-456', 0);
+
+			expect(mockWebServer.broadcastToSessionClients).toHaveBeenCalledWith(
+				'session-123',
+				expect.objectContaining({
+					type: 'session_exit',
+					sessionId: 'session-123',
+					exitCode: 0,
+				})
+			);
+		});
+
+		it('should extract base session ID for legacy terminal format', () => {
+			setupListener();
+			const handler = eventHandlers.get('exit');
+
+			handler?.('session-123-terminal', 0);
+
+			expect(mockWebServer.broadcastToSessionClients).toHaveBeenCalledWith(
+				'session-123',
+				expect.objectContaining({
+					type: 'session_exit',
+					sessionId: 'session-123',
+				})
+			);
+		});
+
+		it('should extract base session ID for AI tab format', () => {
+			setupListener();
+			const handler = eventHandlers.get('exit');
+
+			handler?.('session-123-ai-tab-789', 0);
+
+			expect(mockWebServer.broadcastToSessionClients).toHaveBeenCalledWith(
+				'session-123',
+				expect.objectContaining({
+					type: 'session_exit',
+					sessionId: 'session-123',
+				})
+			);
+		});
+
+		it('should use full session ID when no suffix matches', () => {
+			setupListener();
+			const handler = eventHandlers.get('exit');
+
+			handler?.('session-123', 0);
+
+			expect(mockWebServer.broadcastToSessionClients).toHaveBeenCalledWith(
+				'session-123',
+				expect.objectContaining({
+					type: 'session_exit',
+					sessionId: 'session-123',
+				})
+			);
+		});
+
+		it('should not broadcast when web server is null', () => {
+			mockDeps.getWebServer = () => null;
+			setupListener();
+			const handler = eventHandlers.get('exit');
+
+			handler?.('session-123-terminal-tab-456', 0);
+
+			expect(mockWebServer.broadcastToSessionClients).not.toHaveBeenCalled();
+		});
+	});
 });

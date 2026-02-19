@@ -432,9 +432,9 @@ export function setupExitListener(
 		// Broadcast exit to web clients
 		const webServer = getWebServer();
 		if (webServer) {
-			// Extract base session ID from formats: {id}-ai-{tabId}, {id}-terminal, {id}-batch-{timestamp}, {id}-synopsis-{timestamp}
+			// Extract base session ID from formats: {id}-ai-{tabId}, {id}-terminal, {id}-terminal-{tabId}, {id}-batch-{timestamp}, {id}-synopsis-{timestamp}
 			const baseSessionId = sessionId.replace(
-				/-ai-.+$|-terminal$|-batch-\d+$|-synopsis-\d+$/,
+				/-ai-.+$|-terminal(?:-.+)?$|-batch-\d+$|-synopsis-\d+$/,
 				''
 			);
 			webServer.broadcastToSessionClients(baseSessionId, {

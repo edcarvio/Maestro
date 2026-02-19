@@ -75,9 +75,14 @@ export class ProcessManager extends EventEmitter {
 
 		try {
 			if (process.isTerminal && process.ptyProcess) {
-				const command = data.replace(/\r?\n$/, '');
-				if (command.trim()) {
-					process.lastCommand = command.trim();
+				// For xterm.js terminal tabs, write raw data without command tracking
+				// (xterm handles echoing, prompts, etc.)
+				const isXtermTab = sessionId.includes('-terminal-');
+				if (!isXtermTab) {
+					const command = data.replace(/\r?\n$/, '');
+					if (command.trim()) {
+						process.lastCommand = command.trim();
+					}
 				}
 				process.ptyProcess.write(data);
 				return true;

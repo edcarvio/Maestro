@@ -14,6 +14,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { Session } from '../../types';
+import { cleanTerminalTabsForPersistence } from '../../utils/terminalTabHelpers';
 
 // Maximum persisted logs per AI tab (matches session persistence limit)
 const MAX_PERSISTED_LOGS_PER_TAB = 100;
@@ -84,6 +85,7 @@ const prepareSessionForPersistence = (session: Session): Session => {
 	const {
 		closedTabHistory: _closedTabHistory,
 		unifiedClosedTabHistory: _unifiedClosedTabHistory,
+		closedTerminalTabHistory: _closedTerminalTabHistory,
 		agentError: _agentError,
 		agentErrorPaused: _agentErrorPaused,
 		agentErrorTabId: _agentErrorTabId,
@@ -99,6 +101,8 @@ const prepareSessionForPersistence = (session: Session): Session => {
 		...sessionWithoutRuntimeFields,
 		aiTabs: truncatedTabs,
 		activeTabId: newActiveTabId,
+		// Clean terminal tab runtime state for persistence (PIDs, busy state)
+		terminalTabs: cleanTerminalTabsForPersistence(session.terminalTabs),
 		// Reset runtime-only session state - processes don't survive app restart
 		state: 'idle',
 		busySource: undefined,

@@ -192,6 +192,13 @@ import {
 	getInitialRenameValue,
 	hasActiveWizard,
 } from './utils/tabHelpers';
+import {
+	createTerminalTab,
+	getTerminalSessionId,
+	getActiveTerminalTab,
+	ensureTerminalTabs,
+	cleanTerminalTabsForPersistence,
+} from './utils/terminalTabHelpers';
 import { shouldOpenExternally, flattenTree } from './utils/fileExplorer';
 import type { FileNode } from './types/fileTree';
 import { substituteTemplateVariables } from './utils/templateVariables';
@@ -1315,7 +1322,7 @@ function MaestroConsoleInner() {
 				}));
 
 				// Session restored - no superfluous messages added to AI Terminal or Command Terminal
-				return {
+				const restoredSession: Session = {
 					...correctedSession,
 					aiPid: aiSpawnResult.pid,
 					terminalPid: 0, // Terminal uses runCommand (fresh shells per command)
@@ -1341,6 +1348,10 @@ function MaestroConsoleInner() {
 					agentError: undefined,
 					agentErrorPaused: false,
 					closedTabHistory: [], // Runtime-only, reset on load
+					// Terminal tabs - clean runtime state
+					terminalTabs: cleanTerminalTabsForPersistence(correctedSession.terminalTabs),
+					activeTerminalTabId: correctedSession.activeTerminalTabId,
+					closedTerminalTabHistory: [],
 					// File preview tabs - initialize from persisted data or empty
 					filePreviewTabs: correctedSession.filePreviewTabs || [],
 					activeFileTabId: correctedSession.activeFileTabId ?? null,
@@ -1348,6 +1359,8 @@ function MaestroConsoleInner() {
 						correctedSession.unifiedTabOrder ||
 						resetAiTabs.map((tab) => ({ type: 'ai' as const, id: tab.id })),
 				};
+				// Ensure terminal tabs exist (migration for pre-terminal-tabs sessions)
+				return ensureTerminalTabs(restoredSession, defaultShell || 'zsh');
 			} else {
 				// Process spawn failed
 				console.error(`Failed to restore session ${session.id}`);
@@ -7936,6 +7949,8 @@ You are taking over this conversation. Based on the context above, provide a bri
 				showThinking: defaultShowThinking,
 			};
 
+			const initialTerminalTab = createTerminalTab(defaultShell || 'zsh', workingDir, null);
+
 			const newSession: Session = {
 				id: newId,
 				name,
@@ -7985,6 +8000,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 				activeFileTabId: null,
 				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 				unifiedClosedTabHistory: [],
+				// Terminal tabs - initialized with a single default terminal
+				terminalTabs: [initialTerminalTab],
+				activeTerminalTabId: initialTerminalTab.id,
+				closedTerminalTabHistory: [],
 				// Nudge message - appended to every interactive user message
 				nudgeMessage,
 				// Per-agent config (path, args, env vars, model)
@@ -8279,6 +8298,21 @@ You are taking over this conversation. Based on the context above, provide a bri
 		setTabCompletionOpen(false);
 		setSlashCommandOpen(false);
 	};
+
+	// Update a terminal tab's state (called from TerminalView when PTY spawns/exits)
+	const handleTerminalTabUpdate = useCallback((sessionId: string, tabId: string, updates: Partial<import('./types').TerminalTab>) => {
+		setSessions((prev) =>
+			prev.map((s) => {
+				if (s.id !== sessionId || !s.terminalTabs) return s;
+				return {
+					...s,
+					terminalTabs: s.terminalTabs.map((tab) =>
+						tab.id === tabId ? { ...tab, ...updates } : tab
+					),
+				};
+			})
+		);
+	}, []);
 
 	// Toggle unread tabs filter with save/restore of active tab
 	const toggleUnreadFilter = useCallback(() => {
@@ -12638,7 +12672,13 @@ You are taking over this conversation. Based on the context above, provide a bri
 
 				{/* --- CENTER WORKSPACE (hidden when no sessions, group chat is active, or log viewer is open) --- */}
 				{sessions.length > 0 && !activeGroupChatId && !logViewerOpen && (
-					<MainPanel ref={mainPanelRef} {...mainPanelProps} />
+					<MainPanel
+						ref={mainPanelRef}
+						{...mainPanelProps}
+						defaultShell={defaultShell}
+						shellArgs={shellArgs}
+						onTerminalTabUpdate={handleTerminalTabUpdate}
+					/>
 				)}
 
 				{/* --- RIGHT PANEL (hidden in mobile landscape, when no sessions, group chat is active, or log viewer is open) --- */}

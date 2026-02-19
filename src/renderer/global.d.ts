@@ -228,6 +228,15 @@ interface MaestroAPI {
 				isBatchMode: boolean;
 			}>
 		>;
+		spawnTerminalTab: (config: {
+			sessionId: string;
+			cwd: string;
+			shell?: string;
+			shellArgs?: string;
+			shellEnvVars?: Record<string, string>;
+			cols?: number;
+			rows?: number;
+		}) => Promise<{ pid: number; success: boolean }>;
 		onData: (callback: (sessionId: string, data: string) => void) => () => void;
 		onExit: (callback: (sessionId: string, code: number) => void) => () => void;
 		onSessionId: (callback: (sessionId: string, agentSessionId: string) => void) => () => void;

@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import { LogViewer } from './LogViewer';
 import { TerminalOutput } from './TerminalOutput';
+import { TerminalView } from './TerminalView';
+import { getActiveTerminalTab } from '../utils/terminalTabHelpers';
 import { InputArea } from './InputArea';
 import { FilePreview, FilePreviewHandle } from './FilePreview';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -350,6 +352,12 @@ interface MainPanelProps {
 	onToggleWizardShowThinking?: () => void;
 	/** Called when user cancels document generation */
 	onWizardCancelGeneration?: () => void;
+
+	// Terminal tab props (xterm.js integration)
+	defaultShell?: string;
+	shellArgs?: string;
+	shellEnvVars?: Record<string, string>;
+	onTerminalTabUpdate?: (sessionId: string, tabId: string, updates: Partial<import('../types').TerminalTab>) => void;
 }
 
 // PERFORMANCE: Wrap with React.memo to prevent re-renders when parent (App.tsx) re-renders
@@ -1758,6 +1766,29 @@ export const MainPanel = React.memo(
 												(activeTab.wizardState.generatedDocuments?.length ?? 0) > 0
 											}
 										/>
+									) : activeSession.inputMode === 'terminal' &&
+									  activeSession.terminalTabs &&
+									  activeSession.terminalTabs.length > 0 &&
+									  props.onTerminalTabUpdate ? (
+										/* xterm.js terminal emulator for terminal mode */
+										(() => {
+											const activeTermTab = getActiveTerminalTab(activeSession);
+											if (!activeTermTab) return null;
+											return (
+												<TerminalView
+													key={`${activeSession.id}-terminal-${activeTermTab.id}`}
+													session={activeSession}
+													terminalTab={activeTermTab}
+													theme={theme}
+													fontFamily={props.fontFamily}
+													isVisible={true}
+													defaultShell={props.defaultShell || 'zsh'}
+													shellArgs={props.shellArgs}
+													shellEnvVars={props.shellEnvVars}
+													onTerminalTabUpdate={props.onTerminalTabUpdate}
+												/>
+											);
+										})()
 									) : (
 										<TerminalOutput
 											key={`${activeSession.id}-${activeSession.activeTabId}`}

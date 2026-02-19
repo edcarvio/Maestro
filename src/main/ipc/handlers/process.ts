@@ -600,6 +600,41 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
 		})
 	);
 
+	// Spawn a terminal PTY for a specific terminal tab (xterm.js integration)
+	// Uses the terminal tab session ID format: {sessionId}-terminal-{tabId}
+	ipcMain.handle(
+		'process:spawnTerminalTab',
+		withIpcErrorLogging(
+			handlerOpts('spawnTerminalTab'),
+			async (config: {
+				sessionId: string;
+				cwd: string;
+				shell?: string;
+				shellArgs?: string;
+				shellEnvVars?: Record<string, string>;
+				cols?: number;
+				rows?: number;
+			}) => {
+				const processManager = requireProcessManager(getProcessManager);
+				logger.info('Spawning terminal tab PTY', LOG_CONTEXT, {
+					sessionId: config.sessionId,
+					cwd: config.cwd,
+					shell: config.shell,
+				});
+				return processManager.spawn({
+					sessionId: config.sessionId,
+					toolType: 'terminal',
+					cwd: config.cwd,
+					command: config.shell || (process.platform === 'win32' ? 'powershell.exe' : 'zsh'),
+					args: [],
+					shell: config.shell,
+					shellArgs: config.shellArgs,
+					shellEnvVars: config.shellEnvVars,
+				});
+			}
+		)
+	);
+
 	// Run a single command and capture only stdout/stderr (no PTY echo/prompts)
 	// Supports SSH remote execution when sessionSshRemoteConfig is provided
 	ipcMain.handle(

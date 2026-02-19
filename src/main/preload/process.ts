@@ -176,6 +176,20 @@ export function createProcessApi() {
 		getActiveProcesses: (): Promise<ActiveProcess[]> =>
 			ipcRenderer.invoke('process:getActiveProcesses'),
 
+		/**
+		 * Spawn a terminal PTY for a specific terminal tab (xterm.js integration)
+		 */
+		spawnTerminalTab: (config: {
+			sessionId: string;
+			cwd: string;
+			shell?: string;
+			shellArgs?: string;
+			shellEnvVars?: Record<string, string>;
+			cols?: number;
+			rows?: number;
+		}): Promise<{ pid: number; success: boolean }> =>
+			ipcRenderer.invoke('process:spawnTerminalTab', config),
+
 		// Event listeners
 
 		/**

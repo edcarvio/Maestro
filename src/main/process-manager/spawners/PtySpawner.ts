@@ -98,7 +98,17 @@ export class PtySpawner {
 			this.processes.set(sessionId, managedProcess);
 
 			// Handle output
+			// For xterm.js terminal tabs (sessionId contains '-terminal-'),
+			// send raw PTY data - xterm.js handles all ANSI rendering natively.
+			// For AI agents and legacy terminal mode, filter control sequences.
+			const isXtermTab = sessionId.includes('-terminal-');
 			ptyProcess.onData((data) => {
+				if (isXtermTab) {
+					// Raw output for xterm.js - no filtering, no buffering
+					this.emitter.emit('data', sessionId, data);
+					return;
+				}
+
 				const managedProc = this.processes.get(sessionId);
 				const cleanedData = stripControlSequences(data, managedProc?.lastCommand, isTerminal);
 				logger.debug('[ProcessManager] PTY onData', 'ProcessManager', {

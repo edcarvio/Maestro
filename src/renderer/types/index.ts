@@ -666,6 +666,7 @@ export interface Session {
 	terminalDraftInput?: string;
 
 	// Terminal tab management (multi-tab terminal support with full PTY emulation)
+	// Each terminal tab represents a separate shell session with xterm.js rendering
 	terminalTabs?: TerminalTab[];
 	// Currently active terminal tab ID
 	activeTerminalTabId?: string;

@@ -87,7 +87,6 @@ interface MainPanelProps {
 	outputSearchQuery: string;
 	inputValue: string;
 	enterToSendAI: boolean;
-	enterToSendTerminal: boolean;
 	stagedImages: string[];
 	commandHistoryOpen: boolean;
 	commandHistoryFilter: string;
@@ -143,7 +142,6 @@ interface MainPanelProps {
 	setOutputSearchQuery: (query: string) => void;
 	setInputValue: (value: string) => void;
 	setEnterToSendAI: (value: boolean) => void;
-	setEnterToSendTerminal: (value: boolean) => void;
 	setStagedImages: React.Dispatch<React.SetStateAction<string[]>>;
 	setLightboxImage: (
 		image: string | null,
@@ -390,7 +388,6 @@ export const MainPanel = React.memo(
 			outputSearchQuery,
 			inputValue,
 			enterToSendAI,
-			enterToSendTerminal,
 			stagedImages,
 			commandHistoryOpen,
 			commandHistoryFilter,
@@ -434,7 +431,6 @@ export const MainPanel = React.memo(
 			setOutputSearchQuery,
 			setInputValue,
 			setEnterToSendAI,
-			setEnterToSendTerminal,
 			setStagedImages,
 			setLightboxImage,
 			setCommandHistoryOpen,

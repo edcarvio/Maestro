@@ -52,7 +52,6 @@ export interface UseMainPanelPropsDeps {
 	outputSearchQuery: string;
 	inputValue: string;
 	enterToSendAI: boolean;
-	enterToSendTerminal: boolean;
 	stagedImages: string[];
 	commandHistoryOpen: boolean;
 	commandHistoryFilter: string;
@@ -150,7 +149,6 @@ export interface UseMainPanelPropsDeps {
 	setOutputSearchQuery: (query: string) => void;
 	setInputValue: (value: string) => void;
 	setEnterToSendAI: (value: boolean) => void;
-	setEnterToSendTerminal: (value: boolean) => void;
 	setStagedImages: React.Dispatch<React.SetStateAction<string[]>>;
 	setCommandHistoryOpen: (open: boolean) => void;
 	setCommandHistoryFilter: (filter: string) => void;
@@ -325,7 +323,6 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			outputSearchQuery: deps.outputSearchQuery,
 			inputValue: deps.inputValue,
 			enterToSendAI: deps.enterToSendAI,
-			enterToSendTerminal: deps.enterToSendTerminal,
 			stagedImages: deps.stagedImages,
 			commandHistoryOpen: deps.commandHistoryOpen,
 			commandHistoryFilter: deps.commandHistoryFilter,
@@ -357,7 +354,6 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			setOutputSearchQuery: deps.setOutputSearchQuery,
 			setInputValue: deps.setInputValue,
 			setEnterToSendAI: deps.setEnterToSendAI,
-			setEnterToSendTerminal: deps.setEnterToSendTerminal,
 			setStagedImages: deps.setStagedImages,
 			setLightboxImage: deps.handleSetLightboxImage,
 			setCommandHistoryOpen: deps.setCommandHistoryOpen,
@@ -548,7 +544,6 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			deps.outputSearchQuery,
 			deps.inputValue,
 			deps.enterToSendAI,
-			deps.enterToSendTerminal,
 			deps.stagedImages,
 			deps.commandHistoryOpen,
 			deps.commandHistoryFilter,
@@ -616,7 +611,6 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			deps.setOutputSearchQuery,
 			deps.setInputValue,
 			deps.setEnterToSendAI,
-			deps.setEnterToSendTerminal,
 			deps.setStagedImages,
 			deps.handleSetLightboxImage,
 			deps.setCommandHistoryOpen,

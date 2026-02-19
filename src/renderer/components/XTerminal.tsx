@@ -228,7 +228,7 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 			fitAddonRef.current = null;
 			searchAddonRef.current = null;
 		};
-	}, []); // eslint-disable-line react-hooks/exhaustive-deps
+	}, []);
 
 	// Update theme when it changes
 	useEffect(() => {

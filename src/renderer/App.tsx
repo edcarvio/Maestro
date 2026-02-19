@@ -710,7 +710,6 @@ function MaestroConsoleInner() {
 	const draggingSessionId = useUIStore((s) => s.draggingSessionId);
 	const outputSearchOpen = useUIStore((s) => s.outputSearchOpen);
 	const outputSearchQuery = useUIStore((s) => s.outputSearchQuery);
-	const terminalSearchOpen = useUIStore((s) => s.terminalSearchOpen);
 	const flashNotification = useUIStore((s) => s.flashNotification);
 	const successFlashNotification = useUIStore((s) => s.successFlashNotification);
 	const selectedSidebarIndex = useUIStore((s) => s.selectedSidebarIndex);
@@ -7800,7 +7799,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 				for (const tab of session.terminalTabs) {
 					try {
 						await window.maestro.process.kill(getTerminalSessionId(id, tab.id));
-					} catch (error) {
+					} catch {
 						// Ignore - tab PTY may already be dead
 					}
 				}
@@ -7880,7 +7879,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 						for (const tab of session.terminalTabs) {
 							try {
 								await window.maestro.process.kill(getTerminalSessionId(session.id, tab.id));
-							} catch (error) {
+							} catch {
 								// Ignore - tab PTY may already be dead
 							}
 						}
@@ -11464,7 +11463,6 @@ You are taking over this conversation. Based on the context above, provide a bri
 		outputSearchQuery,
 		inputValue,
 		enterToSendAI,
-		enterToSendTerminal,
 		stagedImages,
 		commandHistoryOpen,
 		commandHistoryFilter,
@@ -11557,7 +11555,6 @@ You are taking over this conversation. Based on the context above, provide a bri
 		setOutputSearchQuery,
 		setInputValue,
 		setEnterToSendAI,
-		setEnterToSendTerminal,
 		setStagedImages,
 		setCommandHistoryOpen,
 		setCommandHistoryFilter,

@@ -194,6 +194,7 @@ src/
 | Add Director's Notes feature | `src/renderer/components/DirectorNotes/`, `src/main/ipc/handlers/director-notes.ts` |
 | Add Encore Feature | `src/renderer/types/index.ts` (flag), `useSettings.ts` (state), `SettingsModal.tsx` (toggle UI), gate in `App.tsx` + keyboard handler |
 | Modify history components | `src/renderer/components/History/` |
+| Add terminal feature | `src/renderer/components/EmbeddedTerminal/EmbeddedTerminal.tsx`, `src/renderer/components/XTerminal/XTerminal.tsx`, `src/renderer/components/EmbeddedTerminal/TerminalSearchBar.tsx` |
 | Add/modify terminal tab | `src/renderer/components/XTerminal/XTerminal.tsx`, `src/renderer/types/index.ts` (`TerminalTab`) |
 | Terminal tab IPC | `src/main/ipc/handlers/process.ts` (`spawnTerminalTab`), `src/main/process-manager/ProcessManager.ts` |
 

@@ -39,8 +39,12 @@ interface Session {
   unifiedTabOrder: UnifiedTabRef[];  // Visual order of all tabs (AI + file)
   closedUnifiedTabHistory: ClosedUnifiedTab[]; // Unified undo stack for Cmd+Shift+T
 
-  // Logs (per-tab)
-  shellLogs: LogEntry[];        // Terminal output history
+  // Terminal Tabs (xterm.js)
+  terminalTabs?: TerminalTab[]; // Terminal tabs with per-tab PTY processes
+  activeTerminalTabId?: string; // Currently active terminal tab
+
+  // Logs (deprecated)
+  shellLogs: LogEntry[];        // DEPRECATED: always [], terminal uses xterm.js buffer
 
   // Execution Queue
   executionQueue: QueuedItem[]; // Sequential execution queue
@@ -86,6 +90,19 @@ interface AITab {
   agentSessionId?: string;      // Provider session ID for this tab
   scrollTop?: number;
   draftInput?: string;
+}
+
+interface TerminalTab {
+  id: string;                   // Unique tab ID (UUID)
+  name: string | null;          // User-defined name (null = show shell name or "Terminal N")
+  shellType: string;            // Shell being used (e.g., 'zsh', 'bash', 'powershell')
+  pid: number;                  // PTY process ID (0 if not spawned yet)
+  cwd: string;                  // Current working directory
+  createdAt: number;            // Timestamp for ordering
+  state: 'idle' | 'busy' | 'exited'; // Tab state
+  exitCode?: number;            // Exit code if shell exited (runtime only)
+  scrollTop?: number;           // Saved scroll position (runtime only)
+  searchQuery?: string;         // Active search query (runtime only)
 }
 
 interface FilePreviewTab {

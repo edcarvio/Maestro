@@ -61,8 +61,8 @@ Use "agent" in user-facing language. Reserve "session" for provider-level conver
 - **Left Bar** - Left sidebar with agent list and groups (`SessionList.tsx`)
 - **Right Bar** - Right sidebar with Files, History, Auto Run tabs (`RightPanel.tsx`)
 - **Main Window** - Center workspace (`MainPanel.tsx`)
-  - **AI Terminal** - Main window in AI mode (interacting with AI agents)
-  - **Command Terminal** - Main window in terminal/shell mode
+  - **AI Terminal** - Main window in AI mode (interacting with AI agents, rendered by `TerminalOutput.tsx`)
+  - **Command Terminal** - Main window in terminal mode (xterm.js with PTY tabs, rendered by `TerminalView.tsx`)
   - **System Log Viewer** - Special view for system logs (`LogViewer.tsx`)
 
 ### Agent States (color-coded)
@@ -194,6 +194,8 @@ src/
 | Add Director's Notes feature | `src/renderer/components/DirectorNotes/`, `src/main/ipc/handlers/director-notes.ts` |
 | Add Encore Feature | `src/renderer/types/index.ts` (flag), `useSettings.ts` (state), `SettingsModal.tsx` (toggle UI), gate in `App.tsx` + keyboard handler |
 | Modify history components | `src/renderer/components/History/` |
+| Modify terminal tabs | `src/renderer/components/TerminalView.tsx`, `TerminalTabBar.tsx`, `XTerminal.tsx` |
+| Terminal tab helpers | `src/renderer/utils/terminalTabHelpers.ts` |
 
 ---
 
@@ -273,6 +275,37 @@ if (sshStore && session.sshRemoteConfig?.enabled) {
 - Agent's `binaryName` is used for remote execution (not local paths)
 
 See [[CLAUDE-PATTERNS.md]] for detailed SSH patterns.
+
+---
+
+### Terminal Mode Architecture
+
+Terminal mode uses **xterm.js** for full terminal emulation with persistent PTY processes per tab.
+
+**Key concepts:**
+- Each session has multiple terminal tabs (`session.terminalTabs: TerminalTab[]`)
+- Each tab owns a PTY process (`terminalTabs[].pid`) spawned via `process:spawnTerminalTab` IPC
+- xterm.js renders the raw PTY stream directly — no log-based intermediary
+- `InputArea` is hidden in terminal mode; xterm.js handles its own input
+- Tab state (pid, exitCode, scrollTop) is stripped on persistence; only settings (name, shell, cwd) are saved
+
+**Deprecated fields (kept for backwards compatibility):**
+- `session.shellLogs` — was the log-based terminal output buffer, now always `[]`
+- `session.terminalPid` — was always 0, replaced by `terminalTabs[].pid`
+- `process:runCommand` IPC — use `process:spawnTerminalTab` instead
+
+**Key files:**
+
+| File | Purpose |
+|------|---------|
+| `src/renderer/components/XTerminal.tsx` | xterm.js terminal renderer per tab |
+| `src/renderer/components/TerminalView.tsx` | Terminal tab management and layout |
+| `src/renderer/components/TerminalTabBar.tsx` | Terminal tab bar UI |
+| `src/renderer/utils/terminalTabHelpers.ts` | Tab creation, migration, persistence cleanup |
+| `src/main/ipc/handlers/process.ts` | `spawnTerminalTab` IPC handler |
+| `src/renderer/components/TerminalOutput.tsx` | AI-mode log display only (not used for terminal mode) |
+
+**Migration:** Sessions without `terminalTabs` are auto-migrated via `ensureTerminalTabs()` at startup and on restore. Legacy `shellLogs` are preserved but not rendered.
 
 ---
 

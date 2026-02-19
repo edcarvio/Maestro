@@ -16,6 +16,7 @@ import {
 } from '../types';
 import { generateId } from './ids';
 import { getAutoRunFolderPath } from './existingDocsDetector';
+import { createDefaultTerminalTab } from './terminalTabHelpers';
 
 /**
  * Get the initial name to show in the rename modal.
@@ -1817,12 +1818,15 @@ export function createMergedSession(
 		activeFileTabId: null,
 		unifiedTabOrder: [{ type: 'ai' as const, id: tabId }],
 		unifiedClosedTabHistory: [],
-		terminalTabs: [],
-		activeTerminalTabId: null,
+		// Initialize with a single terminal tab (matches createNewSession pattern)
+		terminalTabs: [createDefaultTerminalTab(projectRoot)],
+		activeTerminalTabId: null, // Set below after creation
 		closedTerminalTabHistory: [],
 		// Default Auto Run folder path (user can change later)
 		autoRunFolderPath: getAutoRunFolderPath(projectRoot),
 	};
+	// Set activeTerminalTabId to the created tab's ID
+	session.activeTerminalTabId = session.terminalTabs[0].id;
 
 	return { session, tabId };
 }

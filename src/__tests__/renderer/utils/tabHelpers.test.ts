@@ -1643,6 +1643,28 @@ describe('tabHelpers', () => {
 			expect(session.autoRunFolderPath).toBe('/project/Auto Run Docs');
 		});
 
+		it('creates session with a default terminal tab initialized to projectRoot', () => {
+			const { session } = createMergedSession({
+				name: 'Terminal Tab Test',
+				projectRoot: '/path/to/project',
+				toolType: 'claude-code',
+				mergedLogs: [],
+			});
+
+			// Should have exactly one terminal tab
+			expect(session.terminalTabs).toHaveLength(1);
+			// Terminal tab cwd should match the session's projectRoot
+			expect(session.terminalTabs[0].cwd).toBe('/path/to/project');
+			// activeTerminalTabId should point to the created tab
+			expect(session.activeTerminalTabId).toBe(session.terminalTabs[0].id);
+			// closedTerminalTabHistory should be empty
+			expect(session.closedTerminalTabHistory).toEqual([]);
+			// Terminal tab should have no custom name (shows as "Terminal 1")
+			expect(session.terminalTabs[0].name).toBeNull();
+			// Terminal tab should have a createdAt timestamp
+			expect(session.terminalTabs[0].createdAt).toBeGreaterThan(0);
+		});
+
 		it('creates shell log with merged context message', () => {
 			const { session } = createMergedSession({
 				name: 'Shell Log Test',

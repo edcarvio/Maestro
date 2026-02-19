@@ -1945,8 +1945,7 @@ export const MainPanel = React.memo(
 									)}
 								</div>
 
-								{/* Input Area (hidden in mobile landscape and during wizard doc generation) */}
-								{/* Note: terminal mode and active terminal tabs are already excluded by the parent conditional */}
+								{/* Input Area - hidden in terminal mode (xterm handles input) via parent conditional on line ~1772 */}
 								{!isMobileLandscape && !activeTab?.wizardState?.isGeneratingDocs && (
 									<div data-tour="input-area">
 										<InputArea

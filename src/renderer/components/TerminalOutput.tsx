@@ -1,3 +1,14 @@
+/**
+ * TerminalOutput - Log-based output display for AI mode
+ *
+ * This component renders conversation history as styled log entries.
+ * Used for AI agent output (Claude Code, Codex, etc.), NOT for terminal mode.
+ *
+ * Terminal mode uses XTerminal component for full terminal emulation.
+ *
+ * @see XTerminal.tsx for terminal mode rendering
+ * @see TerminalView.tsx for terminal tab management
+ */
 import React, { useRef, useEffect, useMemo, forwardRef, useState, useCallback, memo } from 'react';
 import {
 	ChevronDown,

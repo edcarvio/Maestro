@@ -243,6 +243,7 @@ export interface UseMainPanelPropsDeps {
 	handleTerminalTabReorder: (fromIndex: number, toIndex: number) => void;
 	handleTerminalTabExit: (tabId: string, exitCode: number) => void;
 	handleTerminalTabSpawned: (tabId: string) => void;
+	handleTerminalTabStateChange: (tabId: string, state: 'idle' | 'busy' | 'exited', exitCode?: number) => void;
 	handleRequestTerminalTabRename: (tabId: string) => void;
 	handleCloseOtherTerminalTabs: (tabId: string) => void;
 	handleCloseTerminalTabsToRight: (tabId: string) => void;
@@ -457,6 +458,7 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			onTerminalTabReorder: deps.handleTerminalTabReorder,
 			onTerminalTabExit: deps.handleTerminalTabExit,
 			onTerminalTabSpawned: deps.handleTerminalTabSpawned,
+			onTerminalTabStateChange: deps.handleTerminalTabStateChange,
 			onRequestTerminalTabRename: deps.handleRequestTerminalTabRename,
 			onCloseOtherTerminalTabs: deps.handleCloseOtherTerminalTabs,
 			onCloseTerminalTabsToRight: deps.handleCloseTerminalTabsToRight,
@@ -710,6 +712,7 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			deps.handleTerminalTabReorder,
 			deps.handleTerminalTabExit,
 			deps.handleTerminalTabSpawned,
+			deps.handleTerminalTabStateChange,
 			deps.handleRequestTerminalTabRename,
 			deps.handleCloseOtherTerminalTabs,
 			deps.handleCloseTerminalTabsToRight,

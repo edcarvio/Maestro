@@ -13,6 +13,7 @@ import React, { useState, useCallback, memo, useMemo } from 'react';
 import { X, Plus, Terminal as TerminalIcon } from 'lucide-react';
 import type { TerminalTab, Theme } from '../types';
 import { getTerminalTabDisplayName } from '../utils/terminalTabHelpers';
+import { formatShortcutKeys } from '../utils/shortcutFormatter';
 
 interface TerminalTabBarProps {
 	tabs: TerminalTab[];
@@ -268,7 +269,7 @@ export const TerminalTabBar = memo(function TerminalTabBar({
 					onClick={onNewTab}
 					className="flex items-center justify-center w-6 h-6 rounded hover:bg-white/10 transition-colors"
 					style={{ color: theme.colors.textDim }}
-					title="New terminal (Ctrl+Shift+`)"
+					title={`New terminal (${formatShortcutKeys(['Ctrl', 'Shift', '`'])})`}
 				>
 					<Plus className="w-4 h-4" />
 				</button>

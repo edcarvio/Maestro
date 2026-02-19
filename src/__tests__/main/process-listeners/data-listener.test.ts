@@ -202,7 +202,7 @@ describe('Data Listener', () => {
 	});
 
 	describe('Web Broadcast Filtering', () => {
-		it('should skip PTY terminal output', () => {
+		it('should skip PTY terminal output (legacy format)', () => {
 			setupListener();
 			const handler = eventHandlers.get('data');
 
@@ -214,6 +214,21 @@ describe('Data Listener', () => {
 				'process:data',
 				'session-123-terminal',
 				'terminal output'
+			);
+		});
+
+		it('should skip PTY terminal tab output (new {sessionId}-terminal-{tabId} format)', () => {
+			setupListener();
+			const handler = eventHandlers.get('data');
+
+			handler?.('abc123-terminal-def456', 'raw pty output with \x1b[31mANSI\x1b[0m codes');
+
+			expect(mockWebServer.broadcastToSessionClients).not.toHaveBeenCalled();
+			// But should still forward to renderer (xterm.js handles ANSI rendering)
+			expect(mockSafeSend).toHaveBeenCalledWith(
+				'process:data',
+				'abc123-terminal-def456',
+				'raw pty output with \x1b[31mANSI\x1b[0m codes'
 			);
 		});
 

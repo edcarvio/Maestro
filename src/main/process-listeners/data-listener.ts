@@ -97,12 +97,15 @@ export function setupDataListener(
 		safeSend('process:data', sessionId, data);
 
 		// Broadcast to web clients - extract base session ID (remove -ai or -terminal suffix)
-		// IMPORTANT: Skip PTY terminal output (-terminal suffix) as it contains raw ANSI codes.
+		// IMPORTANT: Skip PTY terminal output as it contains raw ANSI codes.
 		// Web interface terminal commands use runCommand() which emits with plain session IDs.
+		// Terminal tab sessions use format: {sessionId}-terminal-{tabId}
+		// Legacy terminal sessions use format: {sessionId}-terminal
 		const webServer = getWebServer();
 		if (webServer) {
 			// Don't broadcast raw PTY terminal output to web clients
-			if (sessionId.endsWith('-terminal')) {
+			// Matches both legacy "-terminal" suffix and new "-terminal-{tabId}" format
+			if (sessionId.includes('-terminal')) {
 				debugLog('WebBroadcast', `SKIPPING PTY terminal output for web: session=${sessionId}`);
 				return;
 			}

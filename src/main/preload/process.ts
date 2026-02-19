@@ -165,6 +165,21 @@ export function createProcessApi() {
 			ipcRenderer.invoke('process:resize', sessionId, cols, rows),
 
 		/**
+		 * Spawn a terminal PTY for a specific tab (xterm.js integration).
+		 * Each terminal tab gets a persistent PTY session identified by sessionId.
+		 */
+		spawnTerminalTab: (config: {
+			sessionId: string;
+			cwd: string;
+			shell?: string;
+			shellArgs?: string;
+			shellEnvVars?: Record<string, string>;
+			cols?: number;
+			rows?: number;
+		}): Promise<{ pid: number; success: boolean; error?: string }> =>
+			ipcRenderer.invoke('process:spawnTerminalTab', config),
+
+		/**
 		 * @deprecated Use spawnTerminalTab instead. runCommand was used for discrete command execution.
 		 * Terminal mode now uses persistent PTY via spawnTerminalTab.
 		 * Kept for backwards compatibility with any external callers.

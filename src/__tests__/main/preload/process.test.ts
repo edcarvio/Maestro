@@ -111,6 +111,53 @@ describe('Process Preload API', () => {
 		});
 	});
 
+	describe('spawnTerminalTab', () => {
+		it('should invoke process:spawnTerminalTab with config', async () => {
+			const config = {
+				sessionId: 'session-123-terminal-tab-456',
+				cwd: '/home/user/project',
+				shell: '/bin/zsh',
+				cols: 120,
+				rows: 40,
+			};
+			mockInvoke.mockResolvedValue({ pid: 5678, success: true });
+
+			const result = await api.spawnTerminalTab(config);
+
+			expect(mockInvoke).toHaveBeenCalledWith('process:spawnTerminalTab', config);
+			expect(result.pid).toBe(5678);
+			expect(result.success).toBe(true);
+		});
+
+		it('should pass through optional shellArgs and shellEnvVars', async () => {
+			const config = {
+				sessionId: 'session-123-terminal-tab-789',
+				cwd: '/home/user/project',
+				shellArgs: '--login',
+				shellEnvVars: { TERM: 'xterm-256color' },
+			};
+			mockInvoke.mockResolvedValue({ pid: 9999, success: true });
+
+			const result = await api.spawnTerminalTab(config);
+
+			expect(mockInvoke).toHaveBeenCalledWith('process:spawnTerminalTab', config);
+			expect(result.success).toBe(true);
+		});
+
+		it('should handle spawn failure with error', async () => {
+			const config = {
+				sessionId: 'session-123-terminal-tab-000',
+				cwd: '/nonexistent/path',
+			};
+			mockInvoke.mockResolvedValue({ pid: 0, success: false, error: 'Invalid cwd' });
+
+			const result = await api.spawnTerminalTab(config);
+
+			expect(result.success).toBe(false);
+			expect(result.error).toBe('Invalid cwd');
+		});
+	});
+
 	describe('runCommand', () => {
 		it('should invoke process:runCommand with config', async () => {
 			const config = {

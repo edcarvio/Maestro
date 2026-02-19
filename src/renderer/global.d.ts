@@ -208,6 +208,18 @@ interface MaestroAPI {
 		kill: (sessionId: string) => Promise<boolean>;
 		resize: (sessionId: string, cols: number, rows: number) => Promise<boolean>;
 		/**
+		 * Spawn a terminal PTY for a specific tab (xterm.js integration)
+		 */
+		spawnTerminalTab: (config: {
+			sessionId: string;
+			cwd: string;
+			shell?: string;
+			shellArgs?: string;
+			shellEnvVars?: Record<string, string>;
+			cols?: number;
+			rows?: number;
+		}) => Promise<{ pid: number; success: boolean; error?: string }>;
+		/**
 		 * @deprecated Use spawnTerminalTab instead. Kept for backwards compatibility.
 		 */
 		runCommand: (config: {

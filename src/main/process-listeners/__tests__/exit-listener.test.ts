@@ -139,6 +139,93 @@ describe('Exit Listener', () => {
 		});
 	});
 
+	describe('Terminal Tab Exit', () => {
+		it('should forward exit event with terminal tab session ID format', () => {
+			setupListener();
+			const handler = eventHandlers.get('exit');
+			// Terminal tab session IDs use format: {sessionId}-terminal-{tabId}
+			const terminalTabSessionId = 'abc123-terminal-def456';
+
+			handler?.(terminalTabSessionId, 0);
+
+			expect(mockDeps.safeSend).toHaveBeenCalledWith('process:exit', terminalTabSessionId, 0);
+		});
+
+		it('should forward exit event with non-zero exit code for terminal tabs', () => {
+			setupListener();
+			const handler = eventHandlers.get('exit');
+			const terminalTabSessionId = 'abc123-terminal-def456';
+
+			handler?.(terminalTabSessionId, 1);
+
+			expect(mockDeps.safeSend).toHaveBeenCalledWith('process:exit', terminalTabSessionId, 1);
+		});
+
+		it('should remove power block for terminal tab sessions', () => {
+			setupListener();
+			const handler = eventHandlers.get('exit');
+			const terminalTabSessionId = 'abc123-terminal-def456';
+
+			handler?.(terminalTabSessionId, 0);
+
+			expect(mockDeps.powerManager.removeBlockReason).toHaveBeenCalledWith(
+				'session:abc123-terminal-def456'
+			);
+		});
+
+		it('should extract base session ID for web broadcast with terminal tab format', () => {
+			const mockWebServer = {
+				broadcastToSessionClients: vi.fn(),
+			};
+			mockDeps.getWebServer = () =>
+				mockWebServer as unknown as ReturnType<typeof mockDeps.getWebServer>;
+			setupListener();
+			const handler = eventHandlers.get('exit');
+			const terminalTabSessionId = 'abc123-terminal-def456';
+
+			handler?.(terminalTabSessionId, 0);
+
+			expect(mockWebServer.broadcastToSessionClients).toHaveBeenCalledWith('abc123', {
+				type: 'session_exit',
+				sessionId: 'abc123',
+				exitCode: 0,
+				timestamp: expect.any(Number),
+			});
+		});
+
+		it('should extract base session ID for legacy terminal format (no tab ID)', () => {
+			const mockWebServer = {
+				broadcastToSessionClients: vi.fn(),
+			};
+			mockDeps.getWebServer = () =>
+				mockWebServer as unknown as ReturnType<typeof mockDeps.getWebServer>;
+			setupListener();
+			const handler = eventHandlers.get('exit');
+			// Legacy format: {sessionId}-terminal (no tab ID)
+			const legacyTerminalSessionId = 'abc123-terminal';
+
+			handler?.(legacyTerminalSessionId, 0);
+
+			expect(mockWebServer.broadcastToSessionClients).toHaveBeenCalledWith('abc123', {
+				type: 'session_exit',
+				sessionId: 'abc123',
+				exitCode: 0,
+				timestamp: expect.any(Number),
+			});
+		});
+
+		it('should not treat terminal tab exit as group chat session', () => {
+			setupListener();
+			const handler = eventHandlers.get('exit');
+			const terminalTabSessionId = 'abc123-terminal-def456';
+
+			handler?.(terminalTabSessionId, 0);
+
+			// Should NOT attempt to parse as participant or moderator session
+			expect(mockDeps.outputParser.parseParticipantSessionId).not.toHaveBeenCalled();
+		});
+	});
+
 	describe('Participant Exit', () => {
 		beforeEach(() => {
 			mockDeps.outputParser.parseParticipantSessionId = vi.fn().mockReturnValue({

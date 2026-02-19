@@ -6,10 +6,11 @@
  * - Fallback defaults are used when ANSI colors are absent
  * - Selection, cursor, and foreground/background mapping
  * - Theme switching produces correct output
+ * - Search decoration colors derived from themes
  */
 
 import { describe, it, expect } from 'vitest';
-import { mapMaestroThemeToXterm } from '../../../renderer/components/XTerminal';
+import { mapMaestroThemeToXterm, mixHexColors, buildSearchDecorations } from '../../../renderer/components/XTerminal';
 import { THEMES } from '../../../shared/themes';
 import type { Theme } from '../../../shared/theme-types';
 
@@ -143,5 +144,82 @@ describe('mapMaestroThemeToXterm', () => {
 				expect(result[key]).toBeTruthy();
 			}
 		});
+	});
+});
+
+describe('mixHexColors', () => {
+	it('should return foreground at alpha=1', () => {
+		expect(mixHexColors('#ff0000', '#000000', 1)).toBe('#ff0000');
+	});
+
+	it('should return background at alpha=0', () => {
+		expect(mixHexColors('#ff0000', '#000000', 0)).toBe('#000000');
+	});
+
+	it('should mix colors at 50% opacity', () => {
+		// #ff0000 mixed with #000000 at 0.5 → #800000
+		expect(mixHexColors('#ff0000', '#000000', 0.5)).toBe('#800000');
+	});
+
+	it('should mix white on black at 30%', () => {
+		// #ffffff on #000000 at 0.3 → ~#4d4d4d
+		const result = mixHexColors('#ffffff', '#000000', 0.3);
+		expect(result).toBe('#4d4d4d');
+	});
+
+	it('should mix different channels independently', () => {
+		// #ff8000 on #002040 at 0.5 → #805020
+		const result = mixHexColors('#ff8000', '#002040', 0.5);
+		expect(result).toBe('#805020');
+	});
+});
+
+describe('buildSearchDecorations', () => {
+	it('should return all required decoration properties', () => {
+		const result = buildSearchDecorations(THEMES.dracula);
+		expect(result).toHaveProperty('matchBackground');
+		expect(result).toHaveProperty('matchBorder');
+		expect(result).toHaveProperty('matchOverviewRuler');
+		expect(result).toHaveProperty('activeMatchBackground');
+		expect(result).toHaveProperty('activeMatchBorder');
+		expect(result).toHaveProperty('activeMatchColorOverviewRuler');
+	});
+
+	it('should return #RRGGBB hex colors', () => {
+		const result = buildSearchDecorations(THEMES.dracula);
+		const hexPattern = /^#[0-9a-f]{6}$/;
+		expect(result.matchBackground).toMatch(hexPattern);
+		expect(result.matchBorder).toMatch(hexPattern);
+		expect(result.matchOverviewRuler).toMatch(hexPattern);
+		expect(result.activeMatchBackground).toMatch(hexPattern);
+		expect(result.activeMatchBorder).toMatch(hexPattern);
+		expect(result.activeMatchColorOverviewRuler).toMatch(hexPattern);
+	});
+
+	it('should use warning color for matchOverviewRuler', () => {
+		const result = buildSearchDecorations(THEMES.dracula);
+		expect(result.matchOverviewRuler).toBe(THEMES.dracula.colors.warning);
+	});
+
+	it('should use accent color for activeMatchBorder and overview ruler', () => {
+		const result = buildSearchDecorations(THEMES.dracula);
+		expect(result.activeMatchBorder).toBe(THEMES.dracula.colors.accent);
+		expect(result.activeMatchColorOverviewRuler).toBe(THEMES.dracula.colors.accent);
+	});
+
+	it('should produce different colors for match vs active match', () => {
+		const result = buildSearchDecorations(THEMES.dracula);
+		expect(result.matchBackground).not.toBe(result.activeMatchBackground);
+	});
+
+	const themeEntries = Object.entries(THEMES);
+
+	it.each(themeEntries)('%s should produce valid search decorations', (_id, theme) => {
+		const result = buildSearchDecorations(theme);
+		const hexPattern = /^#[0-9a-f]{6}$/;
+		expect(result.matchBackground).toMatch(hexPattern);
+		expect(result.activeMatchBackground).toMatch(hexPattern);
+		expect(result.matchOverviewRuler).toMatch(hexPattern);
+		expect(result.activeMatchColorOverviewRuler).toMatch(hexPattern);
 	});
 });

@@ -55,6 +55,40 @@ export interface XTerminalHandle {
 }
 
 /**
+ * Mix a foreground hex color onto a background hex color at a given opacity.
+ * Both inputs must be #RRGGBB strings. Returns #RRGGBB.
+ */
+export function mixHexColors(fg: string, bg: string, alpha: number): string {
+	const parse = (hex: string) => [
+		parseInt(hex.slice(1, 3), 16),
+		parseInt(hex.slice(3, 5), 16),
+		parseInt(hex.slice(5, 7), 16),
+	];
+	const [fR, fG, fB] = parse(fg);
+	const [bR, bG, bB] = parse(bg);
+	const mix = (f: number, b: number) => Math.round(f * alpha + b * (1 - alpha));
+	const toHex = (n: number) => n.toString(16).padStart(2, '0');
+	return `#${toHex(mix(fR, bR))}${toHex(mix(fG, bG))}${toHex(mix(fB, bB))}`;
+}
+
+/**
+ * Build xterm.js search decoration options from a Maestro theme.
+ * Uses the theme's warning color (yellow tones) for all-match highlights
+ * and the accent color for the active/current match.
+ */
+export function buildSearchDecorations(theme: Theme) {
+	const { warning, accent, bgMain } = theme.colors;
+	return {
+		matchBackground: mixHexColors(warning, bgMain, 0.3),
+		matchBorder: mixHexColors(warning, bgMain, 0.5),
+		matchOverviewRuler: warning,
+		activeMatchBackground: mixHexColors(accent, bgMain, 0.6),
+		activeMatchBorder: accent,
+		activeMatchColorOverviewRuler: accent,
+	};
+}
+
+/**
  * Map Maestro theme colors to xterm.js ITheme.
  * Uses per-theme ANSI colors when available, falling back to sensible defaults.
  */
@@ -112,6 +146,7 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 	const searchAddonRef = useRef<SearchAddon | null>(null);
 	const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const sessionIdRef = useRef(sessionId);
+	const themeRef = useRef(theme);
 
 	// RAF write batching: accumulate PTY data chunks, flush once per animation frame.
 	// This dramatically reduces terminal.write() call frequency during high-throughput
@@ -192,6 +227,7 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 
 	// Update theme when it changes
 	useEffect(() => {
+		themeRef.current = theme;
 		if (terminalRef.current) {
 			terminalRef.current.options.theme = mapMaestroThemeToXterm(theme);
 		}
@@ -321,15 +357,20 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 				wholeWord: false,
 				regex: false,
 				incremental: true,
+				decorations: buildSearchDecorations(themeRef.current),
 			});
 		},
 		searchNext: () => {
 			if (!searchAddonRef.current || !lastSearchQueryRef.current) return false;
-			return searchAddonRef.current.findNext(lastSearchQueryRef.current);
+			return searchAddonRef.current.findNext(lastSearchQueryRef.current, {
+				decorations: buildSearchDecorations(themeRef.current),
+			});
 		},
 		searchPrevious: () => {
 			if (!searchAddonRef.current || !lastSearchQueryRef.current) return false;
-			return searchAddonRef.current.findPrevious(lastSearchQueryRef.current);
+			return searchAddonRef.current.findPrevious(lastSearchQueryRef.current, {
+				decorations: buildSearchDecorations(themeRef.current),
+			});
 		},
 		clearSearch: () => {
 			lastSearchQueryRef.current = '';

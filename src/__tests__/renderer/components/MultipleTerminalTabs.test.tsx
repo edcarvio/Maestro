@@ -62,6 +62,9 @@ vi.mock('lucide-react', () => ({
 	Terminal: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
 		<span data-testid="terminal-icon" className={className} style={style}>&gt;_</span>
 	),
+	AlertCircle: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+		<span data-testid="alert-circle-icon" className={className} style={style}>!</span>
+	),
 }));
 
 // Minimal theme fixture

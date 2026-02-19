@@ -13,9 +13,12 @@ const mockXTerminalSearchNext = vi.fn().mockReturnValue(true);
 const mockXTerminalSearchPrevious = vi.fn().mockReturnValue(true);
 const mockXTerminalClearSearch = vi.fn();
 
+// Capture onCloseRequest callbacks keyed by sessionId for testing wiring
+const capturedCloseRequests = new Map<string, () => void>();
+
 vi.mock('../../../renderer/components/XTerminal', () => ({
 	XTerminal: React.forwardRef(function MockXTerminal(
-		props: { sessionId: string },
+		props: { sessionId: string; onCloseRequest?: () => void },
 		ref: React.Ref<unknown>
 	) {
 		React.useImperativeHandle(ref, () => ({
@@ -30,6 +33,10 @@ vi.mock('../../../renderer/components/XTerminal', () => ({
 			getSelection: vi.fn().mockReturnValue(''),
 			resize: vi.fn(),
 		}));
+		// Store the onCloseRequest callback for testing
+		if (props.onCloseRequest) {
+			capturedCloseRequests.set(props.sessionId, props.onCloseRequest);
+		}
 		return <div data-testid={`xterminal-${props.sessionId}`}>XTerminal: {props.sessionId}</div>;
 	}),
 }));
@@ -137,6 +144,7 @@ let exitCallbacks: Array<(sid: string, code: number) => void>;
 beforeEach(() => {
 	vi.clearAllMocks();
 	exitCallbacks = [];
+	capturedCloseRequests.clear();
 
 	mockSpawnTerminalTab = vi.fn().mockResolvedValue({ pid: 1234, success: true });
 	mockProcessKill = vi.fn().mockResolvedValue(undefined);
@@ -855,6 +863,79 @@ describe('TerminalView', () => {
 			// useEffect should trigger spawnPtyForTab since state is no longer 'exited'
 			await waitFor(() => {
 				expect(mockSpawnTerminalTab).toHaveBeenCalledTimes(1);
+			});
+		});
+	});
+
+	describe('Shell exit close-on-keypress wiring', () => {
+		it('passes onCloseRequest callback to XTerminal', async () => {
+			const session = makeSession([{ pid: 1234 }]);
+			const onTabClose = vi.fn();
+			const props = defaultProps({ session, onTabClose });
+
+			render(<TerminalView {...props} />);
+
+			const tabId = session.terminalTabs![0].id;
+			const terminalSessionId = `test-session-terminal-${tabId}`;
+
+			// The mock XTerminal should have captured the onCloseRequest callback
+			await waitFor(() => {
+				expect(capturedCloseRequests.has(terminalSessionId)).toBe(true);
+			});
+		});
+
+		it('onCloseRequest triggers tab close (kills PTY and calls onTabClose)', async () => {
+			const session = makeSession([{ pid: 1234 }, { pid: 5678 }]);
+			const onTabClose = vi.fn();
+			const props = defaultProps({ session, onTabClose });
+
+			render(<TerminalView {...props} />);
+
+			const tabId = session.terminalTabs![0].id;
+			const terminalSessionId = `test-session-terminal-${tabId}`;
+
+			// Wait for the callback to be captured
+			await waitFor(() => {
+				expect(capturedCloseRequests.has(terminalSessionId)).toBe(true);
+			});
+
+			// Simulate what happens when XTerminal calls onCloseRequest (user pressed key after exit)
+			act(() => {
+				capturedCloseRequests.get(terminalSessionId)!();
+			});
+
+			await waitFor(() => {
+				expect(mockProcessKill).toHaveBeenCalledWith(terminalSessionId);
+				expect(onTabClose).toHaveBeenCalledWith(tabId);
+			});
+		});
+
+		it('each tab gets its own onCloseRequest that closes the correct tab', async () => {
+			const session = makeSession([{ pid: 1234 }, { pid: 5678 }]);
+			const onTabClose = vi.fn();
+			const props = defaultProps({ session, onTabClose });
+
+			render(<TerminalView {...props} />);
+
+			const tab1Id = session.terminalTabs![0].id;
+			const tab2Id = session.terminalTabs![1].id;
+			const sessionId1 = `test-session-terminal-${tab1Id}`;
+			const sessionId2 = `test-session-terminal-${tab2Id}`;
+
+			await waitFor(() => {
+				expect(capturedCloseRequests.has(sessionId1)).toBe(true);
+				expect(capturedCloseRequests.has(sessionId2)).toBe(true);
+			});
+
+			// Invoke close for second tab
+			act(() => {
+				capturedCloseRequests.get(sessionId2)!();
+			});
+
+			await waitFor(() => {
+				expect(onTabClose).toHaveBeenCalledWith(tab2Id);
+				// First tab's PTY should NOT be killed
+				expect(mockProcessKill).not.toHaveBeenCalledWith(sessionId1);
 			});
 		});
 	});

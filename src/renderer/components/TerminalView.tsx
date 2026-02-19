@@ -317,6 +317,7 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 									theme={theme}
 									fontFamily={fontFamily}
 									fontSize={fontSize}
+									onCloseRequest={() => handleTabClose(tab.id)}
 								/>
 							)}
 						</div>

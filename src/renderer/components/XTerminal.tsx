@@ -44,6 +44,8 @@ interface XTerminalProps {
 	onData?: (data: string) => void;
 	onResize?: (cols: number, rows: number) => void;
 	onTitleChange?: (title: string) => void;
+	/** Called when the user presses any key after the shell has exited */
+	onCloseRequest?: () => void;
 }
 
 export interface XTerminalHandle {
@@ -142,7 +144,7 @@ export function mapMaestroThemeToXterm(theme: Theme) {
 }
 
 export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XTerminal(
-	{ sessionId, theme, fontFamily, fontSize = 14, scrollbackLines, cursorStyle = 'block', cursorBlink = true, onData, onResize, onTitleChange },
+	{ sessionId, theme, fontFamily, fontSize = 14, scrollbackLines, cursorStyle = 'block', cursorBlink = true, onData, onResize, onTitleChange, onCloseRequest },
 	ref
 ) {
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -153,6 +155,10 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 	const sessionIdRef = useRef(sessionId);
 	const themeRef = useRef(theme);
 
+	// Tracks whether the shell has exited — used to intercept user input for close-on-keypress
+	const exitedRef = useRef(false);
+	const onCloseRequestRef = useRef(onCloseRequest);
+
 	// RAF write batching: accumulate PTY data chunks, flush once per animation frame.
 	// This dramatically reduces terminal.write() call frequency during high-throughput
 	// output (e.g. build logs, `cat` of large files) from potentially thousands/sec
@@ -160,10 +166,15 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 	const writeBufferRef = useRef<string>('');
 	const rafIdRef = useRef<number>(0);
 
-	// Keep sessionId ref current for IPC callbacks
+	// Keep refs current for IPC callbacks
 	useEffect(() => {
 		sessionIdRef.current = sessionId;
+		exitedRef.current = false; // Reset exited state when session changes
 	}, [sessionId]);
+
+	useEffect(() => {
+		onCloseRequestRef.current = onCloseRequest;
+	}, [onCloseRequest]);
 
 	// Initialize xterm.js terminal
 	useEffect(() => {
@@ -324,10 +335,14 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 		};
 	}, [flushWriteBuffer]);
 
-	// Handle user input -> main process PTY
+	// Handle user input -> main process PTY (or close request if shell exited)
 	useEffect(() => {
 		if (!terminalRef.current) return;
 		const disposable = terminalRef.current.onData((data: string) => {
+			if (exitedRef.current) {
+				onCloseRequestRef.current?.();
+				return;
+			}
 			window.maestro.process.write(sessionIdRef.current, data);
 			onData?.(data);
 		});
@@ -343,11 +358,13 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 		return () => disposable.dispose();
 	}, [onTitleChange]);
 
-	// Handle PTY exit
+	// Handle PTY exit — show exit message and enable close-on-keypress
 	useEffect(() => {
 		const unsubscribe = window.maestro.process.onExit((sid: string, code: number) => {
 			if (sid === sessionIdRef.current && terminalRef.current) {
+				exitedRef.current = true;
 				terminalRef.current.write(`\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m\r\n`);
+				terminalRef.current.write('\r\n\x1b[33mShell exited.\x1b[0m Press any key to close, or Ctrl+Shift+` for new terminal.\r\n');
 			}
 		});
 		return unsubscribe;

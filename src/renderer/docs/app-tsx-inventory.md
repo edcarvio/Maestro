@@ -1245,7 +1245,7 @@ const worktreeSession: Session = {
   aiLogs: [], shellLogs: [...],
   workLog: [], contextUsage: 0,
   inputMode: '...',
-  aiPid: 0, terminalPid: 0, port: ...,
+  aiPid: 0, terminalPid: 0 /* DEPRECATED */, port: ...,
   isLive: false, changedFiles: [],
   fileTree: [], fileExplorerExpanded: [],
   fileExplorerScrollPos: 0,

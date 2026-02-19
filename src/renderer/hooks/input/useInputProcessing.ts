@@ -835,6 +835,7 @@ export function useInputProcessing(deps: UseInputProcessingDeps): UseInputProces
 
 			// Write to the appropriate process based on inputMode
 			// Each session has TWO processes: AI agent and terminal
+			// DEPRECATED: terminalPid is always 0 — terminal mode now uses xterm.js with PTY via terminalTabs[].pid
 			const targetPid = currentMode === 'ai' ? activeSession.aiPid : activeSession.terminalPid;
 			// For batch mode (Claude), include tab ID in session ID to prevent process collision
 			// This ensures each tab's process has a unique identifier

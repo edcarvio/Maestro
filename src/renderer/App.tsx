@@ -1325,7 +1325,7 @@ function MaestroConsoleInner() {
 
 			// Don't eagerly spawn AI processes on session restore:
 			// - Batch mode agents (Claude Code, OpenCode, Codex) spawn per message in useInputProcessing
-			// - Terminal uses runCommand (fresh shells per command)
+			// - Terminal uses persistent PTY via terminalTabs (spawned on demand)
 			// This prevents 20+ idle processes when app starts with many saved sessions
 			// aiPid stays at 0 until user sends their first message
 			const aiSpawnResult = { pid: 0, success: true };
@@ -1377,7 +1377,7 @@ function MaestroConsoleInner() {
 				const restoredSession: Session = {
 					...correctedSession,
 					aiPid: aiSpawnResult.pid,
-					terminalPid: 0, // Terminal uses runCommand (fresh shells per command)
+					terminalPid: 0, // DEPRECATED: always 0, terminal uses terminalTabs[].pid
 					state: 'idle' as SessionState,
 					// Reset runtime-only busy state - processes don't survive app restart
 					busySource: undefined,
@@ -8036,10 +8036,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 				workLog: [],
 				contextUsage: 0,
 				inputMode: agentId === 'terminal' ? 'terminal' : 'ai',
-				// AI process PID (terminal uses runCommand which spawns fresh shells)
+				// AI process PID (terminal uses persistent PTY via terminalTabs)
 				// For agents that requiresPromptToStart, this starts as 0 and gets set on first message
 				aiPid,
-				terminalPid: 0,
+				terminalPid: 0, // DEPRECATED: always 0, terminal uses terminalTabs[].pid
 				port: 3000 + Math.floor(Math.random() * 100),
 				isLive: false,
 				changedFiles: [],

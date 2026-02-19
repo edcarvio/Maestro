@@ -122,13 +122,15 @@ Each agent runs **two processes simultaneously**:
 interface Session {
   id: string;                    // Unique identifier
   aiPid: number;                 // AI agent process (suffixed -ai)
-  terminalPid: number;           // Terminal process (suffixed -terminal)
+  terminalPid: number;           // DEPRECATED: always 0, use terminalTabs[].pid
+  terminalTabs: TerminalTab[];   // Terminal tabs with per-tab PTY processes
   inputMode: 'ai' | 'terminal';  // Which process receives input
   // ... other fields
 }
 ```
 
-This enables seamless switching between AI and terminal modes without process restarts.
+Terminal mode uses xterm.js with persistent PTY processes per terminal tab (`terminalTabs[].pid`).
+The legacy `terminalPid` field is deprecated and always 0.
 
 ---
 

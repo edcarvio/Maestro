@@ -9,9 +9,9 @@ Each agent runs **two processes** simultaneously:
 - Terminal process (PTY shell) - spawned with `-terminal` suffix
 
 ```typescript
-// Agent stores both PIDs (code interface: Session object)
+// Agent stores AI PID (code interface: Session object)
 session.aiPid       // AI agent process
-session.terminalPid // Terminal process
+session.terminalPid // DEPRECATED: always 0, use terminalTabs[].pid instead
 ```
 
 ## 2. Security Requirements

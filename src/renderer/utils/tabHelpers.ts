@@ -1552,7 +1552,7 @@ export function createMergedSession(
 		contextUsage: 0,
 		inputMode: toolType === 'terminal' ? 'terminal' : 'ai',
 		aiPid: 0,
-		terminalPid: 0,
+		terminalPid: 0, // DEPRECATED: always 0, terminal uses terminalTabs[].pid
 		port: 3000 + Math.floor(Math.random() * 100),
 		isLive: false,
 		changedFiles: [],

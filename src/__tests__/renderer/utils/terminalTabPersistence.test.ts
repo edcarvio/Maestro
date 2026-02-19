@@ -616,4 +616,143 @@ describe('terminal tab persistence', () => {
 			expect(migrated.activeTerminalTabId).toBeNull();
 		});
 	});
+
+	describe('batch migration at load time', () => {
+		/**
+		 * Simulate the batch migration from loadSessionsAndGroups in App.tsx.
+		 * This runs on ALL loaded sessions before restoreSession() processes them,
+		 * ensuring terminal tabs exist at the data loading boundary.
+		 */
+		function batchMigrateSessions(sessions: Partial<Session>[]): Partial<Session>[] {
+			return sessions.map(session => {
+				if (!session.terminalTabs || session.terminalTabs.length === 0) {
+					const defaultTerminalTab = createDefaultTerminalTab(session.cwd || '');
+					return {
+						...session,
+						terminalTabs: [defaultTerminalTab],
+						activeTerminalTabId: defaultTerminalTab.id,
+						closedTerminalTabHistory: [],
+					};
+				}
+				return {
+					...session,
+					closedTerminalTabHistory: session.closedTerminalTabHistory || [],
+				};
+			});
+		}
+
+		it('migrates multiple sessions without terminal tabs in a single batch', () => {
+			const sessions: Partial<Session>[] = [
+				{ id: 'session-1', cwd: '/project-a' },
+				{ id: 'session-2', cwd: '/project-b' },
+				{ id: 'session-3', cwd: '/project-c' },
+			];
+
+			const migrated = batchMigrateSessions(sessions);
+
+			expect(migrated).toHaveLength(3);
+			for (const session of migrated) {
+				expect(session.terminalTabs).toHaveLength(1);
+				expect(session.activeTerminalTabId).toBe('mock-generated-id');
+				expect(session.closedTerminalTabHistory).toEqual([]);
+			}
+		});
+
+		it('handles mix of sessions with and without terminal tabs', () => {
+			const existingTab = createMockTerminalTab({ id: 'existing-tab', cwd: '/existing' });
+			const sessions: Partial<Session>[] = [
+				{ id: 'needs-migration', cwd: '/project-a' },
+				{
+					id: 'already-migrated',
+					cwd: '/project-b',
+					terminalTabs: [existingTab],
+					activeTerminalTabId: 'existing-tab',
+					closedTerminalTabHistory: [],
+				},
+				{ id: 'also-needs-migration', cwd: '/project-c', terminalTabs: [] },
+			];
+
+			const migrated = batchMigrateSessions(sessions);
+
+			// First session: migrated
+			expect(migrated[0].terminalTabs).toHaveLength(1);
+			expect(migrated[0].terminalTabs![0].cwd).toBe('/project-a');
+
+			// Second session: untouched (already has tabs)
+			expect(migrated[1].terminalTabs).toHaveLength(1);
+			expect(migrated[1].terminalTabs![0].id).toBe('existing-tab');
+
+			// Third session: migrated (empty array triggers migration)
+			expect(migrated[2].terminalTabs).toHaveLength(1);
+			expect(migrated[2].terminalTabs![0].cwd).toBe('/project-c');
+		});
+
+		it('returns empty array for empty input', () => {
+			const migrated = batchMigrateSessions([]);
+			expect(migrated).toEqual([]);
+		});
+
+		it('is idempotent — running migration twice produces same result', () => {
+			const sessions: Partial<Session>[] = [
+				{ id: 'session-1', cwd: '/project' },
+			];
+
+			const firstPass = batchMigrateSessions(sessions);
+			const secondPass = batchMigrateSessions(firstPass as Partial<Session>[]);
+
+			// Same number of terminal tabs (not doubled)
+			expect(secondPass[0].terminalTabs).toHaveLength(1);
+			expect(secondPass[0].activeTerminalTabId).toBe(firstPass[0].activeTerminalTabId);
+		});
+
+		it('initializes closedTerminalTabHistory for sessions that already have terminal tabs', () => {
+			const existingTab = createMockTerminalTab({ id: 'tab-1' });
+			const sessions: Partial<Session>[] = [
+				{
+					id: 'session-1',
+					terminalTabs: [existingTab],
+					activeTerminalTabId: 'tab-1',
+					// closedTerminalTabHistory is missing
+				},
+			];
+
+			const migrated = batchMigrateSessions(sessions);
+
+			expect(migrated[0].closedTerminalTabHistory).toEqual([]);
+		});
+
+		it('preserves existing closedTerminalTabHistory for sessions that have it', () => {
+			const existingTab = createMockTerminalTab({ id: 'tab-1' });
+			const closedTab: ClosedTerminalTab = {
+				tab: createMockTerminalTab({ id: 'closed-tab' }),
+				index: 0,
+				closedAt: Date.now(),
+			};
+			const sessions: Partial<Session>[] = [
+				{
+					id: 'session-1',
+					terminalTabs: [existingTab],
+					activeTerminalTabId: 'tab-1',
+					closedTerminalTabHistory: [closedTab],
+				},
+			];
+
+			const migrated = batchMigrateSessions(sessions);
+
+			expect(migrated[0].closedTerminalTabHistory).toHaveLength(1);
+			expect(migrated[0].closedTerminalTabHistory![0].tab.id).toBe('closed-tab');
+		});
+
+		it('uses session cwd for each migrated terminal tab', () => {
+			const sessions: Partial<Session>[] = [
+				{ id: 'session-1', cwd: '/path/alpha' },
+				{ id: 'session-2', cwd: '/path/beta' },
+			];
+
+			const migrated = batchMigrateSessions(sessions);
+
+			expect(migrated[0].terminalTabs![0].cwd).toBe('/path/alpha');
+			expect(migrated[1].terminalTabs![0].cwd).toBe('/path/beta');
+		});
+	});
 });

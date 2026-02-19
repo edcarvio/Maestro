@@ -1447,9 +1447,30 @@ function MaestroConsoleInner() {
 				console.log('[App] Got sessions:', savedSessions?.length ?? 0);
 				const savedGroups = await window.maestro.groups.getAll();
 
+				// Migrate any sessions that need terminal tabs (pre-xterm.js era or data gaps).
+				// This runs before restoreSession() as an upfront batch migration at load time.
+				// restoreSession() also checks for this as a safety net.
+				const migratedSessions = (savedSessions || []).map(session => {
+					if (!session.terminalTabs || session.terminalTabs.length === 0) {
+						const defaultTerminalTab = createDefaultTerminalTab(session.cwd);
+						console.log(`[loadSessions] Migrated session ${session.id} to terminal tabs`);
+						return {
+							...session,
+							terminalTabs: [defaultTerminalTab],
+							activeTerminalTabId: defaultTerminalTab.id,
+							closedTerminalTabHistory: [],
+						};
+					}
+					// Ensure closedTerminalTabHistory exists
+					return {
+						...session,
+						closedTerminalTabHistory: session.closedTerminalTabHistory || [],
+					};
+				});
+
 				// Handle sessions
-				if (savedSessions && savedSessions.length > 0) {
-					const restoredSessions = await Promise.all(savedSessions.map((s) => restoreSession(s)));
+				if (migratedSessions.length > 0) {
+					const restoredSessions = await Promise.all(migratedSessions.map((s) => restoreSession(s)));
 					setSessions(restoredSessions);
 					// Set active session to first session if current activeSessionId is invalid
 					if (

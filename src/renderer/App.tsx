@@ -9610,6 +9610,17 @@ You are taking over this conversation. Based on the context above, provide a bri
 			return;
 		}
 
+		// Cmd+G / Cmd+Shift+G in terminal mode - find next/previous match
+		if (e.key === 'g' && (e.metaKey || e.ctrlKey) && activeSession?.inputMode === 'terminal') {
+			e.preventDefault();
+			if (e.shiftKey) {
+				mainPanelRef.current?.terminalSearchPrevious();
+			} else {
+				mainPanelRef.current?.terminalSearchNext();
+			}
+			return;
+		}
+
 		// Handle command history modal
 		if (commandHistoryOpen) {
 			return; // Let the modal handle keys

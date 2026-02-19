@@ -64,6 +64,10 @@ export interface MainPanelHandle {
 	refreshGitInfo: () => Promise<void>;
 	/** Focus the file preview container (if open) */
 	focusFilePreview: () => void;
+	/** Navigate to next terminal search match */
+	terminalSearchNext: () => boolean;
+	/** Navigate to previous terminal search match */
+	terminalSearchPrevious: () => boolean;
 }
 
 interface MainPanelProps {
@@ -758,6 +762,12 @@ export const MainPanel = React.memo(
 					} else {
 						filePreviewContainerRef.current?.focus();
 					}
+				},
+				terminalSearchNext: () => {
+					return terminalViewRef.current?.searchNext() ?? false;
+				},
+				terminalSearchPrevious: () => {
+					return terminalViewRef.current?.searchPrevious() ?? false;
 				},
 			}),
 			[refreshGitStatus]

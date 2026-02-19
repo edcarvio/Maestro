@@ -186,4 +186,7 @@ export const TAB_SHORTCUTS: Record<string, Shortcut> = {
 export const TERMINAL_TAB_SHORTCUTS: Record<string, Shortcut> = {
 	newTerminalTab: { id: 'newTerminalTab', label: 'New Terminal Tab', keys: ['Control', 'Shift', '`'] },
 	clearTerminal: { id: 'clearTerminal', label: 'Clear Terminal', keys: ['Meta', 'k'] },
+	searchTerminal: { id: 'searchTerminal', label: 'Search Terminal', keys: ['Meta', 'f'] },
+	searchNext: { id: 'searchNext', label: 'Find Next Match', keys: ['Meta', 'g'] },
+	searchPrevious: { id: 'searchPrevious', label: 'Find Previous Match', keys: ['Meta', 'Shift', 'g'] },
 };

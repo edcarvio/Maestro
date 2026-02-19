@@ -799,8 +799,13 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 				} else if (ctx.activeFocus === 'right' && ctx.activeRightTab === 'history') {
 					// History filter - handled by HistoryPanel component, just track here
 					trackShortcut('filterHistory');
+				} else if (ctx.activeFocus === 'main' && ctx.activeSession?.inputMode === 'terminal') {
+					// Terminal mode: open xterm.js scrollback search
+					e.preventDefault();
+					ctx.setTerminalSearchOpen(true);
+					trackShortcut('searchOutput');
 				} else if (ctx.activeFocus === 'main') {
-					// Main panel search - handled by TerminalOutput component, just track here
+					// AI mode: output search - handled by TerminalOutput component, just track here
 					trackShortcut('searchOutput');
 				}
 			}

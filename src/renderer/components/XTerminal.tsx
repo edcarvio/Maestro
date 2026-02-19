@@ -37,6 +37,7 @@ export interface XTerminalHandle {
 	search: (query: string) => boolean;
 	searchNext: () => boolean;
 	searchPrevious: () => boolean;
+	clearSearch: () => void;
 	getSelection: () => string;
 	resize: () => void;
 }
@@ -242,15 +243,37 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 		return unsubscribe;
 	}, []);
 
+	// Track the last search query so searchNext/searchPrevious can repeat it
+	const lastSearchQueryRef = useRef<string>('');
+
 	// Expose imperative handle for parent components
 	useImperativeHandle(ref, () => ({
 		write: (data: string) => terminalRef.current?.write(data),
 		focus: () => terminalRef.current?.focus(),
 		clear: () => terminalRef.current?.clear(),
 		scrollToBottom: () => terminalRef.current?.scrollToBottom(),
-		search: (query: string) => searchAddonRef.current?.findNext(query) ?? false,
-		searchNext: () => searchAddonRef.current?.findNext('') ?? false,
-		searchPrevious: () => searchAddonRef.current?.findPrevious('') ?? false,
+		search: (query: string) => {
+			if (!searchAddonRef.current || !query) return false;
+			lastSearchQueryRef.current = query;
+			return searchAddonRef.current.findNext(query, {
+				caseSensitive: false,
+				wholeWord: false,
+				regex: false,
+				incremental: true,
+			});
+		},
+		searchNext: () => {
+			if (!searchAddonRef.current || !lastSearchQueryRef.current) return false;
+			return searchAddonRef.current.findNext(lastSearchQueryRef.current);
+		},
+		searchPrevious: () => {
+			if (!searchAddonRef.current || !lastSearchQueryRef.current) return false;
+			return searchAddonRef.current.findPrevious(lastSearchQueryRef.current);
+		},
+		clearSearch: () => {
+			lastSearchQueryRef.current = '';
+			searchAddonRef.current?.clearDecorations();
+		},
 		getSelection: () => terminalRef.current?.getSelection() ?? '',
 		resize: () => fitAddonRef.current?.fit(),
 	}), []);

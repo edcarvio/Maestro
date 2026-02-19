@@ -701,6 +701,7 @@ function MaestroConsoleInner() {
 	const draggingSessionId = useUIStore((s) => s.draggingSessionId);
 	const outputSearchOpen = useUIStore((s) => s.outputSearchOpen);
 	const outputSearchQuery = useUIStore((s) => s.outputSearchQuery);
+	const terminalSearchOpen = useUIStore((s) => s.terminalSearchOpen);
 	const flashNotification = useUIStore((s) => s.flashNotification);
 	const successFlashNotification = useUIStore((s) => s.successFlashNotification);
 	const selectedSidebarIndex = useUIStore((s) => s.selectedSidebarIndex);
@@ -719,6 +720,7 @@ function MaestroConsoleInner() {
 		setDraggingSessionId,
 		setOutputSearchOpen,
 		setOutputSearchQuery,
+		setTerminalSearchOpen,
 		setFlashNotification,
 		setSuccessFlashNotification,
 		setSelectedSidebarIndex,
@@ -9530,10 +9532,14 @@ You are taking over this conversation. Based on the context above, provide a bri
 	};
 
 	const handleInputKeyDown = (e: React.KeyboardEvent) => {
-		// Cmd+F opens output search from input field - handle first, before any modal logic
+		// Cmd+F opens search from input field - handle first, before any modal logic
 		if (e.key === 'f' && (e.metaKey || e.ctrlKey)) {
 			e.preventDefault();
-			setOutputSearchOpen(true);
+			if (activeSession?.inputMode === 'terminal') {
+				setTerminalSearchOpen(true);
+			} else {
+				setOutputSearchOpen(true);
+			}
 			return;
 		}
 
@@ -10963,6 +10969,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		navigateToNextUnifiedTab,
 		navigateToPrevUnifiedTab,
 		setFileTreeFilterOpen,
+		setTerminalSearchOpen,
 		isShortcut,
 		isTabShortcut,
 		handleNavBack,

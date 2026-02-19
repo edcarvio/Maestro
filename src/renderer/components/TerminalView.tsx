@@ -6,10 +6,12 @@
  * - Kills PTY when tab is closed
  * - Passes theme/font settings to XTerminal
  * - Reports PTY exit back to session state
+ * - Integrates TerminalSearchBar for Cmd+F scrollback search
  */
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { XTerminal, XTerminalHandle } from './XTerminal';
+import { TerminalSearchBar } from './TerminalSearchBar';
 import { getTerminalSessionId } from '../utils/terminalTabHelpers';
 import type { Session, Theme, TerminalTab } from '../types';
 
@@ -24,6 +26,8 @@ interface TerminalViewProps {
 	shellArgs?: string;
 	shellEnvVars?: Record<string, string>;
 	onTerminalTabUpdate: (sessionId: string, tabId: string, updates: Partial<TerminalTab>) => void;
+	searchOpen?: boolean;
+	onSearchClose?: () => void;
 }
 
 export function TerminalView({
@@ -37,6 +41,8 @@ export function TerminalView({
 	shellArgs,
 	shellEnvVars,
 	onTerminalTabUpdate,
+	searchOpen = false,
+	onSearchClose,
 }: TerminalViewProps) {
 	const xtermRef = useRef<XTerminalHandle>(null);
 	const spawnedRef = useRef(false);
@@ -124,6 +130,25 @@ export function TerminalView({
 		// Could update session state if needed
 	}, []);
 
+	// Search callbacks that delegate to the XTerminal imperative handle
+	const handleSearch = useCallback((query: string) => {
+		return xtermRef.current?.search(query) ?? false;
+	}, []);
+
+	const handleSearchNext = useCallback(() => {
+		return xtermRef.current?.searchNext() ?? false;
+	}, []);
+
+	const handleSearchPrevious = useCallback(() => {
+		return xtermRef.current?.searchPrevious() ?? false;
+	}, []);
+
+	const handleSearchClose = useCallback(() => {
+		xtermRef.current?.clearSearch();
+		xtermRef.current?.focus();
+		onSearchClose?.();
+	}, [onSearchClose]);
+
 	if (terminalTab.state === 'exited' && !spawnedRef.current) {
 		return (
 			<div
@@ -152,7 +177,15 @@ export function TerminalView({
 	}
 
 	return (
-		<div className="w-full h-full" style={{ display: isVisible ? 'block' : 'none' }}>
+		<div className="w-full h-full relative" style={{ display: isVisible ? 'block' : 'none' }}>
+			<TerminalSearchBar
+				theme={theme}
+				isOpen={searchOpen}
+				onClose={handleSearchClose}
+				onSearch={handleSearch}
+				onSearchNext={handleSearchNext}
+				onSearchPrevious={handleSearchPrevious}
+			/>
 			<XTerminal
 				ref={xtermRef}
 				sessionId={ptySessionId}

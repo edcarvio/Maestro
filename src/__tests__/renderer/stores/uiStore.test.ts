@@ -22,8 +22,10 @@ function resetStore() {
 		successFlashNotification: null,
 		outputSearchOpen: false,
 		outputSearchQuery: '',
+		terminalSearchOpen: false,
 		sessionFilterOpen: false,
 		historySearchFilterOpen: false,
+		groupChatHistorySearchFilterOpen: false,
 		draggingSessionId: null,
 		editingGroupId: null,
 		editingSessionId: null,
@@ -53,6 +55,7 @@ describe('uiStore', () => {
 			expect(state.successFlashNotification).toBeNull();
 			expect(state.outputSearchOpen).toBe(false);
 			expect(state.outputSearchQuery).toBe('');
+			expect(state.terminalSearchOpen).toBe(false);
 			expect(state.sessionFilterOpen).toBe(false);
 			expect(state.historySearchFilterOpen).toBe(false);
 			expect(state.draggingSessionId).toBeNull();
@@ -223,6 +226,18 @@ describe('uiStore', () => {
 		it('sets output search query', () => {
 			useUIStore.getState().setOutputSearchQuery('find this');
 			expect(useUIStore.getState().outputSearchQuery).toBe('find this');
+		});
+	});
+
+	describe('terminal search state', () => {
+		it('sets terminal search open', () => {
+			useUIStore.getState().setTerminalSearchOpen(true);
+			expect(useUIStore.getState().terminalSearchOpen).toBe(true);
+		});
+
+		it('sets terminal search open with an updater', () => {
+			useUIStore.getState().setTerminalSearchOpen((prev) => !prev);
+			expect(useUIStore.getState().terminalSearchOpen).toBe(true);
 		});
 	});
 

@@ -42,6 +42,7 @@ import { useGitBranch, useGitDetail, useGitFileStatus } from '../contexts/GitSta
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
 import { calculateContextDisplay } from '../utils/contextUsage';
 import { useAgentCapabilities, useHoverTooltip } from '../hooks';
+import { useUIStore } from '../stores/uiStore';
 import type {
 	Session,
 	Theme,
@@ -494,6 +495,17 @@ export const MainPanel = React.memo(
 		// isCurrentSessionAutoMode: THIS session has active batch run (for all UI indicators)
 		const isCurrentSessionAutoMode = currentSessionBatchState?.isRunning || false;
 		const isCurrentSessionStopping = currentSessionBatchState?.isStopping || false;
+
+		// Terminal search state (xterm.js scrollback search opened by Cmd+F)
+		const terminalSearchOpen = useUIStore((s) => s.terminalSearchOpen);
+		const setTerminalSearchOpen = useUIStore((s) => s.setTerminalSearchOpen);
+
+		// Close terminal search when switching away from terminal mode
+		useEffect(() => {
+			if (activeSession?.inputMode !== 'terminal') {
+				setTerminalSearchOpen(false);
+			}
+		}, [activeSession?.inputMode, setTerminalSearchOpen]);
 
 		// Hover tooltip state using reusable hook
 		const gitTooltip = useHoverTooltip(150);
@@ -1814,6 +1826,8 @@ export const MainPanel = React.memo(
 														shellArgs={props.shellArgs}
 														shellEnvVars={props.shellEnvVars}
 														onTerminalTabUpdate={props.onTerminalTabUpdate}
+														searchOpen={terminalSearchOpen}
+														onSearchClose={() => setTerminalSearchOpen(false)}
 													/>
 												</>
 											);

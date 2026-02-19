@@ -72,6 +72,13 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 			const ctx = keyboardHandlerRef.current;
 			if (!ctx) return;
 
+			// Ctrl+C in terminal mode: let xterm.js handle it (sends \x03 to PTY)
+			// Must be checked before any shortcut processing since isShortcut() treats
+			// Ctrl as equivalent to Meta, which could accidentally match Cmd-based shortcuts
+			if (e.ctrlKey && e.key === 'c' && ctx.activeSession?.inputMode === 'terminal') {
+				return;
+			}
+
 			// When layers (modals/overlays) are open, we need nuanced shortcut handling:
 			// - Escape: handled by LayerStackContext in capture phase
 			// - Tab: allowed for accessibility navigation

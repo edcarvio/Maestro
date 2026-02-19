@@ -257,6 +257,7 @@ interface MainPanelProps {
 	onRequestTerminalTabRename?: (tabId: string) => void;
 	onCloseOtherTerminalTabs?: (tabId: string) => void;
 	onCloseTerminalTabsToRight?: (tabId: string) => void;
+	onReopenTerminalTab?: () => void;
 
 	// Scroll position persistence
 	onScrollPositionChange?: (scrollTop: number) => void;

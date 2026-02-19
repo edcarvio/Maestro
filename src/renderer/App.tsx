@@ -10704,6 +10704,16 @@ You are taking over this conversation. Based on the context above, provide a bri
 		[activeSession]
 	);
 
+	const handleReopenTerminalTab = useCallback(() => {
+		if (!activeSession) return;
+		const result = reopenUnifiedClosedTab(activeSession);
+		if (result) {
+			setSessions((prev) =>
+				prev.map((s) => (s.id === activeSession.id ? result.session : s))
+			);
+		}
+	}, [activeSession]);
+
 	const handleNamedSessionSelect = useCallback(
 		(agentSessionId: string, _projectPath: string, sessionName: string, starred?: boolean) => {
 			// Open a closed named session as a new tab - use handleResumeSession to properly load messages
@@ -11733,6 +11743,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		handleRequestTerminalTabRename,
 		handleCloseOtherTerminalTabs,
 		handleCloseTerminalTabsToRight,
+		handleReopenTerminalTab,
 
 		handleScrollPositionChange,
 		handleAtBottomChange,

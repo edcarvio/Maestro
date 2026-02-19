@@ -18,7 +18,7 @@
  * - WebGL renderer is used when available, with automatic canvas fallback
  */
 
-import React, { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -110,6 +110,7 @@ const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({
 	const searchAddonRef = useRef<SearchAddon | null>(null);
 	const initRef = useRef(false);
 	const cleanupFnsRef = useRef<Array<() => void>>([]);
+	const [isFocused, setIsFocused] = useState(false);
 
 	// Write batching: accumulates PTY data and flushes once per animation frame
 	const writeBufferRef = useRef<string>('');
@@ -352,11 +353,16 @@ const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({
 	return (
 		<div
 			ref={containerRef}
+			onFocus={() => setIsFocused(true)}
+			onBlur={() => setIsFocused(false)}
 			style={{
 				width: '100%',
 				height: '100%',
 				overflow: 'hidden',
 				padding: '8px',
+				boxShadow: isFocused ? `inset 0 0 0 1px ${theme.colors.accent}` : 'none',
+				borderRadius: '4px',
+				transition: 'box-shadow 0.15s ease',
 			}}
 		/>
 	);

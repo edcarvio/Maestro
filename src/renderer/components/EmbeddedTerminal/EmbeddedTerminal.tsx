@@ -162,6 +162,7 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 	// Spawn failure state — shown as overlay when PTY fails to start
 	const [spawnError, setSpawnError] = useState<string | null>(null);
 	const [isRetrying, setIsRetrying] = useState(false);
+	const [isFocused, setIsFocused] = useState(false);
 
 	// Write batching: accumulates PTY data and flushes once per animation frame
 	// to avoid flooding xterm.js with individual write() calls during high-throughput output
@@ -435,11 +436,16 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 	return (
 		<div
 			ref={containerRef}
+			onFocus={() => setIsFocused(true)}
+			onBlur={() => setIsFocused(false)}
 			style={{
 				width: '100%',
 				height: '100%',
 				overflow: 'hidden',
 				position: 'relative',
+				boxShadow: isFocused && !spawnError ? `inset 0 0 0 1px ${theme.colors.accent}` : 'none',
+				borderRadius: '4px',
+				transition: 'box-shadow 0.15s ease',
 			}}
 		>
 			{/* xterm.js container — hidden when spawn error is active */}

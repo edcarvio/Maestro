@@ -24,6 +24,7 @@ See [Performance Guidelines](#performance-guidelines) for specific practices.
 - [Testing](#testing)
 - [Linting & Pre-commit Hooks](#linting--pre-commit-hooks)
 - [Common Development Tasks](#common-development-tasks)
+- [Terminal Architecture](#terminal-architecture)
 - [Encore Features (Feature Gating)](#encore-features-feature-gating)
 - [Adding a New AI Agent](#adding-a-new-ai-agent)
 - [Code Style](#code-style)
@@ -422,6 +423,62 @@ Then add the ID to `ThemeId` type in `src/shared/theme-types.ts` and to the `isV
    ```
 
 3. Add types to `MaestroAPI` interface in preload.ts.
+
+## Terminal Architecture
+
+Maestro's terminal mode provides full terminal emulation via **xterm.js** with PTY (pseudo-terminal) backends managed by `node-pty` in the main process.
+
+### Key Components
+
+| Layer | File | Purpose |
+|-------|------|---------|
+| **Renderer** | `src/renderer/components/XTerminal/XTerminal.tsx` | xterm.js wrapper for session-level terminal (AI agent terminal view) |
+| **Renderer** | `src/renderer/components/EmbeddedTerminal/EmbeddedTerminal.tsx` | xterm.js wrapper for terminal tabs — handles PTY spawn, exit overlay, focus indicator, WebGL addon |
+| **Renderer** | `src/renderer/components/EmbeddedTerminal/TerminalSearchBar.tsx` | Cmd+F search overlay using xterm.js SearchAddon |
+| **Renderer** | `src/renderer/components/TabBar.tsx` | Unified tab bar — renders terminal tabs with context menu, loading indicator, truncation, animations |
+| **Renderer** | `src/renderer/components/MainPanel.tsx` | Routes between AI mode (`TerminalOutput`) and terminal mode (`EmbeddedTerminal`) per active tab |
+| **Main** | `src/main/process-manager/ProcessManager.ts` | Manages PTY processes — spawn, write, resize, kill, killAll |
+| **Main** | `src/main/process-manager/spawners/PtySpawner.ts` | PTY spawning via `node-pty` |
+| **Main** | `src/main/ipc/handlers/process.ts` | IPC handlers including `process:spawnTerminalTab` |
+| **Types** | `src/renderer/types/index.ts` | `TerminalTab` interface definition |
+
+### Data Flow
+
+```
+User Input → xterm.js onData → IPC write → ProcessManager → PTY stdin
+PTY stdout → IPC raw-pty-data event (tagged with session ID) → xterm.js term.write()
+```
+
+- Each terminal tab gets its own PTY process, keyed by `TerminalTab.id` (a UUID)
+- Raw PTY data streams directly to xterm.js — no intermediate parsing or filtering
+- Resize events propagate from xterm.js → IPC → `pty.resize(cols, rows)`
+
+### Terminal Tab Lifecycle
+
+1. **Create** — `Ctrl+Shift+`` spawns a new `TerminalTab`, PTY created via `process:spawnTerminalTab`
+2. **Run** — User interacts with the shell; PTY data streams to xterm.js in real time
+3. **Close** — Tab close kills the PTY process; tab can be reopened via `Cmd+Shift+T`
+4. **Reopen** — Reopened tabs get a new PTY (new UUID) but preserve the original `cwd` and name
+
+### Key Type
+
+```typescript
+interface TerminalTab {
+  id: string;              // UUID — also the ProcessManager session key
+  name: string | null;     // User-assigned name (null = "Terminal")
+  createdAt: number;
+  cwd: string;             // Working directory at spawn time
+  processRunning?: boolean; // Runtime only — not persisted
+  exitCode?: number;        // Runtime only — not persisted
+}
+```
+
+### Notes for Contributors
+
+- `TerminalOutput.tsx` is for **AI mode only** (log-based display) — not used for terminal tabs
+- Terminal tabs always spawn **locally**, even when SSH remote is enabled for the agent
+- WebGL rendering is attempted first with automatic canvas fallback on context loss
+- The `InputArea` component is hidden in terminal mode — xterm.js handles its own input
 
 ## Encore Features (Feature Gating)
 

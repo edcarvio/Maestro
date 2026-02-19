@@ -201,6 +201,47 @@ describe('Data Listener', () => {
 		});
 	});
 
+	describe('xterm.js Terminal Tab Data', () => {
+		it('should forward raw data with \\r carriage returns for xterm.js terminal tabs', () => {
+			setupListener();
+			const handler = eventHandlers.get('data');
+
+			// xterm.js terminal tab session IDs contain '-terminal-' (not just '-terminal')
+			const sessionId = 'session-123-terminal-tab-1';
+			const progressData = 'Downloading... [####      ] 40%\r';
+
+			handler?.(sessionId, progressData);
+
+			// Data must be forwarded to renderer with \r preserved
+			expect(mockSafeSend).toHaveBeenCalledWith(
+				'process:data',
+				sessionId,
+				progressData
+			);
+			// Verify the actual data contains \r
+			const forwardedData = (mockSafeSend as ReturnType<typeof vi.fn>).mock.calls[0][2];
+			expect(forwardedData).toContain('\r');
+			expect(forwardedData).not.toContain('\n');
+		});
+
+		it('should forward cursor positioning sequences for xterm.js terminal tabs', () => {
+			setupListener();
+			const handler = eventHandlers.get('data');
+
+			const sessionId = 'session-123-terminal-tab-1';
+			// CSI sequences used by full-screen terminal apps (vim, htop, etc.)
+			const cursorData = '\x1b[2J\x1b[H\x1b[1;32mStatus\x1b[0m\r\n';
+
+			handler?.(sessionId, cursorData);
+
+			expect(mockSafeSend).toHaveBeenCalledWith(
+				'process:data',
+				sessionId,
+				cursorData
+			);
+		});
+	});
+
 	describe('Web Broadcast Filtering', () => {
 		it('should skip PTY terminal output', () => {
 			setupListener();

@@ -564,6 +564,75 @@ describe('process-manager.ts', () => {
 				expect(emittedData[0]).toBe(ansiData);
 			});
 
+			it('should preserve \\r carriage returns for progress indicators in xterm.js tabs', () => {
+				const sessionId = 'session-1-terminal-tab-1';
+				const emittedData: string[] = [];
+
+				processManager.on('data', (sid: string, data: string) => {
+					if (sid === sessionId) emittedData.push(data);
+				});
+
+				processManager.spawn({
+					sessionId,
+					toolType: 'terminal',
+					cwd: '/test',
+					command: 'zsh',
+					args: [],
+				});
+
+				// Simulate progress bar output using \r to overwrite the current line
+				// This is the pattern used by npm, pip, wget, curl, etc.
+				const progressChunks = [
+					'Downloading... [##        ] 20%\r',
+					'Downloading... [####      ] 40%\r',
+					'Downloading... [######    ] 60%\r',
+					'Downloading... [########  ] 80%\r',
+					'Downloading... [##########] 100%\r\n',
+				];
+
+				for (const chunk of progressChunks) {
+					dataCallback?.(chunk);
+				}
+
+				// All chunks should pass through raw, with \r preserved
+				expect(emittedData).toHaveLength(progressChunks.length);
+				for (let i = 0; i < progressChunks.length; i++) {
+					expect(emittedData[i]).toBe(progressChunks[i]);
+				}
+
+				// Verify \r is actually present in intermediate chunks (not stripped)
+				expect(emittedData[0]).toContain('\r');
+				expect(emittedData[0]).not.toContain('\n');
+			});
+
+			it('should preserve cursor positioning sequences for xterm.js tabs', () => {
+				const sessionId = 'session-1-terminal-tab-1';
+				const emittedData: string[] = [];
+
+				processManager.on('data', (sid: string, data: string) => {
+					if (sid === sessionId) emittedData.push(data);
+				});
+
+				processManager.spawn({
+					sessionId,
+					toolType: 'terminal',
+					cwd: '/test',
+					command: 'zsh',
+					args: [],
+				});
+
+				// Simulate output with cursor positioning (CSI sequences)
+				// These are used by tools like htop, vim, less, etc.
+				const cursorData = '\x1b[2J\x1b[H\x1b[1;32mStatus: OK\x1b[0m\r\n';
+				dataCallback?.(cursorData);
+
+				expect(emittedData).toHaveLength(1);
+				// CSI sequences like \x1b[2J (clear screen) and \x1b[H (cursor home) must pass through
+				expect(emittedData[0]).toBe(cursorData);
+				expect(emittedData[0]).toContain('\x1b[2J');
+				expect(emittedData[0]).toContain('\x1b[H');
+			});
+
 			it('should handle kill for xterm.js terminal tab', () => {
 				const sessionId = 'session-1-terminal-tab-1';
 				processManager.spawn({

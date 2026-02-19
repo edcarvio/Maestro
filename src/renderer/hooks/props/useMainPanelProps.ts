@@ -31,6 +31,7 @@ import type {
 	MergeResult,
 } from '../../types/contextMerge';
 import type { FileNode } from '../../types/fileTree';
+import type { TerminalViewHandle } from '../../components/TerminalView';
 import type { DocumentGenerationCallbacks } from '../../services/inlineWizardDocumentGeneration';
 
 /**
@@ -236,6 +237,7 @@ export interface UseMainPanelPropsDeps {
 	handleReloadFileTab: (tabId: string) => void;
 
 	// Terminal tab handlers
+	terminalViewRef: React.RefObject<TerminalViewHandle>;
 	handleNewTerminalTab: () => void;
 	handleTerminalTabSelect: (tabId: string) => void;
 	handleTerminalTabClose: (tabId: string) => void;
@@ -453,6 +455,7 @@ export function useMainPanelProps(deps: UseMainPanelPropsDeps) {
 			onFileTabSearchQueryChange: deps.handleFileTabSearchQueryChange,
 			onReloadFileTab: deps.handleReloadFileTab,
 			// Terminal tab props
+			terminalViewRef: deps.terminalViewRef,
 			activeTerminalTabId: deps.activeSession?.activeTerminalTabId ?? null,
 			onTerminalTabSelect: deps.handleTerminalTabSelect,
 			onTerminalTabClose: deps.handleTerminalTabClose,

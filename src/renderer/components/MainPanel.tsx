@@ -35,7 +35,7 @@ import { TabBar } from './TabBar';
 import { WizardConversationView, DocumentGenerationView } from './InlineWizard';
 import { EmbeddedTerminal, TerminalSearchBar } from './EmbeddedTerminal';
 import type { EmbeddedTerminalHandle } from './EmbeddedTerminal';
-import { TerminalView } from './TerminalView';
+import { TerminalView, type TerminalViewHandle } from './TerminalView';
 import { gitService } from '../services/git';
 import { remoteUrlToBrowserUrl } from '../../shared/gitUtils';
 import { useGitBranch, useGitDetail, useGitFileStatus } from '../contexts/GitStatusContext';
@@ -243,6 +243,7 @@ interface MainPanelProps {
 	onReloadFileTab?: (tabId: string) => void;
 
 	// Terminal tab management
+	terminalViewRef?: React.RefObject<TerminalViewHandle>;
 	activeTerminalTabId?: string | null;
 	onTerminalTabSelect?: (tabId: string) => void;
 	onTerminalTabClose?: (tabId: string) => void;
@@ -1624,6 +1625,7 @@ export const MainPanel = React.memo(
 					{activeSession.inputMode === 'terminal' && (
 						<div className="flex-1 flex flex-col overflow-hidden">
 							<TerminalView
+								ref={props.terminalViewRef}
 								session={activeSession}
 								theme={theme}
 								fontFamily={props.fontFamily}

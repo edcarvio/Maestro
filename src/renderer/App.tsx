@@ -25,6 +25,7 @@ import {
 import { DEFAULT_BATCH_PROMPT } from './components/BatchRunnerModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { MainPanel, type MainPanelHandle } from './components/MainPanel';
+import type { TerminalViewHandle } from './components/TerminalView';
 import { AppOverlays } from './components/AppOverlays';
 import { PlaygroundPanel } from './components/PlaygroundPanel';
 import { DebugWizardModal } from './components/DebugWizardModal';
@@ -2163,6 +2164,7 @@ function MaestroConsoleInner() {
 	const recentlyCreatedWorktreePathsRef = useRef(new Set<string>()); // Prevent duplicate UI entries from file watcher
 	const rightPanelRef = useRef<RightPanelHandle>(null);
 	const mainPanelRef = useRef<MainPanelHandle>(null);
+	const terminalViewRef = useRef<TerminalViewHandle>(null);
 
 	// Refs for accessing latest values in event handlers
 	const updateGlobalStatsRef = useRef(updateGlobalStats);
@@ -11190,6 +11192,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		setAutoScrollAiMode,
 
 		// Terminal tab handlers (for keyboard shortcuts in terminal mode)
+		terminalViewRef,
 		handleNewTerminalTab,
 		handleTerminalTabSelect,
 		handleTerminalTabClose,
@@ -11733,6 +11736,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		handleReloadFileTab,
 
 		// Terminal tab handlers
+		terminalViewRef,
 		handleNewTerminalTab,
 		handleTerminalTabSelect,
 		handleTerminalTabClose,

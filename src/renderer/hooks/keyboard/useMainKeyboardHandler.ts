@@ -223,7 +223,6 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 				// Cmd+K - Clear terminal (overrides Quick Actions in terminal mode)
 				if (e.metaKey && e.key === 'k' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
 					e.preventDefault();
-					// terminalViewRef will be wired up via TerminalViewHandle in a later phase
 					ctx.terminalViewRef?.current?.clearActiveTerminal?.();
 					trackShortcut('clearTerminal');
 					return;

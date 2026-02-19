@@ -168,6 +168,40 @@ describe('Process Preload API', () => {
 		});
 	});
 
+	describe('spawnTerminalTab', () => {
+		it('should invoke process:spawnTerminalTab with config', async () => {
+			const config = {
+				sessionId: 'abc123-terminal-def456',
+				cwd: '/home/user/project',
+				shell: '/bin/zsh',
+				shellArgs: '--login',
+				shellEnvVars: { TERM: 'xterm-256color' },
+				cols: 120,
+				rows: 40,
+			};
+			mockInvoke.mockResolvedValue({ pid: 5678, success: true });
+
+			const result = await api.spawnTerminalTab(config);
+
+			expect(mockInvoke).toHaveBeenCalledWith('process:spawnTerminalTab', config);
+			expect(result.pid).toBe(5678);
+			expect(result.success).toBe(true);
+		});
+
+		it('should work with minimal config (only required fields)', async () => {
+			const config = {
+				sessionId: 'abc123-terminal-def456',
+				cwd: '/home/user',
+			};
+			mockInvoke.mockResolvedValue({ pid: 9999, success: true });
+
+			const result = await api.spawnTerminalTab(config);
+
+			expect(mockInvoke).toHaveBeenCalledWith('process:spawnTerminalTab', config);
+			expect(result.pid).toBe(9999);
+		});
+	});
+
 	describe('onData', () => {
 		it('should register event listener for process:data', () => {
 			const callback = vi.fn();

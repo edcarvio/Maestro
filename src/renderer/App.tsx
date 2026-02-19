@@ -11189,8 +11189,11 @@ You are taking over this conversation. Based on the context above, provide a bri
 		autoScrollAiMode,
 		setAutoScrollAiMode,
 
-		// Terminal tab handler
+		// Terminal tab handlers (for keyboard shortcuts in terminal mode)
 		handleNewTerminalTab,
+		handleTerminalTabSelect,
+		handleTerminalTabClose,
+		handleReopenTerminalTab,
 
 		// Flash notifications for keyboard shortcuts
 		showSuccessFlash,

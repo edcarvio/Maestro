@@ -199,6 +199,90 @@ export function useMainKeyboardHandler(): UseMainKeyboardHandlerReturn {
 				}
 			};
 
+			// Terminal mode shortcuts (when in terminal mode)
+			// Must come BEFORE general shortcuts so Cmd+K clears terminal instead of opening Quick Actions
+			if (
+				ctx.activeSession?.inputMode === 'terminal' &&
+				ctx.activeSessionId &&
+				!ctx.activeGroupChatId
+			) {
+				// Ctrl+Shift+` - New terminal tab (standard terminal convention)
+				if (e.ctrlKey && e.shiftKey && (e.key === '`' || e.key === '~')) {
+					e.preventDefault();
+					ctx.handleNewTerminalTab();
+					trackShortcut('newTerminalTab');
+					return;
+				}
+
+				// Cmd+K - Clear terminal (overrides Quick Actions in terminal mode)
+				if (e.metaKey && e.key === 'k' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+					e.preventDefault();
+					// terminalViewRef will be wired up via TerminalViewHandle in a later phase
+					ctx.terminalViewRef?.current?.clearActiveTerminal?.();
+					trackShortcut('clearTerminal');
+					return;
+				}
+
+				// Cmd+Shift+[ - Previous terminal tab
+				if (ctx.isTabShortcut(e, 'prevTab')) {
+					e.preventDefault();
+					const tabs = ctx.activeSession.terminalTabs;
+					const currentIndex = tabs.findIndex(
+						(t: { id: string }) => t.id === ctx.activeSession.activeTerminalTabId
+					);
+					if (currentIndex > 0) {
+						ctx.handleTerminalTabSelect(tabs[currentIndex - 1].id);
+					}
+					trackShortcut('prevTab');
+					return;
+				}
+
+				// Cmd+Shift+] - Next terminal tab
+				if (ctx.isTabShortcut(e, 'nextTab')) {
+					e.preventDefault();
+					const tabs = ctx.activeSession.terminalTabs;
+					const currentIndex = tabs.findIndex(
+						(t: { id: string }) => t.id === ctx.activeSession.activeTerminalTabId
+					);
+					if (currentIndex < tabs.length - 1) {
+						ctx.handleTerminalTabSelect(tabs[currentIndex + 1].id);
+					}
+					trackShortcut('nextTab');
+					return;
+				}
+
+				// Cmd+W - Close terminal tab (only if more than one)
+				if (ctx.isTabShortcut(e, 'closeTab')) {
+					e.preventDefault();
+					if (ctx.activeSession.terminalTabs.length > 1 && ctx.activeSession.activeTerminalTabId) {
+						ctx.handleTerminalTabClose(ctx.activeSession.activeTerminalTabId);
+					}
+					trackShortcut('closeTab');
+					return;
+				}
+
+				// Cmd+Shift+T - Reopen closed terminal tab
+				if (ctx.isTabShortcut(e, 'reopenClosedTab')) {
+					e.preventDefault();
+					ctx.handleReopenTerminalTab();
+					trackShortcut('reopenClosedTab');
+					return;
+				}
+
+				// Cmd+1-9 - Go to terminal tab by number
+				for (let i = 1; i <= 9; i++) {
+					if (ctx.isTabShortcut(e, `goToTab${i}`)) {
+						e.preventDefault();
+						const targetIndex = i - 1;
+						if (targetIndex < ctx.activeSession.terminalTabs.length) {
+							ctx.handleTerminalTabSelect(ctx.activeSession.terminalTabs[targetIndex].id);
+						}
+						trackShortcut(`goToTab${i}`);
+						return;
+					}
+				}
+			}
+
 			// General shortcuts
 			// Only allow collapsing left sidebar when there are sessions (prevent collapse on empty state)
 			if (ctx.isShortcut(e, 'toggleSidebar')) {

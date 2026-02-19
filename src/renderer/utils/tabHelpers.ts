@@ -1819,6 +1819,7 @@ export function createMergedSession(
 		unifiedClosedTabHistory: [],
 		terminalTabs: [],
 		activeTerminalTabId: null,
+		closedTerminalTabHistory: [],
 		// Default Auto Run folder path (user can change later)
 		autoRunFolderPath: getAutoRunFolderPath(projectRoot),
 	};

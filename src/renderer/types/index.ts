@@ -668,6 +668,8 @@ export interface Session {
 	// Currently active terminal tab ID (null if an AI or file tab is active)
 	// Active tab priority: activeTerminalTabId > activeFileTabId > activeTabId
 	activeTerminalTabId: string | null;
+	// Stack of recently closed terminal tabs for undo (max 10, runtime-only)
+	closedTerminalTabHistory: ClosedTerminalTab[];
 
 	// Saved scroll position for terminal/shell output view
 	terminalScrollTop?: number;

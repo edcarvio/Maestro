@@ -10574,6 +10574,22 @@ You are taking over this conversation. Based on the context above, provide a bri
 		[activeSession]
 	);
 
+	const handleTerminalTabReorder = useCallback(
+		(fromIndex: number, toIndex: number) => {
+			if (!activeSession) return;
+			setSessions((prev) =>
+				prev.map((s) => {
+					if (s.id !== activeSession.id || !s.terminalTabs) return s;
+					const tabs = [...s.terminalTabs];
+					const [movedTab] = tabs.splice(fromIndex, 1);
+					tabs.splice(toIndex, 0, movedTab);
+					return { ...s, terminalTabs: tabs };
+				})
+			);
+		},
+		[activeSession]
+	);
+
 	const handleTerminalTabExit = useCallback(
 		(tabId: string, exitCode: number) => {
 			if (!activeSession) return;
@@ -11629,6 +11645,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		handleNewTerminalTab,
 		handleTerminalTabSelect,
 		handleTerminalTabClose,
+		handleTerminalTabReorder,
 		handleTerminalTabExit,
 		handleTerminalTabSpawned,
 		handleRequestTerminalTabRename,

@@ -128,6 +128,7 @@ vi.mock('../../../renderer/components/TerminalView', () => ({
 		onTabSelect: (id: string) => void;
 		onTabClose: (id: string) => void;
 		onNewTab: () => void;
+		onTabReorder?: (fromIndex: number, toIndex: number) => void;
 	}) => {
 		return React.createElement(
 			'div',
@@ -147,6 +148,11 @@ vi.mock('../../../renderer/components/TerminalView', () => ({
 				'button',
 				{ onClick: props.onNewTab, 'data-testid': 'terminal-view-new-tab' },
 				'New Tab'
+			),
+			React.createElement(
+				'button',
+				{ onClick: () => props.onTabReorder?.(0, 2), 'data-testid': 'terminal-view-reorder-tab' },
+				'Reorder Tab'
 			)
 		);
 	},
@@ -1969,6 +1975,21 @@ describe('MainPanel', () => {
 
 			fireEvent.click(screen.getByTestId('terminal-view-new-tab'));
 			expect(onNewTerminalTab).toHaveBeenCalled();
+		});
+
+		it('should wire onTerminalTabReorder callback to TerminalView', () => {
+			const onTerminalTabReorder = vi.fn();
+			const session = createSession({ inputMode: 'terminal' });
+			render(
+				<MainPanel
+					{...defaultProps}
+					activeSession={session}
+					onTerminalTabReorder={onTerminalTabReorder}
+				/>
+			);
+
+			fireEvent.click(screen.getByTestId('terminal-view-reorder-tab'));
+			expect(onTerminalTabReorder).toHaveBeenCalledWith(0, 2);
 		});
 
 		it('should still render header in terminal mode', () => {

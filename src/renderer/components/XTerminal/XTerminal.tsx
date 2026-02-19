@@ -170,6 +170,7 @@ const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({
 			theme: toXtermTheme(theme),
 			allowProposedApi: true,
 			scrollback: 10000,
+			smoothScrollDuration: 125,
 		});
 
 		// Load addons

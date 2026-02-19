@@ -228,6 +228,7 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 			fontSize: 13,
 			cursorBlink: true,
 			allowProposedApi: true,
+			smoothScrollDuration: 125,
 		});
 
 		const fitAddon = new FitAddon();

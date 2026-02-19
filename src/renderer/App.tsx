@@ -10668,6 +10668,24 @@ You are taking over this conversation. Based on the context above, provide a bri
 		[activeSession]
 	);
 
+	const handleTerminalTabCwdChange = useCallback(
+		(tabId: string, cwd: string) => {
+			if (!activeSession) return;
+			setSessions((prev) =>
+				prev.map((s) => {
+					if (s.id !== activeSession.id) return s;
+					return {
+						...s,
+						terminalTabs: s.terminalTabs.map((tab) =>
+							tab.id === tabId ? { ...tab, cwd } : tab
+						),
+					};
+				})
+			);
+		},
+		[activeSession]
+	);
+
 	const handleNamedSessionSelect = useCallback(
 		(agentSessionId: string, _projectPath: string, sessionName: string, starred?: boolean) => {
 			// Open a closed named session as a new tab - use handleResumeSession to properly load messages
@@ -11692,6 +11710,7 @@ You are taking over this conversation. Based on the context above, provide a bri
 		handleTerminalTabExit,
 		handleTerminalTabSpawned,
 		handleTerminalTabStateChange,
+		handleTerminalTabCwdChange,
 		handleRequestTerminalTabRename,
 		handleCloseOtherTerminalTabs,
 		handleCloseTerminalTabsToRight,

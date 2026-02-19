@@ -252,6 +252,7 @@ interface MainPanelProps {
 	onTerminalTabExit?: (tabId: string, exitCode: number) => void;
 	onTerminalTabSpawned?: (tabId: string) => void;
 	onTerminalTabStateChange?: (tabId: string, state: 'idle' | 'busy' | 'exited', exitCode?: number) => void;
+	onTerminalTabCwdChange?: (tabId: string, cwd: string) => void;
 	onRequestTerminalTabRename?: (tabId: string) => void;
 	onCloseOtherTerminalTabs?: (tabId: string) => void;
 	onCloseTerminalTabsToRight?: (tabId: string) => void;

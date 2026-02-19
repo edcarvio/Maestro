@@ -325,6 +325,29 @@ const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(({
 		}
 	}, [fontSize]);
 
+	// Window focus/blur handling — auto-focus terminal on window regain,
+	// pause cursor blink when window is in background
+	useEffect(() => {
+		const handleWindowFocus = () => {
+			if (terminalRef.current) {
+				terminalRef.current.options.cursorBlink = true;
+				terminalRef.current.focus();
+			}
+		};
+		const handleWindowBlur = () => {
+			if (terminalRef.current) {
+				terminalRef.current.options.cursorBlink = false;
+			}
+		};
+
+		window.addEventListener('focus', handleWindowFocus);
+		window.addEventListener('blur', handleWindowBlur);
+		return () => {
+			window.removeEventListener('focus', handleWindowFocus);
+			window.removeEventListener('blur', handleWindowBlur);
+		};
+	}, []);
+
 	return (
 		<div
 			ref={containerRef}

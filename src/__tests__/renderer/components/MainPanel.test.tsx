@@ -122,6 +122,36 @@ vi.mock('../../../renderer/components/TabBar', () => ({
 	},
 }));
 
+vi.mock('../../../renderer/components/TerminalView', () => ({
+	TerminalView: (props: {
+		session: { id: string; name: string };
+		onTabSelect: (id: string) => void;
+		onTabClose: (id: string) => void;
+		onNewTab: () => void;
+	}) => {
+		return React.createElement(
+			'div',
+			{ 'data-testid': 'terminal-view' },
+			`TerminalView for ${props.session?.name}`,
+			React.createElement(
+				'button',
+				{ onClick: () => props.onTabSelect('term-tab-1'), 'data-testid': 'terminal-view-select-tab' },
+				'Select Tab'
+			),
+			React.createElement(
+				'button',
+				{ onClick: () => props.onTabClose('term-tab-1'), 'data-testid': 'terminal-view-close-tab' },
+				'Close Tab'
+			),
+			React.createElement(
+				'button',
+				{ onClick: props.onNewTab, 'data-testid': 'terminal-view-new-tab' },
+				'New Tab'
+			)
+		);
+	},
+}));
+
 vi.mock('../../../renderer/components/ErrorBoundary', () => ({
 	ErrorBoundary: (props: { children: React.ReactNode }) => props.children,
 }));
@@ -1863,6 +1893,98 @@ describe('MainPanel', () => {
 			render(<MainPanel {...defaultProps} activeSession={session} />);
 
 			expect(screen.getByTestId('input-area')).toBeInTheDocument();
+		});
+	});
+
+	describe('TerminalView integration (terminal mode)', () => {
+		it('should render TerminalView when inputMode is terminal', () => {
+			const session = createSession({ inputMode: 'terminal' });
+			render(<MainPanel {...defaultProps} activeSession={session} />);
+
+			expect(screen.getByTestId('terminal-view')).toBeInTheDocument();
+			expect(screen.getByText(/TerminalView for Test Session/)).toBeInTheDocument();
+		});
+
+		it('should NOT render TerminalView when inputMode is ai', () => {
+			const session = createSession({ inputMode: 'ai' });
+			render(<MainPanel {...defaultProps} activeSession={session} />);
+
+			expect(screen.queryByTestId('terminal-view')).not.toBeInTheDocument();
+		});
+
+		it('should NOT render TerminalOutput when inputMode is terminal', () => {
+			const session = createSession({ inputMode: 'terminal' });
+			render(<MainPanel {...defaultProps} activeSession={session} />);
+
+			expect(screen.queryByTestId('terminal-output')).not.toBeInTheDocument();
+		});
+
+		it('should render TerminalOutput in AI mode (not terminal mode)', () => {
+			const session = createSession({ inputMode: 'ai' });
+			render(<MainPanel {...defaultProps} activeSession={session} />);
+
+			expect(screen.getByTestId('terminal-output')).toBeInTheDocument();
+		});
+
+		it('should wire onTerminalTabSelect callback to TerminalView', () => {
+			const onTerminalTabSelect = vi.fn();
+			const session = createSession({ inputMode: 'terminal' });
+			render(
+				<MainPanel
+					{...defaultProps}
+					activeSession={session}
+					onTerminalTabSelect={onTerminalTabSelect}
+				/>
+			);
+
+			fireEvent.click(screen.getByTestId('terminal-view-select-tab'));
+			expect(onTerminalTabSelect).toHaveBeenCalledWith('term-tab-1');
+		});
+
+		it('should wire onTerminalTabClose callback to TerminalView', () => {
+			const onTerminalTabClose = vi.fn();
+			const session = createSession({ inputMode: 'terminal' });
+			render(
+				<MainPanel
+					{...defaultProps}
+					activeSession={session}
+					onTerminalTabClose={onTerminalTabClose}
+				/>
+			);
+
+			fireEvent.click(screen.getByTestId('terminal-view-close-tab'));
+			expect(onTerminalTabClose).toHaveBeenCalledWith('term-tab-1');
+		});
+
+		it('should wire onNewTerminalTab callback to TerminalView', () => {
+			const onNewTerminalTab = vi.fn();
+			const session = createSession({ inputMode: 'terminal' });
+			render(
+				<MainPanel
+					{...defaultProps}
+					activeSession={session}
+					onNewTerminalTab={onNewTerminalTab}
+				/>
+			);
+
+			fireEvent.click(screen.getByTestId('terminal-view-new-tab'));
+			expect(onNewTerminalTab).toHaveBeenCalled();
+		});
+
+		it('should still render header in terminal mode', () => {
+			const session = createSession({ inputMode: 'terminal' });
+			render(<MainPanel {...defaultProps} activeSession={session} />);
+
+			// Header shows session name
+			expect(screen.getByText('Test Session')).toBeInTheDocument();
+		});
+
+		it('should NOT render TabBar in terminal mode (TerminalView has its own tab bar)', () => {
+			const session = createSession({ inputMode: 'terminal' });
+			render(<MainPanel {...defaultProps} activeSession={session} />);
+
+			expect(screen.queryByTestId('tab-bar')).not.toBeInTheDocument();
+			expect(screen.getByTestId('terminal-view')).toBeInTheDocument();
 		});
 	});
 

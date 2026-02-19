@@ -35,6 +35,7 @@ import { TabBar } from './TabBar';
 import { WizardConversationView, DocumentGenerationView } from './InlineWizard';
 import { EmbeddedTerminal, TerminalSearchBar } from './EmbeddedTerminal';
 import type { EmbeddedTerminalHandle } from './EmbeddedTerminal';
+import { TerminalView } from './TerminalView';
 import { gitService } from '../services/git';
 import { remoteUrlToBrowserUrl } from '../../shared/gitUtils';
 import { useGitBranch, useGitDetail, useGitFileStatus } from '../contexts/GitStatusContext';
@@ -524,17 +525,19 @@ export const MainPanel = React.memo(
 			}
 		}, [activeSession?.activeTerminalTabId]);
 
-		// Redirect outputSearchOpen to terminal search when a terminal tab is active
+		// Redirect outputSearchOpen to terminal search when a terminal tab is active (AI mode only)
+		// In terminal mode, TerminalView manages its own search state
 		useEffect(() => {
-			if (outputSearchOpen && activeSession?.activeTerminalTabId) {
+			if (outputSearchOpen && activeSession?.activeTerminalTabId && activeSession?.inputMode !== 'terminal') {
 				// Close the output search (meant for TerminalOutput) and open terminal search instead
 				setOutputSearchOpen(false);
 				setOutputSearchQuery('');
 				setTerminalSearchOpen(true);
 			}
-		}, [outputSearchOpen, activeSession?.activeTerminalTabId, setOutputSearchOpen, setOutputSearchQuery]);
+		}, [outputSearchOpen, activeSession?.activeTerminalTabId, activeSession?.inputMode, setOutputSearchOpen, setOutputSearchQuery]);
 
 		// Cmd+F handler for when xterm.js has focus (bypassed via isMaestroShortcut)
+		// Only active in AI mode — in terminal mode, TerminalView manages its own Cmd+F handler
 		useEffect(() => {
 			const handleKeyDown = (e: KeyboardEvent) => {
 				if (
@@ -542,7 +545,8 @@ export const MainPanel = React.memo(
 					(e.metaKey || e.ctrlKey) &&
 					!e.shiftKey &&
 					!e.altKey &&
-					activeSession?.activeTerminalTabId
+					activeSession?.activeTerminalTabId &&
+					activeSession?.inputMode !== 'terminal'
 				) {
 					e.preventDefault();
 					setTerminalSearchOpen((prev) => !prev);
@@ -550,7 +554,7 @@ export const MainPanel = React.memo(
 			};
 			window.addEventListener('keydown', handleKeyDown);
 			return () => window.removeEventListener('keydown', handleKeyDown);
-		}, [activeSession?.activeTerminalTabId]);
+		}, [activeSession?.activeTerminalTabId, activeSession?.inputMode]);
 
 		// Extract tab handlers from props
 		const {
@@ -1609,7 +1613,26 @@ export const MainPanel = React.memo(
 							</div>
 						)}
 
-						{/* Tab Bar - always shown in AI mode when we have tabs (includes both AI and file tabs) */}
+						{/* Terminal mode: Full TerminalView with its own tab bar + xterm.js instances */}
+					{activeSession.inputMode === 'terminal' && (
+						<div className="flex-1 flex flex-col overflow-hidden">
+							<TerminalView
+								session={activeSession}
+								theme={theme}
+								fontFamily={props.fontFamily}
+								onTabSelect={props.onTerminalTabSelect || (() => {})}
+								onTabClose={props.onTerminalTabClose || (() => {})}
+								onNewTab={props.onNewTerminalTab || (() => {})}
+								onTabExit={props.onTerminalTabExit}
+								onTabSpawned={props.onTerminalTabSpawned}
+								onRequestRename={props.onRequestTerminalTabRename}
+								onCloseOtherTabs={props.onCloseOtherTerminalTabs}
+								onCloseTabsToRight={props.onCloseTerminalTabsToRight}
+							/>
+						</div>
+					)}
+
+					{/* Tab Bar - always shown in AI mode when we have tabs (includes both AI and file tabs) */}
 						{activeSession.inputMode === 'ai' &&
 							activeSession.aiTabs &&
 							activeSession.aiTabs.length > 0 &&
@@ -1703,8 +1726,8 @@ export const MainPanel = React.memo(
 
 						{/* Show loading state for file tabs (SSH remote file loading) */}
 						{/* Content area: Show FilePreview when file tab is active, otherwise show terminal output */}
-						{/* Terminal tabs — always mounted, CSS-hidden when inactive (preserves xterm.js state) */}
-						{activeSession.terminalTabs?.map((termTab) => {
+						{/* Terminal tabs — mounted in AI mode only (TerminalView handles terminal mode) */}
+						{activeSession.inputMode !== 'terminal' && activeSession.terminalTabs?.map((termTab) => {
 							const isActive = activeSession.activeTerminalTabId === termTab.id;
 							const termRef = getTerminalRef(termTab.id);
 							return (
@@ -1743,7 +1766,8 @@ export const MainPanel = React.memo(
 						})}
 
 						{/* Skip rendering when loading remote file - loading state takes over entire main area */}
-						{activeSession.activeTerminalTabId ? null
+						{/* In terminal mode, TerminalView handles all content — skip everything below */}
+						{activeSession.inputMode === 'terminal' || activeSession.activeTerminalTabId ? null
 						: (filePreviewLoading && !activeFileTabId) || activeFileTab?.isLoading ? (
 							<div
 								className="flex-1 flex items-center justify-center"
@@ -1919,9 +1943,9 @@ export const MainPanel = React.memo(
 									)}
 								</div>
 
-								{/* Input Area (hidden in mobile landscape, during wizard doc generation, terminal mode, and when terminal tab is active) */}
-								{/* InputArea should not render when inputMode === 'terminal' — xterm.js handles its own input */}
-								{!isMobileLandscape && !activeTab?.wizardState?.isGeneratingDocs && activeSession.inputMode !== 'terminal' && !activeSession.activeTerminalTabId && (
+								{/* Input Area (hidden in mobile landscape and during wizard doc generation) */}
+								{/* Note: terminal mode and active terminal tabs are already excluded by the parent conditional */}
+								{!isMobileLandscape && !activeTab?.wizardState?.isGeneratingDocs && (
 									<div data-tour="input-area">
 										<InputArea
 											session={activeSession}

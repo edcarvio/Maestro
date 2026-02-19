@@ -110,8 +110,8 @@ export const TerminalView = memo(function TerminalView({
 				onCloseTabsToRight={onCloseTabsToRight}
 			/>
 
-			{/* Terminal Content Area */}
-			<div className="flex-1 relative overflow-hidden">
+			{/* Terminal Content Area — flex-col container so tab panes can flex-1 to fill height */}
+			<div className="flex-1 flex flex-col relative overflow-hidden">
 				{session.terminalTabs?.map((tab) => {
 					const isActive = session.activeTerminalTabId === tab.id;
 					const termRef = getTerminalRef(tab.id);

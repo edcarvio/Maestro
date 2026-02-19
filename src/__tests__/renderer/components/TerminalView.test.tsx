@@ -417,6 +417,32 @@ describe('TerminalView', () => {
 		});
 	});
 
+	it('has proper flex container styling for full-height terminal layout', () => {
+		render(
+			<TerminalView
+				session={createSession()}
+				theme={defaultTheme}
+				fontFamily="Menlo"
+				{...defaultCallbacks}
+			/>
+		);
+
+		const terminalView = screen.getByTestId('terminal-view');
+		// Root: flex column, full height
+		expect(terminalView.className).toContain('flex');
+		expect(terminalView.className).toContain('flex-col');
+		expect(terminalView.className).toContain('h-full');
+
+		// Content area (parent of terminal panes): must be a flex container
+		// so that tab panes with flex: 1 fill available height
+		const pane = screen.getByTestId('terminal-pane-tab-1');
+		const contentArea = pane.parentElement!;
+		expect(contentArea.className).toContain('flex-1');
+		expect(contentArea.className).toContain('flex');
+		expect(contentArea.className).toContain('flex-col');
+		expect(contentArea.className).toContain('overflow-hidden');
+	});
+
 	it('renders tabs in the tab bar with correct display names', () => {
 		const tabs = [
 			createTerminalTab({ id: 'tab-1', name: 'Build Server' }),

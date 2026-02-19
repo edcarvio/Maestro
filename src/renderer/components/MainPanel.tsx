@@ -969,7 +969,7 @@ export const MainPanel = React.memo(
 			<>
 				<ErrorBoundary>
 					<div
-						className={`flex-1 flex flex-col min-w-0 relative ${activeFocus === 'main' ? 'ring-1 ring-inset z-10' : ''}`}
+						className={`flex-1 flex flex-col min-w-0 min-h-0 relative ${activeFocus === 'main' ? 'ring-1 ring-inset z-10' : ''}`}
 						style={
 							{
 								backgroundColor: theme.colors.bgMain,

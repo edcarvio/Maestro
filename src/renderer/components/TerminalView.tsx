@@ -199,7 +199,7 @@ export const TerminalView = memo(function TerminalView({
 	}, [activeTab?.id, onSearchClose]);
 
 	return (
-		<div className="flex flex-col h-full">
+		<div className="flex-1 flex flex-col min-h-0">
 			{/* Terminal Tab Bar */}
 			<TerminalTabBar
 				tabs={tabs}

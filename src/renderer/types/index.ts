@@ -499,6 +499,7 @@ export interface TerminalTab {
 	name: string | null;     // User-defined name (null = show "Terminal" or "Terminal N")
 	createdAt: number;       // Timestamp for ordering
 	cwd: string;             // Working directory at spawn time
+	pid?: number;             // Runtime only — PTY process ID after spawn (not persisted)
 	processRunning?: boolean; // Runtime only — whether PTY is alive (not persisted)
 	exitCode?: number;        // Runtime only — set when process exits (not persisted)
 	scrollTop?: number;       // Saved scroll position (for tab switch persistence)

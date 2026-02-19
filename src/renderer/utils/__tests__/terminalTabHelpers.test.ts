@@ -293,4 +293,54 @@ describe('terminalTabHelpers', () => {
 			expect(MAX_CLOSED_TERMINAL_TABS).toBe(10);
 		});
 	});
+
+	describe('TerminalTab pid field', () => {
+		it('should support optional pid field', () => {
+			const tab = makeTerminalTab({ id: 'term-1', pid: 12345 });
+			expect(tab.pid).toBe(12345);
+		});
+
+		it('should default to undefined when pid is not set', () => {
+			const tab = makeTerminalTab({ id: 'term-1' });
+			expect(tab.pid).toBeUndefined();
+		});
+
+		it('should allow pid update via spread (handler pattern)', () => {
+			const tab = makeTerminalTab({ id: 'term-1' });
+			const updated = { ...tab, pid: 99999 };
+			expect(updated.pid).toBe(99999);
+			expect(updated.id).toBe('term-1');
+		});
+
+		it('should correctly map pid to matching tab in array', () => {
+			const tabs: TerminalTab[] = [
+				makeTerminalTab({ id: 'term-1' }),
+				makeTerminalTab({ id: 'term-2' }),
+				makeTerminalTab({ id: 'term-3' }),
+			];
+
+			// Simulate the handler logic: update pid for term-2 only
+			const targetTabId = 'term-2';
+			const newPid = 42;
+			const updatedTabs = tabs.map((tab) =>
+				tab.id === targetTabId ? { ...tab, pid: newPid } : tab
+			);
+
+			expect(updatedTabs[0].pid).toBeUndefined();
+			expect(updatedTabs[1].pid).toBe(42);
+			expect(updatedTabs[2].pid).toBeUndefined();
+		});
+
+		it('should be a no-op when tab ID does not match any tab', () => {
+			const tabs: TerminalTab[] = [
+				makeTerminalTab({ id: 'term-1', pid: 100 }),
+			];
+
+			const updatedTabs = tabs.map((tab) =>
+				tab.id === 'nonexistent' ? { ...tab, pid: 200 } : tab
+			);
+
+			expect(updatedTabs[0].pid).toBe(100);
+		});
+	});
 });

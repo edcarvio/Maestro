@@ -12,6 +12,12 @@ interface TerminalTabRenameModalProps {
 	onRename: (newName: string) => void;
 }
 
+/**
+ * Modal dialog for renaming a terminal tab.
+ *
+ * Empty input is allowed — the caller converts an empty string to `null`,
+ * which causes the tab to display the default "Terminal" name.
+ */
 export function TerminalTabRenameModal(props: TerminalTabRenameModalProps) {
 	const { theme, initialName, defaultName, onClose, onRename } = props;
 	const inputRef = useRef<HTMLInputElement>(null);

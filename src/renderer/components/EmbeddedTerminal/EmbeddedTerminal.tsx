@@ -39,14 +39,28 @@ import type { Theme } from '../../types';
 import { toXtermTheme } from '../../utils/xtermTheme';
 import { processService } from '../../services/process';
 
+/**
+ * Props for the EmbeddedTerminal component.
+ *
+ * Each terminal tab renders its own EmbeddedTerminal. The component owns the
+ * full lifecycle: PTY spawn, data subscription, resize, exit handling, and cleanup.
+ */
 interface EmbeddedTerminalProps {
-	terminalTabId: string;  // Process manager key (tab.id, not session.id)
+	/** Process manager key — this is `tab.id` (UUID), NOT the parent session ID */
+	terminalTabId: string;
+	/** Working directory for the shell process */
 	cwd: string;
+	/** Maestro theme — drives xterm.js colors via `toXtermTheme()` */
 	theme: Theme;
+	/** User's configured monospace font family */
 	fontFamily: string;
+	/** Whether this tab is currently visible — hidden tabs skip resize/focus */
 	isVisible: boolean;
+	/** Called when the PTY process exits (drives tab state: exitCode, processRunning) */
 	onProcessExit?: (tabId: string, exitCode: number) => void;
+	/** Called when user presses any key after shell exit — triggers tab close */
 	onRequestClose?: (tabId: string) => void;
+	/** Called after PTY spawns successfully — drives tab loading indicator transition */
 	onSpawned?: (tabId: string) => void;
 }
 
@@ -359,11 +373,16 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 		cleanupFnsRef.current.push(unsubExit);
 	}, [terminalTabId, cwd, theme, fontFamily, onProcessExit, onRequestClose, onSpawned]);
 
-	// Retry handler — clean up old state and re-attempt spawn
+	/**
+	 * Retry handler — tears down the failed terminal and re-attempts PTY spawn.
+	 *
+	 * The 100ms delay between cleanup and re-init is intentional: xterm.js
+	 * needs a frame for the disposed DOM nodes to be removed before `term.open()`
+	 * can safely attach to the same container element again.
+	 */
 	const handleRetry = useCallback(async () => {
 		setIsRetrying(true);
 		cleanupTerminal();
-		// Small delay to allow DOM cleanup before re-initializing
 		await new Promise((resolve) => setTimeout(resolve, 100));
 		await setupTerminal();
 		setIsRetrying(false);
@@ -400,10 +419,12 @@ const EmbeddedTerminal = forwardRef<EmbeddedTerminalHandle, EmbeddedTerminalProp
 		}
 	}, [fontFamily]);
 
-	// Re-fit when becoming visible (tab switch)
+	// Re-fit when becoming visible (tab switch).
+	// When a tab becomes visible after being CSS-hidden, the container may not
+	// have its final layout dimensions yet. The 50ms delay lets the browser
+	// complete layout before FitAddon measures the container for cols/rows.
 	useEffect(() => {
 		if (isVisible && fitAddonRef.current) {
-			// Small delay to ensure the container has its final dimensions
 			const timer = setTimeout(() => {
 				try {
 					fitAddonRef.current?.fit();

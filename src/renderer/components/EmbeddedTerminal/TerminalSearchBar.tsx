@@ -18,13 +18,23 @@ import { useLayerStack } from '../../contexts/LayerStackContext';
 import { MODAL_PRIORITIES } from '../../constants/modalPriorities';
 
 interface TerminalSearchBarProps {
+	/** Ref to the active EmbeddedTerminal — used to drive SearchAddon methods */
 	terminalRef: React.RefObject<EmbeddedTerminalHandle | null>;
+	/** Maestro theme for styling the overlay */
 	theme: Theme;
+	/** Called when the search bar is dismissed (Escape, close button) */
 	onClose: () => void;
 }
 
 const TERMINAL_SEARCH_PRIORITY = MODAL_PRIORITIES.TERMINAL_SEARCH;
 
+/**
+ * Floating search overlay for xterm.js terminal scrollback.
+ *
+ * Registers with the layer stack at TERMINAL_SEARCH priority so that
+ * Escape key handling is properly coordinated with other modals/overlays.
+ * Drives the xterm.js SearchAddon via the EmbeddedTerminalHandle imperative ref.
+ */
 export function TerminalSearchBar({ terminalRef, theme, onClose }: TerminalSearchBarProps) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const queryRef = useRef('');

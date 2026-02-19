@@ -30,25 +30,54 @@ import type { Theme } from '../../types';
 import { toXtermTheme } from '../../utils/xtermTheme';
 import { processService } from '../../services/process';
 
+/**
+ * Props for the XTerminal component.
+ *
+ * XTerminal is a generic xterm.js wrapper — it does NOT spawn its own PTY.
+ * The parent component is responsible for wiring up data flow via the
+ * imperative handle and/or the sessionId-based IPC routing.
+ */
 interface XTerminalProps {
-	sessionId: string;           // Used for IPC routing (format: {sessionId}-terminal-{tabId})
-	theme: Theme;                // Maestro theme for color mapping
-	fontFamily: string;          // User's configured font
-	fontSize?: number;           // Font size (default: 14)
-	onData?: (data: string) => void;  // Called when user types (for external handling)
-	onResize?: (cols: number, rows: number) => void;  // Called on terminal resize
-	onTitleChange?: (title: string) => void;  // Called when shell sets window title
+	/** IPC routing key — format: `{sessionId}-terminal-{tabId}` */
+	sessionId: string;
+	/** Maestro theme, converted to xterm.js ITheme via `toXtermTheme()` */
+	theme: Theme;
+	/** User's configured monospace font family */
+	fontFamily: string;
+	/** Font size in pixels (default: 14) */
+	fontSize?: number;
+	/** Called when the user types — allows parent to handle input externally */
+	onData?: (data: string) => void;
+	/** Called when the terminal grid dimensions change after a fit */
+	onResize?: (cols: number, rows: number) => void;
+	/** Called when the shell sets the window title via escape sequence (e.g. `\e]0;title\a`) */
+	onTitleChange?: (title: string) => void;
 }
 
+/**
+ * Imperative handle exposed via `React.forwardRef` for parent control.
+ *
+ * Used by the search bar, keyboard shortcut handlers, and programmatic
+ * interaction (e.g., writing exit messages after shell exit).
+ */
 export interface XTerminalHandle {
+	/** Write data directly to the xterm.js terminal (bypasses PTY) */
 	write: (data: string) => void;
+	/** Focus the terminal's internal textarea for keyboard input */
 	focus: () => void;
+	/** Clear the terminal viewport (scrollback is preserved) */
 	clear: () => void;
+	/** Scroll to the bottom of the terminal output */
 	scrollToBottom: () => void;
+	/** Start a new search — highlights the first match and returns true if found */
 	search: (query: string) => boolean;
+	/** Advance to the next search match */
 	searchNext: () => boolean;
+	/** Return to the previous search match */
 	searchPrevious: () => boolean;
+	/** Get the currently selected text in the terminal */
 	getSelection: () => string;
+	/** Re-fit the terminal to its container dimensions */
 	resize: () => void;
 }
 
@@ -62,10 +91,14 @@ function isMaestroShortcut(ev: KeyboardEvent): boolean {
 
 	const key = ev.key.toLowerCase();
 
-	// Cmd+K, Cmd+,, Cmd+J, Cmd+N, Cmd+W, Cmd+T, Cmd+., Cmd+/, Cmd+F
+	// Cmd+K (quick action), Cmd+, (settings), Cmd+J (toggle mode)
+	// Cmd+N (new agent), Cmd+W (close tab), Cmd+T (new tab)
+	// Cmd+. (focus input), Cmd+/ (help), Cmd+F (search in terminal)
 	if (!ev.shiftKey && !ev.altKey) {
 		if (['k', ',', 'j', 'n', 'w', 't', '.', '/', 'f'].includes(key)) return true;
+		// Cmd+1-9,0 (jump to tab)
 		if (/^[0-9]$/.test(key)) return true;
+		// Cmd+[ and Cmd+] (cycle agents)
 		if (key === '[' || key === ']') return true;
 	}
 
@@ -73,22 +106,50 @@ function isMaestroShortcut(ev: KeyboardEvent): boolean {
 	if (ev.shiftKey && !ev.altKey) {
 		if (
 			[
-				'n', 'p', 'f', 'h', 'm', 'a', 'd', 'g', 'l', 'j',
-				'b', 't', 'r', 'k', 's', '[', ']', 'e', 'backspace',
+				'n', // new wizard
+				'p', // prompt composer
+				'f', // go to files
+				'h', // go to history
+				'm', // move to group
+				'a', // focus sidebar
+				'd', // git diff
+				'g', // git log
+				'l', // agent sessions
+				'j', // jump to bottom
+				'b', // toggle bookmark
+				't', // reopen closed tab
+				'r', // rename tab
+				'k', // toggle thinking
+				's', // toggle tab star
+				'[', // prev tab
+				']', // next tab
+				'e', // toggle auto run expanded
+				'backspace', // kill instance
 			].includes(key)
 		) {
 			return true;
 		}
+		// Cmd+Shift+` (new terminal tab)
 		if (key === '`' || key === '~') return true;
 	}
 
 	// Alt+Cmd shortcuts
 	if (ev.altKey) {
 		if (
-			['arrowleft', 'arrowright', 'c', 'l', 'p', 'u', 't', 's'].includes(key)
+			[
+				'arrowleft', // toggle sidebar
+				'arrowright', // toggle right panel
+				'c', // new group chat
+				'l', // system logs
+				'p', // process monitor
+				'u', // usage dashboard
+				't', // tab switcher
+				's', // toggle auto-scroll
+			].includes(key)
 		) {
 			return true;
 		}
+		// Alt+Cmd+1-0 (jump to session)
 		if (/^[0-9]$/.test(key)) return true;
 	}
 

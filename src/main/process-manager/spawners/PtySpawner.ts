@@ -40,9 +40,13 @@ export class PtySpawner {
 					ptyCommand = isWindows ? 'powershell.exe' : 'bash';
 				}
 
-				// Resolve shell name to absolute path (posix_spawnp may fail with bare names in Electron)
+				// Resolve bare shell names (e.g. "zsh") to absolute paths.
+				// Electron's node-pty uses posix_spawnp which may fail to find
+				// bare names when PATH is not inherited correctly from the parent
+				// process. We probe common system paths in priority order:
+				//   /bin (system shells), /usr/bin (system utils),
+				//   /usr/local/bin (Homebrew Intel), /opt/homebrew/bin (Homebrew Apple Silicon)
 				if (!isWindows && ptyCommand && !ptyCommand.startsWith('/')) {
-
 					const shellPaths = [
 						`/bin/${ptyCommand}`,
 						`/usr/bin/${ptyCommand}`,
@@ -55,7 +59,7 @@ export class PtySpawner {
 							ptyCommand = p;
 							break;
 						} catch {
-							// Continue searching
+							// Not found at this path — continue searching
 						}
 					}
 				}
@@ -63,7 +67,10 @@ export class PtySpawner {
 				// Use -l (login) AND -i (interactive) flags for fully configured shell
 				ptyArgs = isWindows ? [] : ['-l', '-i'];
 
-				// Append custom shell arguments from user configuration
+				// Append custom shell arguments from user settings.
+				// The regex splits on whitespace while respecting quoted strings:
+				//   -c "echo hello" → ['-c', '"echo hello"'] → ['-c', 'echo hello']
+				// This lets users pass multi-word arguments via the settings UI.
 				if (shellArgs && shellArgs.trim()) {
 					const customShellArgsArray = shellArgs.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
 					const cleanedArgs = customShellArgsArray.map((arg) => {
@@ -88,16 +95,19 @@ export class PtySpawner {
 				ptyArgs = args;
 			}
 
-			// Build environment for PTY process
+			// Build environment for PTY process.
+			// Three distinct env strategies depending on process type:
+			//   1. embedded-terminal: Full parent env + TERM override. The login shell
+			//      (-l flag) sources ~/.zshrc/~/.bash_profile for PATH, aliases, etc.
+			//   2. terminal (legacy): Curated env via buildPtyTerminalEnv() with user's
+			//      custom shellEnvVars merged in.
+			//   3. AI agents: Full parent env — agents need NODE_PATH, ANTHROPIC_API_KEY, etc.
 			let ptyEnv: NodeJS.ProcessEnv;
 			if (isEmbeddedTerminal) {
-				// Embedded terminal uses full env — real shells need HOME, TERM, etc.
-				// Login shell (-l) will source user's profile to set up PATH and other vars
 				ptyEnv = { ...process.env, TERM: 'xterm-256color' };
 			} else if (isTerminal) {
 				ptyEnv = buildPtyTerminalEnv(shellEnvVars);
 			} else {
-				// For AI agents in PTY mode: pass full env (they need NODE_PATH, etc.)
 				ptyEnv = process.env;
 			}
 
@@ -133,15 +143,14 @@ export class PtySpawner {
 
 			this.processes.set(sessionId, managedProcess);
 
-			// Handle output
+			// Handle PTY output — two distinct paths:
+			//   1. embedded-terminal → emit raw data for xterm.js (preserves ANSI/TUI control codes)
+			//   2. AI agent → strip control sequences for log-based display (TerminalOutput.tsx)
 			ptyProcess.onData((data) => {
 				if (isEmbeddedTerminal) {
-					// Raw data for xterm.js — no filtering, no buffering
 					this.emitter.emit('raw-pty-data', sessionId, data);
 					return;
 				}
-				// AI agent output: strip control sequences for log-based display
-				// (terminal mode uses embedded-terminal with raw passthrough above)
 				const cleanedData = stripControlSequences(data);
 				logger.debug('[ProcessManager] PTY onData', 'ProcessManager', {
 					sessionId,

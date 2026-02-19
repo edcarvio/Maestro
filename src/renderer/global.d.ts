@@ -207,6 +207,7 @@ interface MaestroAPI {
 		interrupt: (sessionId: string) => Promise<boolean>;
 		kill: (sessionId: string) => Promise<boolean>;
 		resize: (sessionId: string, cols: number, rows: number) => Promise<boolean>;
+		/** @deprecated Use spawnTerminalTab instead. Terminal mode now uses persistent PTY. */
 		runCommand: (config: {
 			sessionId: string;
 			command: string;

@@ -69,7 +69,7 @@ export interface ProcessHandlerDependencies {
  * - kill: Terminate a process
  * - resize: Resize PTY dimensions
  * - getActiveProcesses: List all running processes
- * - runCommand: Execute a single command and capture output
+ * - runCommand: (DEPRECATED) Execute a single command and capture output — use spawnTerminalTab instead
  */
 export function registerProcessHandlers(deps: ProcessHandlerDependencies): void {
 	const { getProcessManager, getAgentDetector, agentConfigsStore, settingsStore, getMainWindow } =
@@ -635,8 +635,9 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
 		)
 	);
 
-	// Run a single command and capture only stdout/stderr (no PTY echo/prompts)
-	// Supports SSH remote execution when sessionSshRemoteConfig is provided
+	// DEPRECATED: runCommand was used for discrete command execution
+	// Terminal mode now uses persistent PTY via spawnTerminalTab
+	// Keeping for backwards compatibility with any external callers (web interface, debug utils)
 	ipcMain.handle(
 		'process:runCommand',
 		withIpcErrorLogging(
@@ -654,6 +655,12 @@ export function registerProcessHandlers(deps: ProcessHandlerDependencies): void 
 				};
 			}) => {
 				const processManager = requireProcessManager(getProcessManager);
+
+				logger.warn(
+					'process:runCommand is deprecated, use process:spawnTerminalTab instead',
+					LOG_CONTEXT,
+					{ sessionId: config.sessionId, command: config.command }
+				);
 
 				// Get the shell from settings if not provided
 				// Custom shell path takes precedence over the selected shell ID

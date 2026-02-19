@@ -51,6 +51,7 @@ export interface ProcessSpawnResponse {
 }
 
 /**
+ * @deprecated Use spawnTerminalTab instead. Terminal mode now uses persistent PTY.
  * Configuration for running a single command
  */
 export interface RunCommandConfig {
@@ -164,8 +165,10 @@ export function createProcessApi() {
 			ipcRenderer.invoke('process:resize', sessionId, cols, rows),
 
 		/**
+		 * @deprecated Use spawnTerminalTab instead. Terminal mode now uses persistent PTY.
 		 * Run a single command and capture only stdout/stderr (no PTY echo/prompts)
 		 * Supports SSH remote execution when sessionSshRemoteConfig is provided
+		 * Kept for backwards compatibility (web interface, debug utils)
 		 */
 		runCommand: (config: RunCommandConfig): Promise<{ exitCode: number }> =>
 			ipcRenderer.invoke('process:runCommand', config),
@@ -399,6 +402,7 @@ export function createProcessApi() {
 
 		/**
 		 * Subscribe to stderr from runCommand (separate stream)
+		 * @deprecated Part of the deprecated runCommand flow
 		 */
 		onStderr: (callback: (sessionId: string, data: string) => void): (() => void) => {
 			const handler = (_: unknown, sessionId: string, data: string) => callback(sessionId, data);
@@ -408,6 +412,7 @@ export function createProcessApi() {
 
 		/**
 		 * Subscribe to command exit from runCommand (separate from PTY exit)
+		 * @deprecated Part of the deprecated runCommand flow
 		 */
 		onCommandExit: (callback: (sessionId: string, code: number) => void): (() => void) => {
 			const handler = (_: unknown, sessionId: string, code: number) => callback(sessionId, code);

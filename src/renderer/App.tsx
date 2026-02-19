@@ -8158,6 +8158,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 			const firstDoc = generatedDocuments[0];
 			const autoRunSelectedFile = firstDoc ? firstDoc.filename.replace(/\.md$/, '') : undefined;
 
+			// Initialize with a single terminal tab
+			const initialTerminalTab = createTerminalTab(defaultShell || 'zsh', directoryPath, null);
+
 			// Create the session with Auto Run configured
 			const newSession: Session = {
 				id: newId,
@@ -8204,6 +8207,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 				activeFileTabId: null,
 				unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 				unifiedClosedTabHistory: [],
+				// Terminal tabs - initialized with a single default terminal
+				terminalTabs: [initialTerminalTab],
+				activeTerminalTabId: initialTerminalTab.id,
+				closedTerminalTabHistory: [],
 				// Auto Run configuration from wizard
 				autoRunFolderPath,
 				autoRunSelectedFile,
@@ -12408,6 +12415,9 @@ You are taking over this conversation. Based on the context above, provide a bri
 									saveToHistory: defaultSaveToHistory,
 								};
 
+								// Initialize with a single terminal tab
+								const initialTerminalTab = createTerminalTab(defaultShell || 'zsh', data.localPath, null);
+
 								// Create session with Symphony metadata
 								const newSession: Session = {
 									id: newId,
@@ -12454,6 +12464,10 @@ You are taking over this conversation. Based on the context above, provide a bri
 									activeFileTabId: null,
 									unifiedTabOrder: [{ type: 'ai' as const, id: initialTabId }],
 									unifiedClosedTabHistory: [],
+									// Terminal tabs - initialized with a single default terminal
+									terminalTabs: [initialTerminalTab],
+									activeTerminalTabId: initialTerminalTab.id,
+									closedTerminalTabHistory: [],
 									// Custom agent config
 									customPath: data.customPath,
 									customArgs: data.customArgs,

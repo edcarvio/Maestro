@@ -266,6 +266,29 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 		}
 	}, [cursorStyle, cursorBlink]);
 
+	// Window focus/blur handling:
+	// - On focus: re-focus the terminal so typing works immediately after Alt-Tab
+	// - On blur: pause cursor blink to reduce visual noise / unnecessary repaints
+	useEffect(() => {
+		const handleFocus = () => {
+			terminalRef.current?.focus();
+			if (terminalRef.current && cursorBlink) {
+				terminalRef.current.options.cursorBlink = true;
+			}
+		};
+		const handleBlur = () => {
+			if (terminalRef.current) {
+				terminalRef.current.options.cursorBlink = false;
+			}
+		};
+		window.addEventListener('focus', handleFocus);
+		window.addEventListener('blur', handleBlur);
+		return () => {
+			window.removeEventListener('focus', handleFocus);
+			window.removeEventListener('blur', handleBlur);
+		};
+	}, [cursorBlink]);
+
 	// Debounced resize handler
 	const handleResize = useCallback(() => {
 		if (resizeTimeoutRef.current) {

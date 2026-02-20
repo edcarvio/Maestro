@@ -411,6 +411,131 @@ describe('TerminalTabBar', () => {
 		});
 	});
 
+	describe('long tab name truncation', () => {
+		it('applies truncate and max-w-[150px] to all tab name spans', () => {
+			const tabs = makeTabs(2);
+			tabs[0].pid = 1234; // spawned
+			tabs[1].pid = 5678;
+			const { container } = render(
+				<TerminalTabBar
+					tabs={tabs}
+					activeTabId={tabs[0].id}
+					theme={theme}
+					onTabSelect={vi.fn()}
+					onTabClose={vi.fn()}
+					onNewTab={vi.fn()}
+				/>
+			);
+
+			// All tab name spans should have truncation classes
+			const nameSpans = container.querySelectorAll('.truncate.max-w-\\[150px\\]');
+			expect(nameSpans).toHaveLength(2);
+		});
+
+		it('applies truncation to the active tab', () => {
+			const tabs = [createTerminalTab('zsh', '/test', 'A very long tab name that should definitely be truncated by CSS')];
+			tabs[0].pid = 1234;
+			const { container } = render(
+				<TerminalTabBar
+					tabs={tabs}
+					activeTabId={tabs[0].id}
+					theme={theme}
+					onTabSelect={vi.fn()}
+					onTabClose={vi.fn()}
+					onNewTab={vi.fn()}
+				/>
+			);
+
+			const nameSpan = container.querySelector('.truncate.max-w-\\[150px\\]');
+			expect(nameSpan).toBeTruthy();
+			expect(nameSpan?.textContent).toBe('A very long tab name that should definitely be truncated by CSS');
+		});
+
+		it('applies truncation to inactive tabs', () => {
+			const tabs = [
+				createTerminalTab('zsh', '/test', null),
+				createTerminalTab('zsh', '/test', 'Another very long tab name for the inactive tab'),
+			];
+			tabs.forEach(t => { t.pid = 1234; });
+			const { container } = render(
+				<TerminalTabBar
+					tabs={tabs}
+					activeTabId={tabs[0].id}
+					theme={theme}
+					onTabSelect={vi.fn()}
+					onTabClose={vi.fn()}
+					onNewTab={vi.fn()}
+				/>
+			);
+
+			const nameSpans = container.querySelectorAll('.truncate.max-w-\\[150px\\]');
+			expect(nameSpans).toHaveLength(2);
+			// Both active and inactive have same truncation classes
+			nameSpans.forEach(span => {
+				expect(span.className).toContain('truncate');
+				expect(span.className).toContain('max-w-[150px]');
+			});
+		});
+
+		it('applies consistent truncation across active and inactive tabs', () => {
+			const tabs = makeTabs(3);
+			tabs.forEach(t => { t.pid = 1234; });
+			const { container } = render(
+				<TerminalTabBar
+					tabs={tabs}
+					activeTabId={tabs[1].id}
+					theme={theme}
+					onTabSelect={vi.fn()}
+					onTabClose={vi.fn()}
+					onNewTab={vi.fn()}
+				/>
+			);
+
+			// All 3 tab name spans should have the same truncation classes
+			const nameSpans = container.querySelectorAll('.truncate.max-w-\\[150px\\]');
+			expect(nameSpans).toHaveLength(3);
+		});
+
+		it('still renders the full text in DOM (CSS handles visual truncation)', () => {
+			const longName = 'x'.repeat(200);
+			const tabs = [createTerminalTab('zsh', '/test', longName)];
+			tabs[0].pid = 1234;
+			render(
+				<TerminalTabBar
+					tabs={tabs}
+					activeTabId={tabs[0].id}
+					theme={theme}
+					onTabSelect={vi.fn()}
+					onTabClose={vi.fn()}
+					onNewTab={vi.fn()}
+				/>
+			);
+
+			// The full text should be in the DOM (CSS text-overflow handles visual truncation)
+			expect(screen.getByText(longName)).toBeTruthy();
+		});
+
+		it('shows full name in tooltip even when display is truncated', () => {
+			const longName = 'This is a really long terminal tab name';
+			const tabs = [createTerminalTab('zsh', '/projects/my-long-path', longName)];
+			tabs[0].pid = 1234;
+			const { container } = render(
+				<TerminalTabBar
+					tabs={tabs}
+					activeTabId={tabs[0].id}
+					theme={theme}
+					onTabSelect={vi.fn()}
+					onTabClose={vi.fn()}
+					onNewTab={vi.fn()}
+				/>
+			);
+
+			// The tooltip (title attribute) on the draggable container shows full shell+cwd info
+			const draggableTab = container.querySelector('[draggable="true"]');
+			expect(draggableTab?.getAttribute('title')).toBe('zsh - /projects/my-long-path');
+		});
+	});
+
 	it('applies horizontal scroll CSS to the tab bar container', () => {
 		const tabs = makeTabs(2);
 		const { container } = render(

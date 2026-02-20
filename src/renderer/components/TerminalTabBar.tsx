@@ -149,7 +149,7 @@ const TerminalTabItem = memo(function TerminalTabItem({
 
 			{/* Tab name */}
 			<span
-				className={`text-xs font-medium ${isActive ? 'whitespace-nowrap' : 'truncate max-w-[120px]'}`}
+				className="text-xs font-medium truncate max-w-[150px]"
 				style={{ color: isActive ? theme.colors.textMain : theme.colors.textDim }}
 			>
 				{displayName}

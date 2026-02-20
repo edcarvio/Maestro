@@ -84,6 +84,7 @@ const TerminalTabItem = memo(function TerminalTabItem({
 	const displayName = useMemo(() => getTerminalTabDisplayName(tab, index), [tab.name, index]);
 	const stateColor = useMemo(() => getStateColor(tab, theme), [tab.state, tab.exitCode, theme]);
 	const isExited = tab.state === 'exited';
+	const tooltip = useMemo(() => `${tab.shellType} - ${tab.cwd}`, [tab.shellType, tab.cwd]);
 
 	// Hover background varies by theme mode
 	const hoverBgColor = theme.mode === 'light' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.08)';
@@ -108,6 +109,7 @@ const TerminalTabItem = memo(function TerminalTabItem({
 	return (
 		<div
 			draggable
+			title={tooltip}
 			onDragStart={onDragStart}
 			onDragOver={onDragOver}
 			onDragEnd={onDragEnd}

@@ -290,6 +290,127 @@ describe('TerminalTabBar', () => {
 		expect(onTabReorder).toHaveBeenCalledWith(0, 2);
 	});
 
+	describe('tooltip with cwd on tab hover', () => {
+		it('shows shellType and cwd in tooltip for each tab', () => {
+			const tabs = makeTabs(2);
+			const { container } = render(
+				<TerminalTabBar
+					tabs={tabs}
+					activeTabId={tabs[0].id}
+					theme={theme}
+					onTabSelect={vi.fn()}
+					onTabClose={vi.fn()}
+					onNewTab={vi.fn()}
+				/>
+			);
+
+			const draggableTabs = container.querySelectorAll('[draggable="true"]');
+			expect(draggableTabs).toHaveLength(2);
+			expect(draggableTabs[0].getAttribute('title')).toBe('zsh - /test');
+			expect(draggableTabs[1].getAttribute('title')).toBe('zsh - /test');
+		});
+
+		it('shows different cwd per tab', () => {
+			const tabs = [
+				createTerminalTab('zsh', '/home/user', null),
+				createTerminalTab('bash', '/var/log', 'Logs'),
+			];
+			const { container } = render(
+				<TerminalTabBar
+					tabs={tabs}
+					activeTabId={tabs[0].id}
+					theme={theme}
+					onTabSelect={vi.fn()}
+					onTabClose={vi.fn()}
+					onNewTab={vi.fn()}
+				/>
+			);
+
+			const draggableTabs = container.querySelectorAll('[draggable="true"]');
+			expect(draggableTabs[0].getAttribute('title')).toBe('zsh - /home/user');
+			expect(draggableTabs[1].getAttribute('title')).toBe('bash - /var/log');
+		});
+
+		it('shows different shell types in tooltip', () => {
+			const tabs = [
+				createTerminalTab('bash', '/tmp', null),
+				createTerminalTab('powershell', 'C:\\Users', null),
+				createTerminalTab('fish', '/home', null),
+			];
+			const { container } = render(
+				<TerminalTabBar
+					tabs={tabs}
+					activeTabId={tabs[0].id}
+					theme={theme}
+					onTabSelect={vi.fn()}
+					onTabClose={vi.fn()}
+					onNewTab={vi.fn()}
+				/>
+			);
+
+			const draggableTabs = container.querySelectorAll('[draggable="true"]');
+			expect(draggableTabs[0].getAttribute('title')).toBe('bash - /tmp');
+			expect(draggableTabs[1].getAttribute('title')).toBe('powershell - C:\\Users');
+			expect(draggableTabs[2].getAttribute('title')).toBe('fish - /home');
+		});
+
+		it('shows tooltip on active and inactive tabs', () => {
+			const tabs = makeTabs(3);
+			const { container } = render(
+				<TerminalTabBar
+					tabs={tabs}
+					activeTabId={tabs[1].id}
+					theme={theme}
+					onTabSelect={vi.fn()}
+					onTabClose={vi.fn()}
+					onNewTab={vi.fn()}
+				/>
+			);
+
+			const draggableTabs = container.querySelectorAll('[draggable="true"]');
+			// All tabs should have the tooltip regardless of active state
+			for (const tab of draggableTabs) {
+				expect(tab.getAttribute('title')).toBe('zsh - /test');
+			}
+		});
+
+		it('shows tooltip for exited tabs', () => {
+			const tabs = makeTabs(2);
+			tabs[1] = { ...tabs[1], state: 'exited', exitCode: 1 };
+			const { container } = render(
+				<TerminalTabBar
+					tabs={tabs}
+					activeTabId={tabs[0].id}
+					theme={theme}
+					onTabSelect={vi.fn()}
+					onTabClose={vi.fn()}
+					onNewTab={vi.fn()}
+				/>
+			);
+
+			const draggableTabs = container.querySelectorAll('[draggable="true"]');
+			// Exited tab should still show tooltip
+			expect(draggableTabs[1].getAttribute('title')).toBe('zsh - /test');
+		});
+
+		it('handles empty cwd gracefully', () => {
+			const tabs = [createTerminalTab('zsh', '', null)];
+			const { container } = render(
+				<TerminalTabBar
+					tabs={tabs}
+					activeTabId={tabs[0].id}
+					theme={theme}
+					onTabSelect={vi.fn()}
+					onTabClose={vi.fn()}
+					onNewTab={vi.fn()}
+				/>
+			);
+
+			const draggableTab = container.querySelector('[draggable="true"]');
+			expect(draggableTab?.getAttribute('title')).toBe('zsh - ');
+		});
+	});
+
 	it('applies horizontal scroll CSS to the tab bar container', () => {
 		const tabs = makeTabs(2);
 		const { container } = render(

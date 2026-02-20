@@ -3,17 +3,18 @@
  *
  * Simplified compared to TabBar.tsx (AI tabs):
  * - No star/unread functionality
- * - No context menu (merge, send to agent, etc.)
+ * - Right-click context menu with: Rename, Close, Close Others, Close to the Right
  * - Simple display names: "Terminal 1", "Terminal 2", or custom name
  * - Terminal icon color indicates state: green (exited 0), red (exited non-zero), yellow (busy)
  * - Middle-click closes tabs; double-click opens rename dialog
  */
 
-import React, { useState, useCallback, memo, useMemo } from 'react';
-import { X, Plus, Terminal as TerminalIcon, Loader2 } from 'lucide-react';
+import React, { useState, useCallback, useRef, useEffect, memo, useMemo } from 'react';
+import { X, Plus, Terminal as TerminalIcon, Loader2, Edit3, ChevronsRight } from 'lucide-react';
 import type { TerminalTab, Theme } from '../types';
 import { getTerminalTabDisplayName } from '../utils/terminalTabHelpers';
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
+import { useClickOutside } from '../hooks/ui/useClickOutside';
 
 interface TerminalTabBarProps {
 	tabs: TerminalTab[];
@@ -24,6 +25,8 @@ interface TerminalTabBarProps {
 	onNewTab: () => void;
 	onRequestRename?: (tabId: string) => void;
 	onTabReorder?: (fromIndex: number, toIndex: number) => void;
+	onCloseOtherTabs?: (tabId: string) => void;
+	onCloseTabsToRight?: (tabId: string) => void;
 }
 
 interface TerminalTabItemProps {
@@ -42,6 +45,7 @@ interface TerminalTabItemProps {
 	isDragging: boolean;
 	isDragOver: boolean;
 	onRename: () => void;
+	onContextMenu: (e: React.MouseEvent) => void;
 }
 
 /**
@@ -74,6 +78,7 @@ const TerminalTabItem = memo(function TerminalTabItem({
 	isDragging,
 	isDragOver,
 	onRename,
+	onContextMenu,
 }: TerminalTabItemProps) {
 	const [isHovered, setIsHovered] = useState(false);
 	const displayName = useMemo(() => getTerminalTabDisplayName(tab, index), [tab.name, index]);
@@ -108,6 +113,7 @@ const TerminalTabItem = memo(function TerminalTabItem({
 			onDragEnd={onDragEnd}
 			onDrop={onDrop}
 			onClick={onSelect}
+			onContextMenu={onContextMenu}
 			onMouseDown={(e) => {
 				if (e.button === 1) {
 					e.preventDefault();
@@ -175,6 +181,129 @@ const TerminalTabItem = memo(function TerminalTabItem({
 	);
 });
 
+/**
+ * Context menu for terminal tabs.
+ * Follows the same pattern as SessionContextMenu in SessionList.tsx:
+ * fixed positioning, useClickOutside, Escape dismissal, viewport clamping.
+ */
+interface TerminalTabContextMenuProps {
+	x: number;
+	y: number;
+	tabId: string;
+	tabIndex: number;
+	totalTabs: number;
+	theme: Theme;
+	onRename: () => void;
+	onClose: () => void;
+	onCloseOthers: () => void;
+	onCloseToRight: () => void;
+	onDismiss: () => void;
+}
+
+function TerminalTabContextMenu({
+	x,
+	y,
+	tabIndex,
+	totalTabs,
+	theme,
+	onRename,
+	onClose,
+	onCloseOthers,
+	onCloseToRight,
+	onDismiss,
+}: TerminalTabContextMenuProps) {
+	const menuRef = useRef<HTMLDivElement>(null);
+
+	// Close on click outside
+	useClickOutside(menuRef, onDismiss);
+
+	// Close on Escape
+	const onDismissRef = useRef(onDismiss);
+	onDismissRef.current = onDismiss;
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				onDismissRef.current();
+			}
+		};
+		document.addEventListener('keydown', handleKeyDown);
+		return () => document.removeEventListener('keydown', handleKeyDown);
+	}, []);
+
+	// Adjust position to stay within viewport
+	const adjustedPosition = {
+		left: Math.min(x, window.innerWidth - 200),
+		top: Math.min(y, window.innerHeight - 160),
+	};
+
+	const canClose = totalTabs > 1;
+	const isLastTab = tabIndex === totalTabs - 1;
+
+	const menuItemClass = 'w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors flex items-center gap-2';
+	const disabledClass = 'w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 opacity-40 cursor-default';
+
+	return (
+		<div
+			ref={menuRef}
+			className="fixed z-50 py-1 rounded-md shadow-xl border"
+			style={{
+				left: adjustedPosition.left,
+				top: adjustedPosition.top,
+				backgroundColor: theme.colors.bgSidebar,
+				borderColor: theme.colors.border,
+				minWidth: '160px',
+			}}
+			data-testid="terminal-tab-context-menu"
+		>
+			{/* Rename */}
+			<button
+				onClick={() => { onRename(); onDismiss(); }}
+				className={menuItemClass}
+				style={{ color: theme.colors.textMain }}
+			>
+				<Edit3 className="w-3.5 h-3.5" />
+				Rename
+			</button>
+
+			{/* Divider */}
+			<div className="my-1 border-t" style={{ borderColor: theme.colors.border }} />
+
+			{/* Close */}
+			<button
+				onClick={() => { onClose(); onDismiss(); }}
+				className={canClose ? menuItemClass : disabledClass}
+				style={{ color: theme.colors.textMain }}
+				disabled={!canClose}
+			>
+				<X className="w-3.5 h-3.5" />
+				Close
+			</button>
+
+			{/* Close Others */}
+			<button
+				onClick={() => { onCloseOthers(); onDismiss(); }}
+				className={canClose ? menuItemClass : disabledClass}
+				style={{ color: theme.colors.textMain }}
+				disabled={!canClose}
+			>
+				<X className="w-3.5 h-3.5" />
+				Close Others
+			</button>
+
+			{/* Close to the Right */}
+			<button
+				onClick={() => { onCloseToRight(); onDismiss(); }}
+				className={!isLastTab ? menuItemClass : disabledClass}
+				style={{ color: theme.colors.textMain }}
+				disabled={isLastTab}
+			>
+				<ChevronsRight className="w-3.5 h-3.5" />
+				Close to the Right
+			</button>
+		</div>
+	);
+}
+
 export const TerminalTabBar = memo(function TerminalTabBar({
 	tabs,
 	activeTabId,
@@ -184,9 +313,17 @@ export const TerminalTabBar = memo(function TerminalTabBar({
 	onNewTab,
 	onRequestRename,
 	onTabReorder,
+	onCloseOtherTabs,
+	onCloseTabsToRight,
 }: TerminalTabBarProps) {
 	const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 	const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+	const [contextMenu, setContextMenu] = useState<{
+		x: number;
+		y: number;
+		tabId: string;
+		tabIndex: number;
+	} | null>(null);
 
 	const handleDragStart = useCallback(
 		(index: number) => (e: React.DragEvent) => {
@@ -225,6 +362,15 @@ export const TerminalTabBar = memo(function TerminalTabBar({
 	);
 
 	const canClose = tabs.length > 1;
+
+	const handleContextMenu = useCallback((e: React.MouseEvent, tabId: string, tabIndex: number) => {
+		e.preventDefault();
+		setContextMenu({ x: e.clientX, y: e.clientY, tabId, tabIndex });
+	}, []);
+
+	const dismissContextMenu = useCallback(() => {
+		setContextMenu(null);
+	}, []);
 
 	return (
 		<div
@@ -265,6 +411,7 @@ export const TerminalTabBar = memo(function TerminalTabBar({
 							isDragging={draggingIndex === index}
 							isDragOver={dragOverIndex === index}
 							onRename={() => onRequestRename?.(tab.id)}
+							onContextMenu={(e) => handleContextMenu(e, tab.id, index)}
 						/>
 					</React.Fragment>
 				);
@@ -281,6 +428,23 @@ export const TerminalTabBar = memo(function TerminalTabBar({
 					<Plus className="w-4 h-4" />
 				</button>
 			</div>
+
+			{/* Context menu */}
+			{contextMenu && (
+				<TerminalTabContextMenu
+					x={contextMenu.x}
+					y={contextMenu.y}
+					tabId={contextMenu.tabId}
+					tabIndex={contextMenu.tabIndex}
+					totalTabs={tabs.length}
+					theme={theme}
+					onRename={() => onRequestRename?.(contextMenu.tabId)}
+					onClose={() => onTabClose(contextMenu.tabId)}
+					onCloseOthers={() => onCloseOtherTabs?.(contextMenu.tabId)}
+					onCloseToRight={() => onCloseTabsToRight?.(contextMenu.tabId)}
+					onDismiss={dismissContextMenu}
+				/>
+			)}
 		</div>
 	);
 });

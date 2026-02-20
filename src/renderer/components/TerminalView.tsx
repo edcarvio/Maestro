@@ -212,6 +212,36 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 		onTabClose(tabId);
 	}, [session.id, tabs, onTabClose]);
 
+	// Close all tabs except the specified one - kill PTYs and delegate removal to parent
+	const handleCloseOtherTabs = useCallback(async (keepTabId: string) => {
+		const tabsToClose = tabs.filter(t => t.id !== keepTabId);
+		for (const tab of tabsToClose) {
+			if (tab.pid > 0) {
+				const terminalSessionId = getTerminalSessionId(session.id, tab.id);
+				await window.maestro.process.kill(terminalSessionId);
+			}
+			spawnedTabsRef.current.delete(tab.id);
+			terminalRefs.current.delete(tab.id);
+			onTabClose(tab.id);
+		}
+	}, [session.id, tabs, onTabClose]);
+
+	// Close all tabs to the right of the specified one
+	const handleCloseTabsToRight = useCallback(async (tabId: string) => {
+		const tabIndex = tabs.findIndex(t => t.id === tabId);
+		if (tabIndex === -1) return;
+		const tabsToClose = tabs.slice(tabIndex + 1);
+		for (const tab of tabsToClose) {
+			if (tab.pid > 0) {
+				const terminalSessionId = getTerminalSessionId(session.id, tab.id);
+				await window.maestro.process.kill(terminalSessionId);
+			}
+			spawnedTabsRef.current.delete(tab.id);
+			terminalRefs.current.delete(tab.id);
+			onTabClose(tab.id);
+		}
+	}, [session.id, tabs, onTabClose]);
+
 	// Retry spawning PTY for a tab that failed to start.
 	// Resetting state to 'idle' triggers the useEffect that auto-spawns for the active tab.
 	const handleRetrySpawn = useCallback((tabId: string) => {
@@ -267,6 +297,8 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 				onNewTab={onNewTab}
 				onRequestRename={onRequestRename}
 				onTabReorder={onTabReorder}
+				onCloseOtherTabs={handleCloseOtherTabs}
+				onCloseTabsToRight={handleCloseTabsToRight}
 			/>
 
 			{/* Terminal Content Area */}

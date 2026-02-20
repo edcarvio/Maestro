@@ -62,6 +62,12 @@ vi.mock('lucide-react', () => ({
 	AlertCircle: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
 		<span data-testid="alert-circle-icon" className={className} style={style}>!</span>
 	),
+	Edit3: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+		<span data-testid="edit3-icon" className={className} style={style}>✎</span>
+	),
+	ChevronsRight: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
+		<span data-testid="chevrons-right-icon" className={className} style={style}>»</span>
+	),
 }));
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────

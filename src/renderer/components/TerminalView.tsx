@@ -12,7 +12,7 @@
  * buffer content and avoid expensive xterm.js re-initialization.
  */
 
-import React, { useRef, useCallback, useEffect, memo, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, useState, useCallback, useEffect, memo, forwardRef, useImperativeHandle } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { XTerminal, XTerminalHandle } from './XTerminal';
 import { TerminalTabBar } from './TerminalTabBar';
@@ -85,6 +85,8 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 	const terminalRefs = useRef<Map<string, XTerminalHandle>>(new Map());
 	// Track which tabs have had PTYs spawned (prevents double-spawn)
 	const spawnedTabsRef = useRef<Set<string>>(new Set());
+	// Track which terminal tab currently has focus (for visual indicator)
+	const [focusedTabId, setFocusedTabId] = useState<string | null>(null);
 
 	// Get active terminal tab
 	const activeTab = getActiveTerminalTab(session);
@@ -282,10 +284,18 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 				{/* All terminal instances stacked absolutely; only active is visible */}
 				{tabs.map(tab => {
 					const isSpawnFailed = tab.state === 'exited' && tab.exitCode !== 0 && tab.pid === 0;
+					const isActive = tab.id === session.activeTerminalTabId;
+					const isFocused = focusedTabId === tab.id;
 					return (
 						<div
 							key={tab.id}
-							className={`absolute inset-0 ${tab.id === session.activeTerminalTabId ? '' : 'invisible'}`}
+							className={`absolute inset-0 ${isActive ? '' : 'invisible'}`}
+							style={{
+								boxShadow: isActive && isFocused
+									? `inset 0 0 0 1px ${theme.colors.accent}`
+									: undefined,
+							}}
+							data-testid={`terminal-container-${tab.id}`}
 						>
 							{isSpawnFailed ? (
 								<div
@@ -318,6 +328,8 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 									fontFamily={fontFamily}
 									fontSize={fontSize}
 									onCloseRequest={() => handleTabClose(tab.id)}
+									onFocus={() => setFocusedTabId(tab.id)}
+									onBlur={() => setFocusedTabId((prev) => prev === tab.id ? null : prev)}
 								/>
 							)}
 						</div>

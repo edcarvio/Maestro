@@ -49,6 +49,10 @@ interface XTerminalProps {
 	onTitleChange?: (title: string) => void;
 	/** Called when the user presses any key after the shell has exited */
 	onCloseRequest?: () => void;
+	/** Called when the terminal gains focus */
+	onFocus?: () => void;
+	/** Called when the terminal loses focus */
+	onBlur?: () => void;
 }
 
 export interface XTerminalHandle {
@@ -147,7 +151,7 @@ export function mapMaestroThemeToXterm(theme: Theme) {
 }
 
 export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XTerminal(
-	{ sessionId, theme, fontFamily, fontSize = 14, scrollbackLines, cursorStyle = 'block', cursorBlink = true, onData, onResize, onTitleChange, onCloseRequest },
+	{ sessionId, theme, fontFamily, fontSize = 14, scrollbackLines, cursorStyle = 'block', cursorBlink = true, onData, onResize, onTitleChange, onCloseRequest, onFocus, onBlur },
 	ref
 ) {
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -384,6 +388,21 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 		});
 		return () => disposable.dispose();
 	}, [onTitleChange]);
+
+	// Handle terminal focus/blur events for visual focus indicator
+	useEffect(() => {
+		if (!terminalRef.current) return;
+		const disposables: Array<{ dispose: () => void }> = [];
+		if (onFocus) {
+			disposables.push(terminalRef.current.onFocus(onFocus));
+		}
+		if (onBlur) {
+			disposables.push(terminalRef.current.onBlur(onBlur));
+		}
+		return () => {
+			for (const d of disposables) d.dispose();
+		};
+	}, [onFocus, onBlur]);
 
 	// Handle PTY exit — show exit message and enable close-on-keypress
 	useEffect(() => {

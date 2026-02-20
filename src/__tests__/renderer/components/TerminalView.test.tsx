@@ -15,10 +15,13 @@ const mockXTerminalClearSearch = vi.fn();
 
 // Capture onCloseRequest callbacks keyed by sessionId for testing wiring
 const capturedCloseRequests = new Map<string, () => void>();
+// Capture onFocus/onBlur callbacks keyed by sessionId for focus indicator tests
+const capturedFocusCallbacks = new Map<string, () => void>();
+const capturedBlurCallbacks = new Map<string, () => void>();
 
 vi.mock('../../../renderer/components/XTerminal', () => ({
 	XTerminal: React.forwardRef(function MockXTerminal(
-		props: { sessionId: string; onCloseRequest?: () => void },
+		props: { sessionId: string; onCloseRequest?: () => void; onFocus?: () => void; onBlur?: () => void },
 		ref: React.Ref<unknown>
 	) {
 		React.useImperativeHandle(ref, () => ({
@@ -36,6 +39,13 @@ vi.mock('../../../renderer/components/XTerminal', () => ({
 		// Store the onCloseRequest callback for testing
 		if (props.onCloseRequest) {
 			capturedCloseRequests.set(props.sessionId, props.onCloseRequest);
+		}
+		// Store focus/blur callbacks for testing
+		if (props.onFocus) {
+			capturedFocusCallbacks.set(props.sessionId, props.onFocus);
+		}
+		if (props.onBlur) {
+			capturedBlurCallbacks.set(props.sessionId, props.onBlur);
 		}
 		return <div data-testid={`xterminal-${props.sessionId}`}>XTerminal: {props.sessionId}</div>;
 	}),
@@ -145,6 +155,8 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	exitCallbacks = [];
 	capturedCloseRequests.clear();
+	capturedFocusCallbacks.clear();
+	capturedBlurCallbacks.clear();
 
 	mockSpawnTerminalTab = vi.fn().mockResolvedValue({ pid: 1234, success: true });
 	mockProcessKill = vi.fn().mockResolvedValue(undefined);
@@ -937,6 +949,210 @@ describe('TerminalView', () => {
 				// First tab's PTY should NOT be killed
 				expect(mockProcessKill).not.toHaveBeenCalledWith(sessionId1);
 			});
+		});
+	});
+
+	describe('Focus indicator', () => {
+		it('passes onFocus and onBlur callbacks to each XTerminal', async () => {
+			const session = makeSession([{ pid: 1234 }, { pid: 5678 }]);
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			const tab1Id = session.terminalTabs![0].id;
+			const tab2Id = session.terminalTabs![1].id;
+			const sessionId1 = `test-session-terminal-${tab1Id}`;
+			const sessionId2 = `test-session-terminal-${tab2Id}`;
+
+			await waitFor(() => {
+				expect(capturedFocusCallbacks.has(sessionId1)).toBe(true);
+				expect(capturedBlurCallbacks.has(sessionId1)).toBe(true);
+				expect(capturedFocusCallbacks.has(sessionId2)).toBe(true);
+				expect(capturedBlurCallbacks.has(sessionId2)).toBe(true);
+			});
+		});
+
+		it('shows focus ring when active terminal gains focus', async () => {
+			const session = makeSession([{ pid: 1234 }]);
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			const tabId = session.terminalTabs![0].id;
+			const sessionId = `test-session-terminal-${tabId}`;
+
+			await waitFor(() => {
+				expect(capturedFocusCallbacks.has(sessionId)).toBe(true);
+			});
+
+			// Before focus: no box-shadow
+			const container = screen.getByTestId(`terminal-container-${tabId}`);
+			expect(container.style.boxShadow).toBe('');
+
+			// Focus the terminal
+			act(() => {
+				capturedFocusCallbacks.get(sessionId)!();
+			});
+
+			// After focus: box-shadow with accent color
+			expect(container.style.boxShadow).toBe(`inset 0 0 0 1px ${theme.colors.accent}`);
+		});
+
+		it('removes focus ring when terminal loses focus', async () => {
+			const session = makeSession([{ pid: 1234 }]);
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			const tabId = session.terminalTabs![0].id;
+			const sessionId = `test-session-terminal-${tabId}`;
+
+			await waitFor(() => {
+				expect(capturedFocusCallbacks.has(sessionId)).toBe(true);
+			});
+
+			// Focus then blur
+			act(() => {
+				capturedFocusCallbacks.get(sessionId)!();
+			});
+			const container = screen.getByTestId(`terminal-container-${tabId}`);
+			expect(container.style.boxShadow).toContain('inset');
+
+			act(() => {
+				capturedBlurCallbacks.get(sessionId)!();
+			});
+
+			expect(container.style.boxShadow).toBe('');
+		});
+
+		it('does not show focus ring on inactive tab even when focused', async () => {
+			const session = makeSession([{ pid: 1234 }, { pid: 5678 }]);
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			// Tab 2 is inactive (tab 1 is active by default)
+			const tab2Id = session.terminalTabs![1].id;
+			const sessionId2 = `test-session-terminal-${tab2Id}`;
+
+			await waitFor(() => {
+				expect(capturedFocusCallbacks.has(sessionId2)).toBe(true);
+			});
+
+			// Focus the inactive terminal
+			act(() => {
+				capturedFocusCallbacks.get(sessionId2)!();
+			});
+
+			// Inactive tab container should have invisible class (hidden) so no visual effect
+			const container = screen.getByTestId(`terminal-container-${tab2Id}`);
+			expect(container.className).toContain('invisible');
+		});
+
+		it('uses theme accent color for the focus ring', async () => {
+			const customTheme: Theme = {
+				...theme,
+				colors: { ...theme.colors, accent: '#ff5733' },
+			};
+			const session = makeSession([{ pid: 1234 }]);
+			const props = defaultProps({ session, theme: customTheme });
+
+			render(<TerminalView {...props} />);
+
+			const tabId = session.terminalTabs![0].id;
+			const sessionId = `test-session-terminal-${tabId}`;
+
+			await waitFor(() => {
+				expect(capturedFocusCallbacks.has(sessionId)).toBe(true);
+			});
+
+			act(() => {
+				capturedFocusCallbacks.get(sessionId)!();
+			});
+
+			const container = screen.getByTestId(`terminal-container-${tabId}`);
+			expect(container.style.boxShadow).toBe('inset 0 0 0 1px #ff5733');
+		});
+
+		it('blur of one tab does not affect focus state of another tab', async () => {
+			const session = makeSession([{ pid: 1234 }, { pid: 5678 }]);
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			const tab1Id = session.terminalTabs![0].id;
+			const tab2Id = session.terminalTabs![1].id;
+			const sessionId1 = `test-session-terminal-${tab1Id}`;
+			const sessionId2 = `test-session-terminal-${tab2Id}`;
+
+			await waitFor(() => {
+				expect(capturedFocusCallbacks.has(sessionId1)).toBe(true);
+				expect(capturedBlurCallbacks.has(sessionId2)).toBe(true);
+			});
+
+			// Focus tab 1
+			act(() => {
+				capturedFocusCallbacks.get(sessionId1)!();
+			});
+
+			const container1 = screen.getByTestId(`terminal-container-${tab1Id}`);
+			expect(container1.style.boxShadow).toContain('inset');
+
+			// Blur from tab 2 (which was never focused) should not affect tab 1
+			act(() => {
+				capturedBlurCallbacks.get(sessionId2)!();
+			});
+
+			expect(container1.style.boxShadow).toContain('inset');
+		});
+
+		it('handles rapid focus/blur cycles correctly', async () => {
+			const session = makeSession([{ pid: 1234 }]);
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			const tabId = session.terminalTabs![0].id;
+			const sessionId = `test-session-terminal-${tabId}`;
+
+			await waitFor(() => {
+				expect(capturedFocusCallbacks.has(sessionId)).toBe(true);
+			});
+
+			// Rapid focus/blur/focus/blur/focus
+			act(() => {
+				capturedFocusCallbacks.get(sessionId)!();
+				capturedBlurCallbacks.get(sessionId)!();
+				capturedFocusCallbacks.get(sessionId)!();
+				capturedBlurCallbacks.get(sessionId)!();
+				capturedFocusCallbacks.get(sessionId)!();
+			});
+
+			const container = screen.getByTestId(`terminal-container-${tabId}`);
+			expect(container.style.boxShadow).toContain('inset');
+		});
+
+		it('no focus ring initially (before any focus event)', () => {
+			const session = makeSession([{ pid: 1234 }]);
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			const tabId = session.terminalTabs![0].id;
+			const container = screen.getByTestId(`terminal-container-${tabId}`);
+			expect(container.style.boxShadow).toBe('');
+		});
+
+		it('adds data-testid to terminal containers', () => {
+			const session = makeSession([{ pid: 1234 }, { pid: 5678 }]);
+			const props = defaultProps({ session });
+
+			render(<TerminalView {...props} />);
+
+			const tab1Id = session.terminalTabs![0].id;
+			const tab2Id = session.terminalTabs![1].id;
+			expect(screen.getByTestId(`terminal-container-${tab1Id}`)).toBeTruthy();
+			expect(screen.getByTestId(`terminal-container-${tab2Id}`)).toBeTruthy();
 		});
 	});
 });

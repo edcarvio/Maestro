@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useCallback, memo, useMemo } from 'react';
-import { X, Plus, Terminal as TerminalIcon } from 'lucide-react';
+import { X, Plus, Terminal as TerminalIcon, Loader2 } from 'lucide-react';
 import type { TerminalTab, Theme } from '../types';
 import { getTerminalTabDisplayName } from '../utils/terminalTabHelpers';
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
@@ -125,11 +125,19 @@ const TerminalTabItem = memo(function TerminalTabItem({
 			`}
 			style={tabStyle}
 		>
-			{/* Terminal icon with state indicator */}
-			<TerminalIcon
-				className="w-3.5 h-3.5 flex-shrink-0"
-				style={{ color: stateColor || (isActive ? theme.colors.textMain : theme.colors.textDim) }}
-			/>
+			{/* Terminal icon with state indicator / spinner while PTY spawns */}
+			{tab.pid === 0 && tab.state === 'idle' ? (
+				<Loader2
+					className="w-3.5 h-3.5 flex-shrink-0 animate-spin"
+					style={{ color: isActive ? theme.colors.accent : theme.colors.textDim }}
+					data-testid="loader-icon"
+				/>
+			) : (
+				<TerminalIcon
+					className="w-3.5 h-3.5 flex-shrink-0"
+					style={{ color: stateColor || (isActive ? theme.colors.textMain : theme.colors.textDim) }}
+				/>
+			)}
 
 			{/* Tab name */}
 			<span

@@ -13,7 +13,7 @@
  */
 
 import React, { useRef, useState, useCallback, useEffect, memo, forwardRef, useImperativeHandle } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { XTerminal, XTerminalHandle } from './XTerminal';
 import { TerminalTabBar } from './TerminalTabBar';
 import { TerminalSearchBar } from './TerminalSearchBar';
@@ -321,16 +321,39 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 									</div>
 								</div>
 							) : (
-								<XTerminal
-									ref={(ref) => setTerminalRef(tab.id, ref)}
-									sessionId={getTerminalSessionId(session.id, tab.id)}
-									theme={theme}
-									fontFamily={fontFamily}
-									fontSize={fontSize}
-									onCloseRequest={() => handleTabClose(tab.id)}
-									onFocus={() => setFocusedTabId(tab.id)}
-									onBlur={() => setFocusedTabId((prev) => prev === tab.id ? null : prev)}
-								/>
+								<>
+									<XTerminal
+										ref={(ref) => setTerminalRef(tab.id, ref)}
+										sessionId={getTerminalSessionId(session.id, tab.id)}
+										theme={theme}
+										fontFamily={fontFamily}
+										fontSize={fontSize}
+										onCloseRequest={() => handleTabClose(tab.id)}
+										onFocus={() => setFocusedTabId(tab.id)}
+										onBlur={() => setFocusedTabId((prev) => prev === tab.id ? null : prev)}
+									/>
+									{/* Loading overlay while PTY is spawning */}
+									{tab.pid === 0 && tab.state === 'idle' && (
+										<div
+											className="absolute inset-0 flex items-center justify-center pointer-events-none"
+											style={{ backgroundColor: theme.colors.bgMain }}
+											data-testid={`spawn-loading-${tab.id}`}
+										>
+											<div className="flex flex-col items-center gap-2">
+												<Loader2
+													className="w-6 h-6 animate-spin"
+													style={{ color: theme.colors.accent }}
+												/>
+												<span
+													className="text-xs"
+													style={{ color: theme.colors.textDim }}
+												>
+													Starting terminal...
+												</span>
+											</div>
+										</div>
+									)}
+								</>
 							)}
 						</div>
 					);

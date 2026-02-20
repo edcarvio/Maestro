@@ -88,6 +88,9 @@ vi.mock('lucide-react', () => ({
 	AlertCircle: ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
 		<span data-testid="alert-circle-icon" className={className} style={style}>!</span>
 	),
+	Loader2: ({ className, style, 'data-testid': testId }: { className?: string; style?: React.CSSProperties; 'data-testid'?: string }) => (
+		<span data-testid={testId || 'loader-icon'} className={className} style={style}>⟳</span>
+	),
 }));
 
 // ---------------------------------------------------------------------------

@@ -22,6 +22,11 @@ vi.mock('lucide-react', () => ({
 			&gt;_
 		</span>
 	),
+	Loader2: ({ className, style, 'data-testid': testId }: { className?: string; style?: React.CSSProperties; 'data-testid'?: string }) => (
+		<span data-testid={testId || 'loader-icon'} className={className} style={style}>
+			⟳
+		</span>
+	),
 }));
 
 // Minimal theme fixture
@@ -207,8 +212,10 @@ describe('TerminalTabBar', () => {
 		}
 	});
 
-	it('renders terminal icons for each tab', () => {
+	it('renders terminal icons for each spawned tab', () => {
 		const tabs = makeTabs(3);
+		// Give all tabs a pid > 0 so they show TerminalIcon instead of spinner
+		tabs.forEach(tab => { tab.pid = 1234; });
 		render(
 			<TerminalTabBar
 				tabs={tabs}
@@ -222,6 +229,25 @@ describe('TerminalTabBar', () => {
 
 		const terminalIcons = screen.getAllByTestId('terminal-icon');
 		expect(terminalIcons).toHaveLength(3);
+	});
+
+	it('renders spinner icons for spawning tabs (pid=0, state=idle)', () => {
+		const tabs = makeTabs(3);
+		// Default tabs have pid=0 and state='idle' → spinner
+		render(
+			<TerminalTabBar
+				tabs={tabs}
+				activeTabId={tabs[0].id}
+				theme={theme}
+				onTabSelect={vi.fn()}
+				onTabClose={vi.fn()}
+				onNewTab={vi.fn()}
+			/>
+		);
+
+		const loaderIcons = screen.getAllByTestId('loader-icon');
+		expect(loaderIcons).toHaveLength(3);
+		expect(screen.queryByTestId('terminal-icon')).toBeNull();
 	});
 
 	it('calls onTabReorder via drag and drop', () => {

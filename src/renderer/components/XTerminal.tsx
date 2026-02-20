@@ -30,6 +30,9 @@ export const DEFAULT_SCROLLBACK_LINES = 10000;
  */
 export const WRITE_BUFFER_FORCE_FLUSH_SIZE = 512 * 1024;
 
+/** Duration in milliseconds for smooth scrolling animation. 125ms feels snappy without jarring. */
+export const SMOOTH_SCROLL_DURATION_MS = 125;
+
 /** Cursor shape options supported by xterm.js */
 export type CursorStyle = 'block' | 'underline' | 'bar';
 
@@ -188,6 +191,7 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 			theme: mapMaestroThemeToXterm(theme),
 			allowProposedApi: true,
 			scrollback: scrollbackLines || DEFAULT_SCROLLBACK_LINES,
+			smoothScrollDuration: SMOOTH_SCROLL_DURATION_MS,
 		});
 
 		// Load addons

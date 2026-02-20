@@ -311,6 +311,38 @@ textarea::placeholder {
   animation: progress-stripe 1s linear infinite;
 }
 
+/* Terminal tab transition animations */
+@keyframes terminal-tab-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes terminal-tab-exit {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+.terminal-tab-enter {
+  animation: terminal-tab-enter 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.terminal-tab-exit {
+  animation: terminal-tab-exit 0.12s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+
 /* Shimmer effect for drag-and-drop */
 @keyframes shimmer {
   0% {

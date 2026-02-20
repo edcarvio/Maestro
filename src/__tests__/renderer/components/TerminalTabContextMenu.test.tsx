@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { TerminalTabBar } from '../../../renderer/components/TerminalTabBar';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { TerminalTabBar, TERMINAL_TAB_EXIT_MS } from '../../../renderer/components/TerminalTabBar';
 import { createTerminalTab } from '../../../renderer/utils/terminalTabHelpers';
 import type { Theme, TerminalTab } from '../../../renderer/types';
 
@@ -81,9 +81,14 @@ function rightClickTab(tabText: string) {
 
 describe('TerminalTabContextMenu', () => {
 	beforeEach(() => {
+		vi.useFakeTimers();
 		// Mock window dimensions for viewport clamping tests
 		Object.defineProperty(window, 'innerWidth', { value: 1024, writable: true });
 		Object.defineProperty(window, 'innerHeight', { value: 768, writable: true });
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
 	});
 
 	describe('rendering', () => {
@@ -416,7 +421,7 @@ describe('TerminalTabContextMenu', () => {
 			expect(onRequestRename).toHaveBeenCalledWith(tabs[1].id);
 		});
 
-		it('calls onTabClose when Close is clicked', () => {
+		it('calls onTabClose when Close is clicked (after exit animation)', () => {
 			const tabs = makeSpawnedTabs(2);
 			const onTabClose = vi.fn();
 			render(
@@ -433,10 +438,13 @@ describe('TerminalTabContextMenu', () => {
 			rightClickTab('Tab 2');
 
 			fireEvent.click(screen.getByText('Close'));
+			// Close is delayed by exit animation
+			expect(onTabClose).not.toHaveBeenCalled();
+			vi.advanceTimersByTime(TERMINAL_TAB_EXIT_MS);
 			expect(onTabClose).toHaveBeenCalledWith(tabs[1].id);
 		});
 
-		it('calls onCloseOtherTabs when Close Others is clicked', () => {
+		it('calls onCloseOtherTabs when Close Others is clicked (after exit animation)', () => {
 			const tabs = makeSpawnedTabs(3);
 			const onCloseOtherTabs = vi.fn();
 			render(
@@ -454,10 +462,12 @@ describe('TerminalTabContextMenu', () => {
 			rightClickTab('Tab 2');
 
 			fireEvent.click(screen.getByText('Close Others'));
+			expect(onCloseOtherTabs).not.toHaveBeenCalled();
+			vi.advanceTimersByTime(TERMINAL_TAB_EXIT_MS);
 			expect(onCloseOtherTabs).toHaveBeenCalledWith(tabs[1].id);
 		});
 
-		it('calls onCloseTabsToRight when Close to the Right is clicked', () => {
+		it('calls onCloseTabsToRight when Close to the Right is clicked (after exit animation)', () => {
 			const tabs = makeSpawnedTabs(3);
 			const onCloseTabsToRight = vi.fn();
 			render(
@@ -475,6 +485,8 @@ describe('TerminalTabContextMenu', () => {
 			rightClickTab('Terminal 1');
 
 			fireEvent.click(screen.getByText('Close to the Right'));
+			expect(onCloseTabsToRight).not.toHaveBeenCalled();
+			vi.advanceTimersByTime(TERMINAL_TAB_EXIT_MS);
 			expect(onCloseTabsToRight).toHaveBeenCalledWith(tabs[0].id);
 		});
 
@@ -674,8 +686,9 @@ describe('TerminalTabContextMenu', () => {
 			rightClickTab('Tab 2');
 			expect(screen.getByTestId('terminal-tab-context-menu')).toBeTruthy();
 
-			// Close should close tab 2, not tab 1
+			// Close should close tab 2, not tab 1 (after exit animation)
 			fireEvent.click(screen.getByText('Close'));
+			vi.advanceTimersByTime(TERMINAL_TAB_EXIT_MS);
 			expect(onTabClose).toHaveBeenCalledWith(tabs[1].id);
 		});
 
@@ -725,7 +738,8 @@ describe('TerminalTabContextMenu', () => {
 			rightClickTab('Tab 2');
 			fireEvent.click(screen.getByText('Close Others'));
 
-			// Should pass the right-clicked tab's ID, not the active tab
+			// Should pass the right-clicked tab's ID, not the active tab (after exit animation)
+			vi.advanceTimersByTime(TERMINAL_TAB_EXIT_MS);
 			expect(onCloseOtherTabs).toHaveBeenCalledWith(tabs[1].id);
 		});
 
@@ -748,6 +762,7 @@ describe('TerminalTabContextMenu', () => {
 			rightClickTab('Terminal 1');
 			fireEvent.click(screen.getByText('Close to the Right'));
 
+			vi.advanceTimersByTime(TERMINAL_TAB_EXIT_MS);
 			expect(onCloseTabsToRight).toHaveBeenCalledWith(tabs[0].id);
 		});
 

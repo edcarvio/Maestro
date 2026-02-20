@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
-import { TerminalTabBar } from '../../../renderer/components/TerminalTabBar';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { TerminalTabBar, TERMINAL_TAB_EXIT_MS } from '../../../renderer/components/TerminalTabBar';
 import { createTerminalTab } from '../../../renderer/utils/terminalTabHelpers';
 import type { Theme, TerminalTab } from '../../../renderer/types';
 
@@ -64,6 +64,14 @@ function makeTabs(count: number): TerminalTab[] {
 }
 
 describe('TerminalTabBar', () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
 	it('renders all terminal tabs', () => {
 		const tabs = makeTabs(3);
 		render(
@@ -194,7 +202,7 @@ describe('TerminalTabBar', () => {
 		expect(screen.queryByText('(0)')).toBeNull();
 	});
 
-	it('calls onTabClose when close button is clicked', () => {
+	it('calls onTabClose when close button is clicked (after exit animation)', () => {
 		const tabs = makeTabs(2);
 		const onTabClose = vi.fn();
 
@@ -214,6 +222,9 @@ describe('TerminalTabBar', () => {
 		const closeButton = container.querySelector('[title="Close terminal"]');
 		if (closeButton) {
 			fireEvent.click(closeButton);
+			// Close is delayed by exit animation
+			expect(onTabClose).not.toHaveBeenCalled();
+			vi.advanceTimersByTime(TERMINAL_TAB_EXIT_MS);
 			expect(onTabClose).toHaveBeenCalledWith(tabs[0].id);
 		}
 	});

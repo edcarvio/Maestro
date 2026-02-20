@@ -16,6 +16,11 @@ import { getTerminalTabDisplayName } from '../utils/terminalTabHelpers';
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
 import { useClickOutside } from '../hooks/ui/useClickOutside';
 
+/** Duration (ms) of the CSS enter animation for new terminal tabs. */
+export const TERMINAL_TAB_ENTER_MS = 150;
+/** Duration (ms) of the CSS exit animation for closing terminal tabs. */
+export const TERMINAL_TAB_EXIT_MS = 120;
+
 interface TerminalTabBarProps {
 	tabs: TerminalTab[];
 	activeTabId: string;
@@ -46,6 +51,8 @@ interface TerminalTabItemProps {
 	isDragOver: boolean;
 	onRename: () => void;
 	onContextMenu: (e: React.MouseEvent) => void;
+	isNew: boolean;
+	isClosing: boolean;
 }
 
 /**
@@ -79,6 +86,8 @@ const TerminalTabItem = memo(function TerminalTabItem({
 	isDragOver,
 	onRename,
 	onContextMenu,
+	isNew,
+	isClosing,
 }: TerminalTabItemProps) {
 	const [isHovered, setIsHovered] = useState(false);
 	const displayName = useMemo(() => getTerminalTabDisplayName(tab, index), [tab.name, index]);
@@ -130,6 +139,8 @@ const TerminalTabItem = memo(function TerminalTabItem({
 				transition-all duration-150 select-none shrink-0
 				${isDragging ? 'opacity-50' : ''}
 				${isDragOver ? 'ring-2 ring-inset' : ''}
+				${isNew ? 'terminal-tab-enter' : ''}
+				${isClosing ? 'terminal-tab-exit' : ''}
 			`}
 			style={tabStyle}
 		>
@@ -327,6 +338,94 @@ export const TerminalTabBar = memo(function TerminalTabBar({
 		tabIndex: number;
 	} | null>(null);
 
+	// --- Tab transition animation state ---
+	// Track tab IDs we've seen before to detect truly new tabs (skip initial render)
+	const knownTabIdsRef = useRef<Set<string>>(new Set(tabs.map(t => t.id)));
+	const [animatingNewIds, setAnimatingNewIds] = useState<Set<string>>(new Set());
+	const [closingTabIds, setClosingTabIds] = useState<Set<string>>(new Set());
+
+	// Detect new tabs added after initial render
+	useEffect(() => {
+		const currentIds = tabs.map(t => t.id);
+		const newIds: string[] = [];
+
+		for (const id of currentIds) {
+			if (!knownTabIdsRef.current.has(id)) {
+				newIds.push(id);
+				knownTabIdsRef.current.add(id);
+			}
+		}
+
+		// Clean up IDs no longer in the tabs array
+		for (const id of knownTabIdsRef.current) {
+			if (!currentIds.includes(id)) {
+				knownTabIdsRef.current.delete(id);
+			}
+		}
+
+		if (newIds.length > 0) {
+			setAnimatingNewIds(prev => {
+				const next = new Set(prev);
+				for (const id of newIds) next.add(id);
+				return next;
+			});
+
+			const timer = setTimeout(() => {
+				setAnimatingNewIds(prev => {
+					const next = new Set(prev);
+					for (const id of newIds) next.delete(id);
+					return next;
+				});
+			}, TERMINAL_TAB_ENTER_MS);
+
+			return () => clearTimeout(timer);
+		}
+	}, [tabs]);
+
+	// Animated close: play exit animation, then invoke real close callback
+	const handleAnimatedClose = useCallback((tabId: string) => {
+		if (closingTabIds.has(tabId)) return;
+		// Remove from enter animation set if still running
+		setAnimatingNewIds(prev => {
+			const next = new Set(prev);
+			next.delete(tabId);
+			return next;
+		});
+		setClosingTabIds(prev => new Set([...prev, tabId]));
+		setTimeout(() => {
+			setClosingTabIds(prev => {
+				const next = new Set(prev);
+				next.delete(tabId);
+				return next;
+			});
+			onTabClose(tabId);
+		}, TERMINAL_TAB_EXIT_MS);
+	}, [closingTabIds, onTabClose]);
+
+	// Animated Close Others: batch exit animation, then invoke callback
+	const handleAnimatedCloseOthers = useCallback((keepTabId: string) => {
+		const idsToClose = tabs.filter(t => t.id !== keepTabId && !closingTabIds.has(t.id)).map(t => t.id);
+		if (idsToClose.length === 0) return;
+		setClosingTabIds(prev => new Set([...prev, ...idsToClose]));
+		setTimeout(() => {
+			setClosingTabIds(new Set());
+			onCloseOtherTabs?.(keepTabId);
+		}, TERMINAL_TAB_EXIT_MS);
+	}, [tabs, closingTabIds, onCloseOtherTabs]);
+
+	// Animated Close to Right: batch exit animation, then invoke callback
+	const handleAnimatedCloseToRight = useCallback((tabId: string) => {
+		const tabIndex = tabs.findIndex(t => t.id === tabId);
+		if (tabIndex === -1) return;
+		const idsToClose = tabs.slice(tabIndex + 1).filter(t => !closingTabIds.has(t.id)).map(t => t.id);
+		if (idsToClose.length === 0) return;
+		setClosingTabIds(prev => new Set([...prev, ...idsToClose]));
+		setTimeout(() => {
+			setClosingTabIds(new Set());
+			onCloseTabsToRight?.(tabId);
+		}, TERMINAL_TAB_EXIT_MS);
+	}, [tabs, closingTabIds, onCloseTabsToRight]);
+
 	const handleDragStart = useCallback(
 		(index: number) => (e: React.DragEvent) => {
 			setDraggingIndex(index);
@@ -404,8 +503,8 @@ export const TerminalTabBar = memo(function TerminalTabBar({
 							theme={theme}
 							canClose={canClose}
 							onSelect={() => onTabSelect(tab.id)}
-							onClose={() => onTabClose(tab.id)}
-							onMiddleClick={() => canClose && onTabClose(tab.id)}
+							onClose={() => handleAnimatedClose(tab.id)}
+							onMiddleClick={() => canClose && handleAnimatedClose(tab.id)}
 							onDragStart={handleDragStart(index)}
 							onDragOver={handleDragOver(index)}
 							onDragEnd={handleDragEnd}
@@ -414,6 +513,8 @@ export const TerminalTabBar = memo(function TerminalTabBar({
 							isDragOver={dragOverIndex === index}
 							onRename={() => onRequestRename?.(tab.id)}
 							onContextMenu={(e) => handleContextMenu(e, tab.id, index)}
+							isNew={animatingNewIds.has(tab.id)}
+							isClosing={closingTabIds.has(tab.id)}
 						/>
 					</React.Fragment>
 				);
@@ -441,9 +542,9 @@ export const TerminalTabBar = memo(function TerminalTabBar({
 					totalTabs={tabs.length}
 					theme={theme}
 					onRename={() => onRequestRename?.(contextMenu.tabId)}
-					onClose={() => onTabClose(contextMenu.tabId)}
-					onCloseOthers={() => onCloseOtherTabs?.(contextMenu.tabId)}
-					onCloseToRight={() => onCloseTabsToRight?.(contextMenu.tabId)}
+					onClose={() => handleAnimatedClose(contextMenu.tabId)}
+					onCloseOthers={() => handleAnimatedCloseOthers(contextMenu.tabId)}
+					onCloseToRight={() => handleAnimatedCloseToRight(contextMenu.tabId)}
 					onDismiss={dismissContextMenu}
 				/>
 			)}

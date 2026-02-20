@@ -373,6 +373,41 @@ Maestro bundles two spec-driven workflow systems. To add a similar bundled comma
 
 Reference the existing Spec-Kit (`src/prompts/speckit/`, `src/main/speckit-manager.ts`) and OpenSpec (`src/prompts/openspec/`, `src/main/openspec-manager.ts`) implementations.
 
+### Terminal Architecture
+
+Terminal mode provides full terminal emulation using **xterm.js** on the renderer side and **node-pty** on the main process side. Each agent session has its own set of terminal tabs, each backed by a persistent PTY process.
+
+#### Key Files
+
+| File | Role |
+|------|------|
+| `src/renderer/components/XTerminal.tsx` | xterm.js wrapper — manages the Terminal instance, addons (fit, webgl, web-links, search, unicode11), IPC data bridge, resize handling, and theme sync |
+| `src/renderer/components/TerminalView.tsx` | Tab management and PTY lifecycle — spawns PTY per tab, wires up data/exit/resize IPC, renders the spawn-failure error overlay and loading indicator |
+| `src/renderer/components/TerminalTabBar.tsx` | Tab bar UI — drag-and-drop reordering, context menu, tab animations, loading spinner, and tooltip with cwd |
+| `src/renderer/components/TerminalSearchBar.tsx` | Search bar UI for find-in-scrollback |
+| `src/renderer/utils/terminalTabHelpers.ts` | Tab creation, display name, session ID encoding, migration (`ensureTerminalTabs`), persistence cleanup |
+| `src/main/ipc/handlers/process.ts` | `process:spawnTerminalTab` IPC handler — spawns a node-pty process via `ProcessManager.spawn()` with `toolType: 'terminal'` |
+| `src/main/process-manager.ts` | Low-level PTY spawning, data streaming, resize, and kill |
+
+#### Data Flow
+
+```
+User types → xterm.js onData → IPC process:write → node-pty (main) → shell
+Shell output → node-pty (main) → IPC terminal:data → xterm.js terminal.write (RAF-batched)
+```
+
+- **PTY spawn:** `TerminalView` calls `window.maestro.process.spawnTerminalTab()` for the active tab on mount, and on-demand when switching to an unspawned tab.
+- **Tab isolation:** Each tab gets a unique session ID (`{agentSessionId}-terminal-{tabId}`), so IPC data events are routed to the correct XTerminal instance.
+- **Lifecycle:** When a tab is closed, its PTY is killed. On unmount (mode switch or session change), all tracked PTYs are killed.
+- **Terminal tabs are LOCAL-only:** Even when an agent is configured for SSH remote execution, terminal tabs always spawn locally. The SSH wrapping in `process.ts` explicitly skips `toolType: 'terminal'`.
+
+#### Modifying Terminal Behavior
+
+- **Add a new xterm.js addon:** Load it in `XTerminal.tsx` alongside the existing addons in the `useEffect` mount block.
+- **Change PTY spawn config:** Modify the `process:spawnTerminalTab` handler in `src/main/ipc/handlers/process.ts`.
+- **Add a new tab action:** Add the callback to `TerminalViewProps`, wire it through `TerminalView`, and add the menu item to `TerminalTabContextMenu` in `TerminalTabBar.tsx`.
+- **Change tab persistence:** Modify `stripTerminalTabRuntimeState()` in `terminalTabHelpers.ts` — only `name`, `shellType`, and `cwd` survive persistence.
+
 ### Adding a New Theme
 
 Maestro has 16 themes across 3 modes: dark, light, and vibe.

@@ -56,6 +56,8 @@ export function getTerminalSessionId(sessionId: string, tabId: string): string {
  * Returns null if the format doesn't match.
  */
 export function parseTerminalSessionId(terminalSessionId: string): { sessionId: string; tabId: string } | null {
+	// Greedy first group captures everything before the last "-terminal-" delimiter,
+	// allowing session IDs that themselves contain hyphens.
 	const match = terminalSessionId.match(/^(.+)-terminal-(.+)$/);
 	if (!match) return null;
 	return { sessionId: match[1], tabId: match[2] };
@@ -80,6 +82,8 @@ export function getActiveTerminalTabCount(session: Session): number {
  */
 export function createClosedTerminalTab(tab: TerminalTab, index: number): ClosedTerminalTab {
 	return {
+		// Reset runtime state (pid, state) so re-opening spawns a fresh PTY
+		// at the original cwd, preserving the user's custom name if set.
 		tab: { ...tab, pid: 0, state: 'idle' },
 		index,
 		closedAt: Date.now(),

@@ -25,15 +25,18 @@ import {
 } from '../utils/terminalTabHelpers';
 import { useUIStore } from '../stores/uiStore';
 
+/** Props for the TerminalView component. */
 interface TerminalViewProps {
+	/** The session whose terminal tabs are rendered. */
 	session: Session;
 	theme: Theme;
 	fontFamily: string;
 	fontSize?: number;
+	/** Shell binary to use when spawning new PTYs (e.g. 'zsh', 'bash'). */
 	defaultShell: string;
 	shellArgs?: string;
 	shellEnvVars?: Record<string, string>;
-	// Callbacks to update session state (sessionId is added by the parent)
+	// Callbacks to update session state (lifted to parent for persistence)
 	onTabSelect: (tabId: string) => void;
 	onTabClose: (tabId: string) => void;
 	onNewTab: () => void;
@@ -42,10 +45,11 @@ interface TerminalViewProps {
 	onTabStateChange: (tabId: string, state: TerminalTab['state'], exitCode?: number) => void;
 	onTabCwdChange: (tabId: string, cwd: string) => void;
 	onTabPidChange: (tabId: string, pid: number) => void;
-	// Rename modal trigger
+	/** Open a rename modal/dialog for the given tab. */
 	onRequestRename?: (tabId: string) => void;
-	// Search bar integration
+	/** Whether the Cmd+F search bar is open. */
 	searchOpen?: boolean;
+	/** Called when the search bar should close. */
 	onSearchClose?: () => void;
 }
 
@@ -116,7 +120,11 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 		},
 	}), [session.activeTerminalTabId]);
 
-	// Spawn PTY for a tab if not already running
+	/**
+	 * Spawn a PTY process for the given tab.
+	 * Guards against double-spawn via `spawnedTabsRef`. On failure, marks the
+	 * tab as exited so the error overlay is shown.
+	 */
 	const spawnPtyForTab = useCallback(async (tab: TerminalTab) => {
 		if (tab.pid > 0 || spawnedTabsRef.current.has(tab.id)) return;
 
@@ -212,7 +220,7 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 		onTabClose(tabId);
 	}, [session.id, tabs, onTabClose]);
 
-	// Close all tabs except the specified one - kill PTYs and delegate removal to parent
+	/** Close all tabs except `keepTabId` — kills their PTYs and delegates removal to parent. */
 	const handleCloseOtherTabs = useCallback(async (keepTabId: string) => {
 		const tabsToClose = tabs.filter(t => t.id !== keepTabId);
 		for (const tab of tabsToClose) {
@@ -226,7 +234,7 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 		}
 	}, [session.id, tabs, onTabClose]);
 
-	// Close all tabs to the right of the specified one
+	/** Close all tabs to the right of `tabId` — kills their PTYs and delegates removal to parent. */
 	const handleCloseTabsToRight = useCallback(async (tabId: string) => {
 		const tabIndex = tabs.findIndex(t => t.id === tabId);
 		if (tabIndex === -1) return;
@@ -313,7 +321,11 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 					onSearchPrevious={handleSearchPrevious}
 				/>
 
-				{/* All terminal instances stacked absolutely; only active is visible */}
+				{/*
+			  All XTerminal instances remain mounted (stacked absolutely) so switching
+			  tabs doesn't destroy the xterm.js buffer. Only the active tab is visible;
+			  inactive tabs use CSS `invisible` (keeps layout, hides rendering).
+			*/}
 				{tabs.map(tab => {
 					const isSpawnFailed = tab.state === 'exited' && tab.exitCode !== 0 && tab.pid === 0;
 					const isActive = tab.id === session.activeTerminalTabId;
@@ -323,6 +335,8 @@ export const TerminalView = memo(forwardRef<TerminalViewHandle, TerminalViewProp
 							key={tab.id}
 							className={`absolute inset-0 ${isActive ? '' : 'invisible'}`}
 							style={{
+								// Use inset box-shadow instead of border to avoid layout shifts
+								// when gaining/losing focus.
 								boxShadow: isActive && isFocused
 									? `inset 0 0 0 1px ${theme.colors.accent}`
 									: undefined,

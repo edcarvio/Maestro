@@ -36,35 +36,60 @@ export const SMOOTH_SCROLL_DURATION_MS = 125;
 /** Cursor shape options supported by xterm.js */
 export type CursorStyle = 'block' | 'underline' | 'bar';
 
+/** Props for the XTerminal component. */
 interface XTerminalProps {
+	/** Unique identifier for this terminal's PTY session (used to route IPC data/exit events). */
 	sessionId: string;
+	/** Current Maestro theme — mapped to xterm.js colors and ANSI palette. */
 	theme: Theme;
+	/** CSS font-family string for the terminal. Falls back to system monospace. */
 	fontFamily: string;
+	/** Font size in px. @default 14 */
 	fontSize?: number;
+	/** Maximum lines kept in scrollback buffer. @default DEFAULT_SCROLLBACK_LINES */
 	scrollbackLines?: number;
+	/** Cursor shape. @default 'block' */
 	cursorStyle?: CursorStyle;
+	/** Whether cursor blinks. Paused automatically on window blur. @default true */
 	cursorBlink?: boolean;
+	/** Called with raw user input data (keystrokes, paste). */
 	onData?: (data: string) => void;
+	/** Called after terminal resize with new dimensions. */
 	onResize?: (cols: number, rows: number) => void;
+	/** Called when the shell updates its title (e.g. via OSC escape sequences). */
 	onTitleChange?: (title: string) => void;
-	/** Called when the user presses any key after the shell has exited */
+	/** Called when the user presses any key after the shell has exited. */
 	onCloseRequest?: () => void;
-	/** Called when the terminal gains focus */
+	/** Called when the terminal gains focus. */
 	onFocus?: () => void;
-	/** Called when the terminal loses focus */
+	/** Called when the terminal loses focus. */
 	onBlur?: () => void;
 }
 
+/**
+ * Imperative handle exposed via `ref` for parent components to control
+ * the terminal without coupling to xterm.js internals.
+ */
 export interface XTerminalHandle {
+	/** Write data directly to the terminal (bypasses PTY). */
 	write: (data: string) => void;
+	/** Focus the terminal so it receives keyboard input. */
 	focus: () => void;
+	/** Clear the terminal viewport (preserves scrollback). */
 	clear: () => void;
+	/** Scroll to the bottom of the terminal buffer. */
 	scrollToBottom: () => void;
+	/** Start a search for `query`. Returns true if a match is found. */
 	search: (query: string) => boolean;
+	/** Advance to the next search match. Returns true if found. */
 	searchNext: () => boolean;
+	/** Go back to the previous search match. Returns true if found. */
 	searchPrevious: () => boolean;
+	/** Clear all search highlights and reset the stored query. */
 	clearSearch: () => void;
+	/** Return the currently selected text in the terminal. */
 	getSelection: () => string;
+	/** Re-fit the terminal to its container (triggers fitAddon.fit()). */
 	resize: () => void;
 }
 
@@ -150,6 +175,17 @@ export function mapMaestroThemeToXterm(theme: Theme) {
 	};
 }
 
+/**
+ * xterm.js terminal wrapper component.
+ *
+ * Renders a single terminal instance bound to a PTY via IPC.
+ * PTY data is received through `window.maestro.process.onData` and batched
+ * via requestAnimationFrame to cap write frequency at ~60/sec. User input
+ * is forwarded to the PTY through `window.maestro.process.write`.
+ *
+ * After the shell exits, intercepts further keystrokes and fires
+ * `onCloseRequest` instead of writing to the dead PTY.
+ */
 export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XTerminal(
 	{ sessionId, theme, fontFamily, fontSize = 14, scrollbackLines, cursorStyle = 'block', cursorBlink = true, onData, onResize, onTitleChange, onCloseRequest, onFocus, onBlur },
 	ref

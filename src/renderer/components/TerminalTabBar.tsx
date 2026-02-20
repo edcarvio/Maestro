@@ -21,16 +21,22 @@ export const TERMINAL_TAB_ENTER_MS = 150;
 /** Duration (ms) of the CSS exit animation for closing terminal tabs. */
 export const TERMINAL_TAB_EXIT_MS = 120;
 
+/** Props for the TerminalTabBar component. */
 interface TerminalTabBarProps {
 	tabs: TerminalTab[];
 	activeTabId: string;
 	theme: Theme;
 	onTabSelect: (tabId: string) => void;
+	/** Called after close animation completes. */
 	onTabClose: (tabId: string) => void;
 	onNewTab: () => void;
+	/** Open a rename modal/dialog for the given tab. */
 	onRequestRename?: (tabId: string) => void;
+	/** Called when a tab is dragged to a new position. */
 	onTabReorder?: (fromIndex: number, toIndex: number) => void;
+	/** Close all tabs except the specified one. */
 	onCloseOtherTabs?: (tabId: string) => void;
+	/** Close all tabs to the right of the specified one. */
 	onCloseTabsToRight?: (tabId: string) => void;
 }
 
@@ -69,6 +75,8 @@ function getStateColor(tab: TerminalTab, theme: Theme): string | undefined {
 	return undefined; // inherit from parent
 }
 
+/** A single terminal tab in the tab bar. Supports drag-and-drop reordering,
+ *  middle-click close, double-click rename, and right-click context menu. */
 const TerminalTabItem = memo(function TerminalTabItem({
 	tab,
 	index,
@@ -339,9 +347,15 @@ export const TerminalTabBar = memo(function TerminalTabBar({
 	} | null>(null);
 
 	// --- Tab transition animation state ---
-	// Track tab IDs we've seen before to detect truly new tabs (skip initial render)
+	// `knownTabIdsRef` tracks all tab IDs we've seen so far. On each render,
+	// IDs present in `tabs` but absent from this set are treated as newly added
+	// (and get the CSS enter animation). Seeded from initial tabs to avoid
+	// animating the first render.
 	const knownTabIdsRef = useRef<Set<string>>(new Set(tabs.map(t => t.id)));
+	// Tab IDs currently playing the enter animation (cleared after TERMINAL_TAB_ENTER_MS).
 	const [animatingNewIds, setAnimatingNewIds] = useState<Set<string>>(new Set());
+	// Tab IDs currently playing the exit animation. The real close callback fires
+	// only after TERMINAL_TAB_EXIT_MS so the fade-out is visible.
 	const [closingTabIds, setClosingTabIds] = useState<Set<string>>(new Set());
 
 	// Detect new tabs added after initial render
@@ -382,7 +396,12 @@ export const TerminalTabBar = memo(function TerminalTabBar({
 		}
 	}, [tabs]);
 
-	// Animated close: play exit animation, then invoke real close callback
+	/**
+	 * Start the exit animation for a single tab, then invoke `onTabClose`
+	 * after `TERMINAL_TAB_EXIT_MS`. Guards against double-close by checking
+	 * `closingTabIds`. If the tab is still in its enter animation, swaps
+	 * the enter class for exit immediately.
+	 */
 	const handleAnimatedClose = useCallback((tabId: string) => {
 		if (closingTabIds.has(tabId)) return;
 		// Remove from enter animation set if still running
@@ -402,7 +421,7 @@ export const TerminalTabBar = memo(function TerminalTabBar({
 		}, TERMINAL_TAB_EXIT_MS);
 	}, [closingTabIds, onTabClose]);
 
-	// Animated Close Others: batch exit animation, then invoke callback
+	/** Animate-close all tabs except `keepTabId`, then invoke `onCloseOtherTabs`. */
 	const handleAnimatedCloseOthers = useCallback((keepTabId: string) => {
 		const idsToClose = tabs.filter(t => t.id !== keepTabId && !closingTabIds.has(t.id)).map(t => t.id);
 		if (idsToClose.length === 0) return;
@@ -413,7 +432,7 @@ export const TerminalTabBar = memo(function TerminalTabBar({
 		}, TERMINAL_TAB_EXIT_MS);
 	}, [tabs, closingTabIds, onCloseOtherTabs]);
 
-	// Animated Close to Right: batch exit animation, then invoke callback
+	/** Animate-close all tabs to the right of `tabId`, then invoke `onCloseTabsToRight`. */
 	const handleAnimatedCloseToRight = useCallback((tabId: string) => {
 		const tabIndex = tabs.findIndex(t => t.id === tabId);
 		if (tabIndex === -1) return;
